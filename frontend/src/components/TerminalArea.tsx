@@ -3,6 +3,7 @@ import {
   Bot,
   ChevronsRight,
   ExternalLink,
+  FileCode2,
   FolderTree,
   Layers,
   PackagePlus,
@@ -13,6 +14,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
+import { EditorPane } from './EditorPane'
 import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
 import { Empty } from './ui'
@@ -23,6 +25,7 @@ const kindIcon = {
   agent: Bot,
   command: PackagePlus,
   files: FolderTree,
+  editor: FileCode2,
 }
 
 /** How far the pointer must leave the strip before a drag becomes a tear-off
@@ -291,6 +294,8 @@ export function TerminalArea() {
             >
               {tab.kind === 'files' ? (
                 <FileBrowser tab={tab} />
+              ) : tab.kind === 'editor' ? (
+                <EditorPane tab={tab} active={tab.id === activeTabId} />
               ) : (
                 <TerminalPane tab={tab} active={tab.id === activeTabId} />
               )}

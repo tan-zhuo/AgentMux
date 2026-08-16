@@ -1,0 +1,76 @@
+name: CI
+
+# Every push and pull request gets compiled and vetted. The point is that the
+# release workflow never discovers a broken build at the moment you press
+# Publish — by then it is too late to be a surprise.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.25.4'
+  NODE_VERSION: '22'
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - working-directory: frontend
+        run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Type check and build
+        working-directory: frontend
+        run: npm run build
+      # The Go build embeds frontend/dist, so hand it to the compile job rather
+      # than making every platform build the frontend again.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  go:
+    name: Go (${{ matrix.os }})
+    needs: frontend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+      # The integration tests need a real sshd with tmux, so they skip
+      # themselves unless AGENTMUX_TEST_HOST is set. Everything else runs.
+      - name: Test
+        run: go test ./...

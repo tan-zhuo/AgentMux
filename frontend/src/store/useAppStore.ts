@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
+import { confirmAction } from './useConfirm'
 import type {
   Agent,
   BroadcastTarget,
@@ -10,7 +11,7 @@ import type {
   TerminalTab,
 } from '../lib/types'
 
-export type TabKind = 'shell' | 'tmux' | 'agent' | 'command' | 'files'
+export type TabKind = 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor'
 export type TabStatus = 'pending' | 'opening' | 'open' | 'closed' | 'error'
 
 /** A terminal tab in the UI. shellId is the live backend PTY, absent when the
@@ -24,8 +25,11 @@ export interface Tab {
   agentId: string
   tmuxSession: string
   /** For kind 'command' the remote command this PTY runs; for kind 'files' the
-   *  directory the browser is showing. */
+   *  directory the browser is showing; for kind 'editor' the file being edited. */
   command?: string
+  /** An editor tab with edits that are not on the server yet. Closing one asks
+   *  first, because the alternative is losing work to a stray click on an X. */
+  dirty?: boolean
   /** Take over this already-open PTY instead of starting a new one. Set when a
    *  tab is torn out of another window. */
   adoptShellId?: string
@@ -332,6 +336,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         t.workspaceId === spec.workspaceId &&
         t.agentId === spec.agentId &&
         t.tmuxSession === spec.tmuxSession &&
+        // Two open files on the same server are two tabs, not one.
+        (spec.kind !== 'editor' || t.command === spec.command) &&
         t.status !== 'closed',
     )
     if (existing && spec.kind !== 'shell') {
@@ -402,6 +408,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async closeTab(id) {
     const tab = get().tabs.find((t) => t.id === id)
+    if (tab?.dirty) {
+      set({ activeTabId: id })
+      const ok = await confirmAction({
+        title: `Close ${tab.title.replace(/ •$/, '')} without saving`,
+        message: 'The changes you made here have not been written to the server.',
+        tone: 'warning',
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
+      })
+      if (!ok) return
+    }
     if (tab?.shellId) {
       try {
         await terminal.close(tab.shellId)
@@ -449,10 +466,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const saved = await terminal.loadTabs()
       // tmux and agent tabs reattach to work that is still running remotely; a
-      // file browser reopens at the directory you left it in. A plain shell has
-      // no state to come back to, so it is not restored.
+      // file browser reopens at the directory you left it in, and an editor at
+      // the file. A plain shell has no state to come back to, so it is not
+      // restored.
       const restorable = saved.filter(
-        (t) => t.kind === 'tmux' || t.kind === 'agent' || t.kind === 'files',
+        (t) =>
+          t.kind === 'tmux' || t.kind === 'agent' || t.kind === 'files' || t.kind === 'editor',
       )
       if (!restorable.length) return
       set({

@@ -211,11 +211,29 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
     setCpuHistory([])
     setMemHistory([])
     setRows([])
-    void poll()
-    const t = window.setInterval(() => void poll(), POLL_MS)
+
+    // Each sample is a real command on a real server. Polling every three
+    // seconds while the window is minimised would keep every watched host busy
+    // for nobody's benefit, so the timer stops when the window is hidden and
+    // takes a fresh sample the moment it comes back.
+    let timer = 0
+    const start = () => {
+      if (timer) return
+      void poll()
+      timer = window.setInterval(() => void poll(), POLL_MS)
+    }
+    const stop = () => {
+      window.clearInterval(timer)
+      timer = 0
+    }
+    const onVisibility = () => (document.hidden ? stop() : start())
+
+    if (!document.hidden) start()
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       alive.current = false
-      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisibility)
+      stop()
     }
   }, [poll])
 

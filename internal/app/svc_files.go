@@ -61,6 +61,19 @@ func (f *FileService) Remove(serverID, target string, recursive bool) error {
 	return f.core.Files.Remove(serverID, target, recursive)
 }
 
+// Read loads a text file for the editor.
+func (f *FileService) Read(serverID, remote string) (sftpx.FileContent, error) {
+	return f.core.Files.ReadFile(serverID, remote)
+}
+
+// Write saves an edited file. expectedModTime guards against clobbering a
+// change someone — or an agent — made since it was opened.
+func (f *FileService) Write(
+	serverID, remote, content string, expectedModTime int64, crlf bool,
+) (sftpx.FileContent, error) {
+	return f.core.Files.WriteFile(serverID, remote, content, expectedModTime, crlf)
+}
+
 // Download copies a remote file to a local path. It returns as soon as the
 // transfer starts; progress arrives as transfer:update events.
 func (f *FileService) Download(serverID, remote, local string) (sftpx.Transfer, error) {

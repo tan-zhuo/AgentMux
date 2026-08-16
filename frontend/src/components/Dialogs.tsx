@@ -625,6 +625,8 @@ function SettingsDialog() {
         Diagnostics
       </p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
+        <dt className="text-ink-500">Version</dt>
+        <dd className="font-mono text-ink-200">{diagnostics?.version ?? '—'}</dd>
         <dt className="text-ink-500">Data directory</dt>
         <dd className="font-mono break-all text-ink-200">{diagnostics?.dataDir ?? '—'}</dd>
         <dt className="text-ink-500">Secret storage</dt>

@@ -88,7 +88,7 @@ export interface TerminalTab {
   workspaceId: string
   agentId: string
   tmuxSession: string
-  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files'
+  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor'
   command: string
   sort: number
 }
@@ -161,6 +161,18 @@ export interface Listing {
   path: string
   parent: string
   entries: FileEntry[]
+}
+
+export interface FileContent {
+  path: string
+  /** Empty in a write result — the caller already has what it just sent, and
+   *  echoing a whole file back through the IPC layer costs real time. */
+  content: string
+  size: number
+  modTime: number
+  mode: string
+  /** The file used CRLF line endings on the server; saving restores them. */
+  crlf: boolean
 }
 
 export interface Transfer {
@@ -301,7 +313,7 @@ export interface QuickLaunch {
 export interface DetachedTab {
   token?: string
   title: string
-  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files'
+  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor'
   serverId: string
   workspaceId: string
   agentId: string
@@ -356,6 +368,8 @@ export interface ConnStatus {
 }
 
 export interface Diagnostics {
+  /** The build's identity: a release tag, or 'dev' for a local build. */
+  version: string
   dataDir: string
   keyInFile: boolean
   keyLocationOk: boolean

@@ -1,0 +1,249 @@
+name: Release
+
+# Publishing a release on GitHub builds the desktop app for macOS, Windows and
+# Linux and attaches the archives to that release. Nothing else triggers a
+# build automatically — a push to main does not produce artifacts, so a release
+# is always something you decided to make.
+#
+# workflow_dispatch is here for rehearsals: it builds everything and leaves the
+# archives as workflow artifacts without touching any release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: '1.25.4'
+  NODE_VERSION: '22'
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing should not hide whether the others are fine.
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Linux (x86_64)
+            asset: agentmux-linux-amd64.tar.gz
+          - os: macos-14
+            label: macOS (universal)
+            asset: agentmux-macos-universal.zip
+          - os: windows-latest
+            label: Windows (x86_64)
+            asset: agentmux-windows-amd64.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The webview is the platform's own: WebKitGTK here, WebView2 on Windows,
+      # WKWebView on macOS. Only Linux needs the headers installed.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      # The Go binary embeds frontend/dist, so the frontend has to be built
+      # first on every runner.
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Work out the version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            v="${{ github.event.release.tag_name }}"
+          else
+            v="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Building $v"
+
+      # ----------------------------------------------------------------- Linux
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X agentmux/internal/app.Version=${{ steps.ver.outputs.version }}" \
+            -o dist/agentmux .
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          go run ./tools/icongen
+          stage=dist/agentmux-linux-amd64
+          mkdir -p "$stage"
+          cp dist/agentmux "$stage/"
+          cp README.md LICENSE "$stage/"
+          cp build/appicon/icon-256.png "$stage/agentmux.png"
+          # A .desktop file is what turns a binary into something that shows up
+          # in the launcher with its own icon.
+          cat > "$stage/agentmux.desktop" <<'DESKTOP'
+          [Desktop Entry]
+          Type=Application
+          Name=AgentMux
+          Comment=Multi-server AI agent and SSH cluster control plane
+          Exec=agentmux
+          Icon=agentmux
+          Terminal=false
+          Categories=Development;Utility;
+          DESKTOP
+          cat > "$stage/install.sh" <<'INSTALL'
+          #!/bin/sh
+          # Installs AgentMux for the current user. No root, nothing outside $HOME.
+          set -e
+          here=$(cd "$(dirname "$0")" && pwd)
+          bin="$HOME/.local/bin"
+          apps="$HOME/.local/share/applications"
+          icons="$HOME/.local/share/icons/hicolor/256x256/apps"
+          mkdir -p "$bin" "$apps" "$icons"
+          install -m 755 "$here/agentmux" "$bin/agentmux"
+          install -m 644 "$here/agentmux.png" "$icons/agentmux.png"
+          sed "s|^Exec=agentmux$|Exec=$bin/agentmux|" "$here/agentmux.desktop" > "$apps/agentmux.desktop"
+          command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" || true
+          echo "Installed to $bin/agentmux"
+          echo "If that is not on your PATH, add it to your shell profile."
+          INSTALL
+          chmod +x "$stage/install.sh"
+          tar -C dist -czf "dist/${{ matrix.asset }}" agentmux-linux-amd64
+
+      # ----------------------------------------------------------------- macOS
+      # Both architectures are built and joined with lipo, so one download runs
+      # on an Intel Mac and on Apple Silicon without anyone having to know which
+      # they have.
+      - name: Build (macOS, universal)
+        if: runner.os == 'macOS'
+        run: |
+          LD="-s -w -X agentmux/internal/app.Version=${{ steps.ver.outputs.version }}"
+          CGO_ENABLED=1 GOARCH=arm64 \
+            go build -trimpath -ldflags "$LD" -o dist/agentmux-arm64 .
+          CGO_ENABLED=1 GOARCH=amd64 \
+            CGO_CFLAGS="-arch x86_64" CGO_LDFLAGS="-arch x86_64" \
+            go build -trimpath -ldflags "$LD" -o dist/agentmux-amd64 .
+          lipo -create -output dist/agentmux dist/agentmux-arm64 dist/agentmux-amd64
+          lipo -info dist/agentmux
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          go run ./tools/icongen -iconset dist/AgentMux.iconset
+          iconutil -c icns dist/AgentMux.iconset -o dist/AgentMux.icns
+
+          app=dist/AgentMux.app
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp dist/agentmux "$app/Contents/MacOS/AgentMux"
+          chmod +x "$app/Contents/MacOS/AgentMux"
+          cp dist/AgentMux.icns "$app/Contents/Resources/AgentMux.icns"
+
+          VERSION="${{ steps.ver.outputs.version }}"
+          # CFBundleShortVersionString has to be one to three numbers separated
+          # by dots. A tag like v0.2.0 gives 0.2.0; a dispatch build called
+          # dev-1a2b3c4 gives nothing, so it falls back to 0.0.0. The real
+          # identity is in Settings, which shows the ldflags version verbatim.
+          SHORT=$(printf '%s' "${VERSION#v}" | grep -Eo '^[0-9]+(\.[0-9]+){0,2}' || true)
+          [ -n "$SHORT" ] || SHORT=0.0.0
+          cat > "$app/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>AgentMux</string>
+            <key>CFBundleDisplayName</key><string>AgentMux</string>
+            <key>CFBundleExecutable</key><string>AgentMux</string>
+            <key>CFBundleIdentifier</key><string>com.tanzhuo.agentmux</string>
+            <key>CFBundleIconFile</key><string>AgentMux</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${SHORT}</string>
+            <key>CFBundleVersion</key><string>${SHORT}</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>NSHumanReadableCopyright</key><string>MIT licensed</string>
+          </dict>
+          </plist>
+          PLIST
+
+          # The build is unsigned, so macOS quarantines it on first open. An
+          # ad-hoc signature at least keeps the bundle internally consistent;
+          # the README explains the right-click-Open step.
+          codesign --force --deep --sign - "$app" || true
+
+          cp README.md LICENSE dist/
+          ditto -c -k --sequesterRsrc --keepParent "$app" "dist/${{ matrix.asset }}"
+
+      # --------------------------------------------------------------- Windows
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          # Regenerate the icon and the embedded resource rather than trusting
+          # the .syso committed to the repository.
+          go run ./tools/icongen
+          go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64
+          # -H windowsgui is what stops a console window flashing up behind the
+          # app on every start.
+          go build -trimpath \
+            -ldflags "-H windowsgui -s -w -X agentmux/internal/app.Version=${{ steps.ver.outputs.version }}" \
+            -o dist/agentmux.exe .
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          stage=dist/agentmux-windows-amd64
+          mkdir -p "$stage"
+          cp dist/agentmux.exe "$stage/"
+          cp README.md LICENSE "$stage/"
+          cp scripts/install-windows.ps1 "$stage/"
+          cd dist && 7z a -tzip "${{ matrix.asset }}" agentmux-windows-amd64 >/dev/null
+
+      # ------------------------------------------------------------- artifacts
+      - name: Checksum
+        shell: bash
+        run: |
+          cd dist
+          if command -v sha256sum >/dev/null; then
+            sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+          else
+            shasum -a 256 "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+          fi
+          cat "${{ matrix.asset }}.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.sha256
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "dist/${{ matrix.asset }}" "dist/${{ matrix.asset }}.sha256" \
+            --clobber

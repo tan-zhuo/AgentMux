@@ -90,6 +90,17 @@ progress bar and can be cancelled, and a browser tab reopens at the directory
 you left it in. It runs over the same pooled connection as everything else, so
 it costs no extra login.
 
+**Editing a file does not mean leaving.** Double-click a text file in the
+browser and it opens in an editor tab — the same editor core VS Code is built
+on, so you get syntax highlighting for sixty-odd languages, multiple cursors,
+find and replace, folding, a minimap, bracket matching. `Ctrl+S` writes it back
+over the same SFTP connection. The save is atomic — a temporary file and a
+rename, so a dropped connection cannot leave you with half a file — and it
+keeps the original permissions, which matters the first time you edit a shell
+script. If something else changed the file while you had it open, saving stops
+and asks; an agent working in the same directory is normal here, and silently
+overwriting its work would be the worst kind of data loss, the invisible kind.
+
 **You can see what the machine is doing.** The Metrics panel reads the host in a
 single command and shows CPU broken down by user/system/iowait/steal, every core
 individually, memory and cache, load, swap, disk usage with inode pressure, disk
@@ -166,6 +177,21 @@ sidebar.
 Both side panes resize by dragging the divider, and the widths are remembered.
 Double-click a divider to put it back, or focus it and use the arrow keys.
 
+**Or take a build someone already made.** Every published release carries a
+build for each platform, put together by GitHub Actions from the tagged commit:
+
+| File | What it is |
+|---|---|
+| `agentmux-macos-universal.zip` | `AgentMux.app`, one binary for Intel and Apple Silicon |
+| `agentmux-windows-amd64.zip` | `agentmux.exe` plus the install script |
+| `agentmux-linux-amd64.tar.gz` | the binary, an icon, a `.desktop` file and `install.sh` |
+
+Each one ships a `.sha256` beside it. The builds are not code-signed, which
+costs money and tells you nothing you cannot check yourself, so the first launch
+needs one extra step: on macOS right-click the app and choose Open, on Windows
+click "More info" then "Run anyway". Settings shows the version the binary was
+built from, so you can always tell what you are running.
+
 ### Where your secrets live
 
 Passwords and key passphrases are encrypted with AES-256-GCM before they touch
@@ -191,7 +217,9 @@ internal/sftpx/        remote file system and transfers
 internal/metrics/      host vitals, read in one command
 internal/agentkit/     catalogue and detection for agent CLIs
 internal/app/          the services the frontend calls
-frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js
+frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js + Monaco
+tools/icongen/         draws the app icon at every size the platforms want
+.github/workflows/     CI on every push, desktop builds on every release
 ```
 
 Go and Wails 3 on the back, React on the front. Around 4,300 lines of Go and
@@ -247,11 +275,26 @@ go test ./internal/integration -v
 ```
 
 It covers connecting, host key mismatch, connection reuse, the tmux session
-lifecycle, scrollback replay, toolchain detection, and the one that matters
-most: closing a terminal detaches without killing the remote process.
+lifecycle, scrollback replay, toolchain detection, the editor's read-edit-save
+round trip including the conflict guard, and the one that matters most: closing
+a terminal detaches without killing the remote process.
 
 `AGENTMUX_DATA_DIR` points the app at a different profile, which is how the demo
 recording was made without touching a real setup.
+
+### Cutting a release
+
+Push, then publish a release on GitHub with a tag like `v0.2.0`. That is the
+whole procedure. `.github/workflows/release.yml` builds macOS, Windows and Linux
+from that commit and attaches the archives with their checksums to the release
+you just published — nothing else triggers a build, so a release is always
+something you decided to make. `workflow_dispatch` runs the same three builds
+without touching any release, for when you want to check the pipeline still
+works.
+
+The version you tag is compiled into the binary with
+`-ldflags "-X agentmux/internal/app.Version=..."` and shown in Settings, so a
+build can always tell you where it came from.
 
 ### Not there yet
 
@@ -264,6 +307,17 @@ config import/export, no plugin system, and no split panes inside a tab. File
 transfers are one file at a time — no directory uploads and no drag and drop
 yet. Metrics history lives only in the open panel, so there are no long-range
 graphs.
+
+The editor is Monaco, which is the editor core VS Code is built on, and it is
+not VS Code. It cannot run VS Code extensions: those need the extension host,
+which is a separate process with a Node runtime and an API surface Monaco does
+not ship. So there is no language server, no linting, no Copilot, no theme
+marketplace — syntax highlighting is Monaco's own, and there is no autocomplete
+beyond what it can infer from the open file. It also refuses files over 4 MiB
+and anything that looks binary, because opening one in a text editor is how you
+corrupt it. If you genuinely need extensions on the remote box, run `code-server`
+there and let AgentMux keep it alive in tmux — that is real VS Code, and it is
+the honest answer.
 
 The install commands are the vendors' documented ones as of writing. Check them
 against current docs before trusting them on a machine you care about.
@@ -315,6 +369,14 @@ AgentMux 是一扇窗，看向已经在别处运行的工作。
 **文件不用离开应用。** 每台服务器都有基于 SFTP 的文件浏览器：进目录、上传、下载、
 重命名、删除、新建文件夹。传输有进度条、可以取消，标签页重开时还会回到你上次
 待的目录。它走的是和其它功能同一条连接池里的连接，不额外登录一次。
+
+**改个文件不用切出去。** 在文件浏览器里双击文本文件，它会在一个编辑器标签页里
+打开——用的就是 VS Code 的编辑器内核，六十多种语言的语法高亮、多光标、查找替换、
+折叠、缩略图、括号匹配都在。`Ctrl+S` 沿着同一条 SFTP 连接写回去。保存是原子的
+（先写临时文件再改名），断线不会给你留下半个文件；权限也会带过去，第一次改 shell
+脚本的时候你会庆幸这一点。如果你打开期间别人动过这个文件，保存会停下来问你一句
+——在这里，另一个 agent 正在同一个目录里干活是常态，默默覆盖掉它的成果是最糟糕
+的那种数据丢失：看不见的那种。
 
 **你能看见机器在干什么。** 指标面板用一条命令读完整台主机：CPU 按 user/system/
 iowait/steal 拆开、每个核心单独显示、内存与缓存、负载、swap、磁盘占用（含 inode
@@ -383,6 +445,20 @@ powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Build
 左右两侧栏都可以拖分隔线改宽度，宽度会记住。双击分隔线恢复默认，或者用 Tab 聚焦
 它之后按方向键微调。
 
+**或者直接拿别人编译好的。** 每个发布的 release 都带三个平台的构建，由 GitHub
+Actions 从打了 tag 的那个 commit 编出来：
+
+| 文件 | 是什么 |
+|---|---|
+| `agentmux-macos-universal.zip` | `AgentMux.app`，一个二进制同时跑 Intel 和 Apple Silicon |
+| `agentmux-windows-amd64.zip` | `agentmux.exe` 加安装脚本 |
+| `agentmux-linux-amd64.tar.gz` | 二进制、图标、`.desktop` 文件和 `install.sh` |
+
+每个旁边都有对应的 `.sha256`。这些构建没有做代码签名——签名要花钱，而且并不能
+告诉你任何你自己验不了的事——所以第一次打开要多一步：macOS 上右键选"打开"，
+Windows 上点"更多信息"再"仍要运行"。设置面板里能看到这个二进制是从哪个版本编出
+来的，你随时知道自己在跑什么。
+
 ### 你的密钥放在哪
 
 密码和私钥口令在落盘之前用 AES-256-GCM 加密。主密钥存在系统钥匙串里——Windows
@@ -406,7 +482,9 @@ internal/sftpx/        远程文件系统与传输
 internal/metrics/      一条命令读完的主机指标
 internal/agentkit/     agent CLI 的目录与探测
 internal/app/          前端调用的服务层
-frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js
+frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js + Monaco
+tools/icongen/         把应用图标按各平台要的尺寸画出来
+.github/workflows/     每次 push 跑 CI，每次发布编三个平台的桌面版
 ```
 
 后端 Go + Wails 3，前端 React。大约 4300 行 Go、4000 行 TypeScript。
@@ -450,10 +528,22 @@ AGENTMUX_TEST_USER=you AGENTMUX_TEST_KEY=/path/to/key \
 go test ./internal/integration -v
 ```
 
-覆盖连接、主机密钥不匹配、连接复用、tmux 会话生命周期、滚动回放、工具链探测，
-以及最要紧的那条：关闭终端只会分离，不会杀掉远端进程。
+覆盖连接、主机密钥不匹配、连接复用、tmux 会话生命周期、滚动回放、工具链探测、
+编辑器的读—改—存全链路（含冲突保护），以及最要紧的那条：关闭终端只会分离，不会
+杀掉远端进程。
 
 `AGENTMUX_DATA_DIR` 可以把应用指向另一份配置，演示录制就是这么做到不碰真实环境的。
+
+### 怎么发一个版本
+
+推代码，然后在 GitHub 上用 `v0.2.0` 这样的 tag 发一个 release。就这么一步。
+`.github/workflows/release.yml` 会从那个 commit 编出 macOS、Windows、Linux 三个
+版本，连同校验和一起挂到你刚发布的这个 release 上——除此之外没有别的触发条件，
+所以出包永远是你主动决定的事。想验证流水线还能跑，用 `workflow_dispatch` 触发
+一次，它会照样编三个平台，但不碰任何 release。
+
+你打的那个 tag 会通过 `-ldflags "-X agentmux/internal/app.Version=..."` 编进二进制，
+在设置面板里能看到，所以任何一个构建都能告诉你它是从哪儿来的。
 
 ### 还没做的
 
@@ -463,6 +553,14 @@ go test ./internal/integration -v
 文件夹在数据库里有，但树目前是平铺项目的。没有配置导入导出、没有插件系统，标签页
 内也还不能分屏。文件传输一次只能传一个文件——还不支持整个目录，也还不支持拖拽。
 指标历史只存在于打开着的面板里，所以没有长时间跨度的曲线。
+
+编辑器用的是 Monaco，也就是 VS Code 的编辑器内核——但它不是 VS Code。它跑不了
+VS Code 插件：插件依赖 extension host，那是一个独立进程、一套 Node 运行时，和一大
+片 Monaco 根本没带的 API。所以没有 language server、没有 lint、没有 Copilot、没有
+主题市场——语法高亮是 Monaco 自己那套，补全也只能从当前文件里猜。它还会拒绝超过
+4 MiB 的文件和任何看起来是二进制的东西，因为用文本编辑器打开二进制正是把它弄坏
+的方式。如果你确实需要插件，就在那台机器上跑 `code-server`，让 AgentMux 用 tmux
+把它守住——那是真的 VS Code，这才是老实的答案。
 
 安装命令取自各厂商当前的官方文档。在你在意的机器上用之前，请对照最新文档再确认
 一遍。

@@ -3,6 +3,9 @@
 /agentmux
 /agentmux-*
 /agentmux.exe
+# Anything under tools/ compiled with `go build ./tools/...`.
+/icongen
+/icongen.exe
 # Go leaves a `~` backup of the previous binary when it relinks in place.
 *.exe~
 /bin/

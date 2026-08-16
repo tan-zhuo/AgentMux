@@ -9,11 +9,18 @@
 // Run it from the repository root:
 //
 //	go run ./tools/icongen
+//
+// The -iconset flag additionally writes a macOS .iconset directory, which
+// `iconutil -c icns` turns into the bundle icon. Every size is drawn from the
+// same 1024px master rather than upscaled, so the Retina sizes are crisp:
+//
+//	go run ./tools/icongen -iconset build/appicon/AgentMux.iconset
 package main
 
 import (
 	"bytes"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -318,6 +325,9 @@ func writeICO(path string, images []*image.NRGBA) error {
 }
 
 func main() {
+	iconset := flag.String("iconset", "", "also write a macOS .iconset directory here")
+	flag.Parse()
+
 	outDir := filepath.Join("build", "appicon")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		panic(err)
@@ -349,4 +359,34 @@ func main() {
 	}
 
 	fmt.Printf("wrote %s: icon.ico (%d sizes), icon.png, icon-256.png, icon-128.png\n", outDir, len(sizes))
+
+	if *iconset != "" {
+		if err := writeIconset(*iconset, master); err != nil {
+			panic(err)
+		}
+		fmt.Printf("wrote %s\n", *iconset)
+	}
+}
+
+// writeIconset lays out the file names iconutil expects. The @2x entries are
+// the next size up under a different name, which is what Apple's tooling wants
+// — not an upscaled copy of the 1x file. Every one is drawn from the same
+// 1024px master, so nothing here is a blur.
+func writeIconset(dir string, src *image.NRGBA) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	names := map[string]int{
+		"icon_16x16.png": 16, "icon_16x16@2x.png": 32,
+		"icon_32x32.png": 32, "icon_32x32@2x.png": 64,
+		"icon_128x128.png": 128, "icon_128x128@2x.png": 256,
+		"icon_256x256.png": 256, "icon_256x256@2x.png": 512,
+		"icon_512x512.png": 512, "icon_512x512@2x.png": 1024,
+	}
+	for name, size := range names {
+		if err := writePNG(filepath.Join(dir, name), resize(src, size)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

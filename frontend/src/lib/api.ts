@@ -23,6 +23,7 @@ import type {
   Presence,
   Workspace,
   Listing,
+  FileContent,
   Transfer,
   MetricSample,
   DetachedTab,
@@ -131,6 +132,10 @@ export const files = {
     call<void>('FileService', 'Rename', serverId, from, to),
   remove: (serverId: string, target: string, recursive: boolean) =>
     call<void>('FileService', 'Remove', serverId, target, recursive),
+  read: (serverId: string, remote: string) =>
+    call<FileContent>('FileService', 'Read', serverId, remote),
+  write: (serverId: string, remote: string, content: string, expectedModTime: number, crlf: boolean) =>
+    call<FileContent>('FileService', 'Write', serverId, remote, content, expectedModTime, crlf),
   download: (serverId: string, remote: string, local: string) =>
     call<Transfer>('FileService', 'Download', serverId, remote, local),
   upload: (serverId: string, local: string, remoteDir: string) =>

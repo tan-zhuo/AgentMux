@@ -7,6 +7,7 @@
 package sftpx
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -279,6 +280,163 @@ func (c *Client) Remove(serverID, target string, recursive bool) error {
 		return cl.Remove(target)
 	}
 	return cl.RemoveAll(target)
+}
+
+// FileContent is a remote file opened for editing.
+type FileContent struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	Size    int64  `json:"size"`
+	ModTime int64  `json:"modTime"`
+	Mode    string `json:"mode"`
+	// CRLF records that the file used Windows line endings, so saving can put
+	// them back rather than silently rewriting every line of the file.
+	CRLF bool `json:"crlf"`
+}
+
+// editLimit is the largest file the editor will open. Past this the editor
+// stops being useful and starts being a way to hang the UI on a 4 GB log.
+const editLimit = 4 << 20 // 4 MiB
+
+// ReadFile loads a text file for editing.
+func (c *Client) ReadFile(serverID, remote string) (FileContent, error) {
+	cl, err := c.conn(serverID)
+	if err != nil {
+		return FileContent{}, err
+	}
+	st, err := cl.Stat(remote)
+	if err != nil {
+		return FileContent{}, fmt.Errorf("%s: %w", remote, err)
+	}
+	if st.IsDir() {
+		return FileContent{}, fmt.Errorf("%s is a directory", remote)
+	}
+	if st.Size() > editLimit {
+		return FileContent{}, fmt.Errorf(
+			"%s is %s; the editor opens files up to 4 MiB. Use the terminal for anything larger",
+			path.Base(remote), humanSize(st.Size()))
+	}
+
+	f, err := cl.Open(remote)
+	if err != nil {
+		return FileContent{}, err
+	}
+	defer f.Close()
+
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return FileContent{}, err
+	}
+	// A NUL byte in the first chunk is the standard "this is not text" signal.
+	// Opening a binary in a text editor corrupts it the moment you save.
+	probe := raw
+	if len(probe) > 8000 {
+		probe = probe[:8000]
+	}
+	if bytes.IndexByte(probe, 0) >= 0 {
+		return FileContent{}, fmt.Errorf("%s looks like a binary file, so it is not editable here", path.Base(remote))
+	}
+
+	crlf := bytes.Contains(raw, []byte("\r\n"))
+	text := string(raw)
+	if crlf {
+		text = strings.ReplaceAll(text, "\r\n", "\n")
+	}
+
+	return FileContent{
+		Path:    remote,
+		Content: text,
+		Size:    st.Size(),
+		ModTime: st.ModTime().Unix(),
+		Mode:    st.Mode().String(),
+		CRLF:    crlf,
+	}, nil
+}
+
+// WriteFile saves an edited file.
+//
+// expectedModTime guards against overwriting a change made since the file was
+// opened — by another editor, by an agent working in the same directory, or by
+// the same file open in a second window. Pass 0 to skip the check.
+func (c *Client) WriteFile(serverID, remote, content string, expectedModTime int64, crlf bool) (FileContent, error) {
+	cl, err := c.conn(serverID)
+	if err != nil {
+		return FileContent{}, err
+	}
+
+	if expectedModTime > 0 {
+		if st, serr := cl.Stat(remote); serr == nil {
+			if st.ModTime().Unix() > expectedModTime {
+				return FileContent{}, fmt.Errorf(
+					"%s changed on the server since you opened it. Reload before saving, or your edits will overwrite that change",
+					path.Base(remote))
+			}
+		}
+	}
+
+	body := content
+	if crlf {
+		body = strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\n", "\r\n")
+	}
+
+	// Written to a sibling temp file and renamed, so a failure partway through
+	// leaves the original intact rather than a truncated file.
+	tmp := remote + ".agentmux-tmp"
+	f, err := cl.Create(tmp)
+	if err != nil {
+		return FileContent{}, err
+	}
+	if _, err := f.Write([]byte(body)); err != nil {
+		_ = f.Close()
+		_ = cl.Remove(tmp)
+		return FileContent{}, err
+	}
+	if err := f.Close(); err != nil {
+		_ = cl.Remove(tmp)
+		return FileContent{}, err
+	}
+
+	// Carry the original permissions over; a fresh file would otherwise land
+	// with the default mask and quietly drop the executable bit on a script.
+	if st, serr := cl.Stat(remote); serr == nil {
+		_ = cl.Chmod(tmp, st.Mode())
+	}
+	// Rename onto an existing path fails on some servers, so clear the way.
+	_ = cl.Remove(remote)
+	if err := cl.Rename(tmp, remote); err != nil {
+		_ = cl.Remove(tmp)
+		return FileContent{}, err
+	}
+
+	// Content is deliberately left empty in the result. The caller just sent it
+	// and still has it; echoing a four-megabyte file back through the IPC layer
+	// on every Ctrl+S would double the cost of a save to no purpose. What the
+	// caller actually needs back is the new modification time, which is the
+	// baseline for detecting the next outside change.
+	st, err := cl.Stat(remote)
+	if err != nil {
+		return FileContent{Path: remote, CRLF: crlf}, nil //nolint:nilerr // the write succeeded
+	}
+	return FileContent{
+		Path:    remote,
+		Size:    st.Size(),
+		ModTime: st.ModTime().Unix(),
+		Mode:    st.Mode().String(),
+		CRLF:    crlf,
+	}, nil
+}
+
+func humanSize(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for v := n / unit; v >= unit; v /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // --- transfers --------------------------------------------------------------

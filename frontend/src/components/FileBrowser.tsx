@@ -7,6 +7,7 @@ import {
   CornerUpLeft,
   Download,
   File as FileIcon,
+  FileCode2,
   Folder,
   FolderPlus,
   Home,
@@ -113,6 +114,33 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       agentId: '',
       tmuxSession: session,
     })
+  }
+
+  /** Open a file in the editor. A detached window has no tab strip, so the file
+   *  gets a window of its own there instead. */
+  function openEditor(entry: FileEntry) {
+    const spec = {
+      title: entry.name,
+      kind: 'editor' as const,
+      serverId: tab.serverId,
+      workspaceId: tab.workspaceId,
+      agentId: '',
+      tmuxSession: '',
+      command: entry.path,
+    }
+    if (detached) {
+      void windowsApi
+        .detach(
+          { ...spec, shellId: '' },
+          Math.round(window.screenX + 60),
+          Math.round(window.screenY + 60),
+          1000,
+          680,
+        )
+        .catch((e) => toast('error', errText(e)))
+      return
+    }
+    openTab(spec)
   }
 
   const load = useCallback(
@@ -321,12 +349,15 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                 <tr
                   key={e.path}
                   onClick={() => setSelected(e.path)}
-                  onDoubleClick={() => isDir && void load(e.path)}
+                  onDoubleClick={() => (isDir ? void load(e.path) : openEditor(e))}
                   onContextMenu={(ev) => {
                     setSelected(e.path)
                     openContextMenu(ev, [
                       isDir
                         ? { label: 'Open', icon: Folder, onSelect: () => void load(e.path) }
+                        : { label: 'Edit', icon: FileCode2, onSelect: () => openEditor(e) },
+                      isDir
+                        ? {}
                         : {
                             label: 'Download',
                             icon: Download,
@@ -419,10 +450,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                         }}
                       />
                     ) : (
-                      <span
-                        className={clsx('truncate', isDir ? 'text-ink-100' : 'text-ink-200')}
-                        onDoubleClick={() => isDir && void load(e.path)}
-                      >
+                      <span className={clsx('truncate', isDir ? 'text-ink-100' : 'text-ink-200')}>
                         {e.name}
                         {e.isLink && e.target && (
                           <span className="ml-1.5 font-mono text-[10.5px] text-ink-600">→ {e.target}</span>
@@ -449,6 +477,18 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
                         >
                           <Rocket size={12} />
+                        </button>
+                      )}
+                      {!isDir && (
+                        <button
+                          title="Edit"
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            openEditor(e)
+                          }}
+                          className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
+                        >
+                          <FileCode2 size={12} />
                         </button>
                       )}
                       {!isDir && (

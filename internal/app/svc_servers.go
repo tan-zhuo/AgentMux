@@ -93,8 +93,13 @@ func (s *ServerService) ClearHostKey(id string) error {
 	return s.core.Store.PinHostKey(id, "")
 }
 
+// Version is the build's identity. Release builds set it with
+// -ldflags "-X agentmux/internal/app.Version=v1.2.3"; a local build says so.
+var Version = "dev"
+
 // Diagnostics reports facts the UI shows in the settings panel.
 type Diagnostics struct {
+	Version       string `json:"version"`
 	DataDir       string `json:"dataDir"`
 	KeyInFile     bool   `json:"keyInFile"`
 	KeyLocationOK bool   `json:"keyLocationOk"`
@@ -104,6 +109,7 @@ type Diagnostics struct {
 // the master key is.
 func (s *ServerService) Diagnostics() Diagnostics {
 	return Diagnostics{
+		Version:       Version,
 		DataDir:       s.core.Store.Dir,
 		KeyInFile:     s.core.Store.KeyInFile,
 		KeyLocationOK: !s.core.Store.KeyInFile,

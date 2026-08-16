@@ -2,6 +2,7 @@ import { Window } from '@wailsio/runtime'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { ContextMenu } from './components/ContextMenu'
+import { EditorPane } from './components/EditorPane'
 import { FileBrowser } from './components/FileBrowser'
 import { TerminalPane } from './components/TerminalPane'
 import { Toasts } from './components/Toasts'
@@ -130,6 +131,8 @@ export function DetachedApp({ token }: { token: string }) {
           <Empty title="Opening" hint="Taking over the session from the main window." />
         ) : live.kind === 'files' ? (
           <FileBrowser tab={live} />
+        ) : live.kind === 'editor' ? (
+          <EditorPane tab={live} active />
         ) : (
           <TerminalPane tab={live} active />
         )}
