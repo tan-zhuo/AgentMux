@@ -82,6 +82,21 @@ without disturbing it.
 send. Each one comes back with a receipt saying whether the message actually
 landed. A fan-out you cannot verify is just hope.
 
+**Files, without leaving the app.** Every server gets a file browser over SFTP:
+navigate, upload, download, rename, delete, make directories. Transfers show a
+progress bar and can be cancelled, and a browser tab reopens at the directory
+you left it in. It runs over the same pooled connection as everything else, so
+it costs no extra login.
+
+**You can see what the machine is doing.** The Metrics panel reads the host in a
+single command and shows CPU broken down by user/system/iowait/steal, every core
+individually, memory and cache, load, swap, disk usage with inode pressure, disk
+throughput, per-interface network rates, established connections, open file
+descriptors, context switches, run and block queues, temperature, and the top
+five processes by CPU and by memory. NVIDIA GPUs come through too — utilisation,
+memory, temperature, power — which is the number you actually want when an agent
+is training something.
+
 **A new box is not a chore.** The Install panel looks at a server and tells you
 what is already there and what is missing — Claude Code, Codex, Gemini CLI,
 OpenCode, Aider, Cursor CLI, plus the runtimes they need. One click installs
@@ -144,6 +159,8 @@ main.go                Wails app, service registration, window
 internal/store/        SQLite, AES-256-GCM secrets, OS keychain
 internal/sshx/         SSH connection pool, auth, PTY manager
 internal/tmuxx/        tmux CLI wrapper
+internal/sftpx/        remote file system and transfers
+internal/metrics/      host vitals, read in one command
 internal/agentkit/     catalogue and detection for agent CLIs
 internal/app/          the services the frontend calls
 frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js
@@ -176,6 +193,20 @@ UTF-8 at arbitrary chunk boundaries, so both directions are encoded and xterm is
 fed a `Uint8Array`. The backend also keeps 256 KB of scrollback per shell and
 replays it on attach, so switching tabs never shows you a blank terminal.
 
+*A component defined inside another component remounts on every render.* React
+compares element types by reference, so a nested definition is a new type each
+time — the whole subtree unmounts, effects re-run, and any panel underneath
+refetches. It showed up here as the right panel flickering every few seconds
+once a server was connected and status polling started. The rule
+`react/no-unstable-nested-components` is now an error in the lint config so it
+cannot come back.
+
+*Metrics are one command, not one command per number.* Rates are measured by
+sampling `/proc` twice around a half-second sleep inside that command, which
+keeps the backend stateless and means a reading says the same thing regardless
+of how often the panel asks. Requires Linux `/proc`; on other hosts the panel
+reports what it could not read rather than showing zeros.
+
 ### Testing
 
 `go test ./...` is safe offline; the integration suite skips unless you point it
@@ -200,9 +231,11 @@ The orchestrator AI from the original design is not built. The plumbing it needs
 exists — broadcast already returns per-agent receipts, which was the hard part —
 but there is no model panel and no tool-permission model yet.
 
-Folders exist in the schema but the tree renders projects flat. There is no file
-sync, no resource graphs, no config import/export, no plugin system, and no
-split panes inside a tab.
+Folders exist in the schema but the tree renders projects flat. There is no
+config import/export, no plugin system, and no split panes inside a tab. File
+transfers are one file at a time — no directory uploads and no drag and drop
+yet. Metrics history lives only in the open panel, so there are no long-range
+graphs.
 
 The install commands are the vendors' documented ones as of writing. Check them
 against current docs before trusting them on a machine you care about.
@@ -250,6 +283,16 @@ AgentMux 是一扇窗，看向已经在别处运行的工作。
 
 **对一个 agent 说话，或者对二十个。** 勾选要发的 agent，输入指令，发送。每个都
 会回一张回执，告诉你消息到底送到没有。无法验证的群发只是许愿。
+
+**文件不用离开应用。** 每台服务器都有基于 SFTP 的文件浏览器：进目录、上传、下载、
+重命名、删除、新建文件夹。传输有进度条、可以取消，标签页重开时还会回到你上次
+待的目录。它走的是和其它功能同一条连接池里的连接，不额外登录一次。
+
+**你能看见机器在干什么。** 指标面板用一条命令读完整台主机：CPU 按 user/system/
+iowait/steal 拆开、每个核心单独显示、内存与缓存、负载、swap、磁盘占用（含 inode
+压力）、磁盘吞吐、每张网卡的速率、已建立连接数、打开的文件描述符、上下文切换、
+运行与阻塞队列、温度，以及按 CPU 和按内存排序的前五个进程。NVIDIA 显卡也会读出来
+——利用率、显存、温度、功耗——agent 在训练东西的时候，这才是你真正想看的数字。
 
 **新机器不再是苦差事。** 安装面板会看一眼服务器，告诉你哪些已经装了、哪些没有
 ——Claude Code、Codex、Gemini CLI、OpenCode、Aider、Cursor CLI，以及它们依赖的
@@ -307,6 +350,8 @@ main.go                Wails 应用、服务注册、窗口
 internal/store/        SQLite、AES-256-GCM 加密、系统钥匙串
 internal/sshx/         SSH 连接池、认证、PTY 管理
 internal/tmuxx/        tmux 命令封装
+internal/sftpx/        远程文件系统与传输
+internal/metrics/      一条命令读完的主机指标
 internal/agentkit/     agent CLI 的目录与探测
 internal/app/          前端调用的服务层
 frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js
@@ -333,6 +378,16 @@ frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js
 所以两个方向都编码，xterm 拿到的是 `Uint8Array`。后端还为每个 shell 保留 256 KB
 滚动缓冲并在附加时回放，所以切标签页永远不会看到一片空白。
 
+*在组件内部定义组件，每次渲染都会重新挂载。* React 按引用比较元素类型，嵌套定义
+每次都是一个新类型——整棵子树卸载、effect 重新执行、下面的面板重新拉数据。这个问题
+在这里的表现是：连上服务器、状态轮询一开始，右侧面板就每隔几秒闪一下。现在
+`react/no-unstable-nested-components` 已经在 lint 配置里设为 error，不会再回来。
+
+*指标是一条命令，不是一个数字一条命令。* 速率类指标是在那条命令内部、围绕半秒
+sleep 采样两次 `/proc` 算出来的，这让后端保持无状态，也让读数不随面板轮询频率而
+改变含义。依赖 Linux 的 `/proc`；在其它系统上面板会告诉你哪些读不到，而不是显示
+一堆 0。
+
 ### 测试
 
 `go test ./...` 离线安全；集成测试除非你指向一台真实主机，否则会跳过。
@@ -353,8 +408,9 @@ go test ./internal/integration -v
 原设计里的主控 AI 还没实现。它需要的管道已经在了——广播已经返回每个 agent 的
 回执，这是最难的部分——但还没有模型面板，也没有工具权限模型。
 
-文件夹在数据库里有，但树目前是平铺项目的。没有文件同步、没有资源曲线、没有配置
-导入导出、没有插件系统，标签页内也还不能分屏。
+文件夹在数据库里有，但树目前是平铺项目的。没有配置导入导出、没有插件系统，标签页
+内也还不能分屏。文件传输一次只能传一个文件——还不支持整个目录，也还不支持拖拽。
+指标历史只存在于打开着的面板里，所以没有长时间跨度的曲线。
 
 安装命令取自各厂商当前的官方文档。在你在意的机器上用之前，请对照最新文档再确认
 一遍。

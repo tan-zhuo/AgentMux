@@ -1,9 +1,10 @@
 import clsx from 'clsx'
-import { Bot, PanelRightClose, Plus, Radio, Sparkles, TerminalSquare } from 'lucide-react'
+import { Activity, Bot, PanelRightClose, Plus, Radio, Sparkles, TerminalSquare } from 'lucide-react'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { AgentDetail } from './panels/AgentDetail'
 import { BroadcastPanel } from './panels/BroadcastPanel'
+import { MetricsPanel } from './panels/MetricsPanel'
 import { ServerDetail } from './panels/ServerDetail'
 import { TmuxPanel } from './panels/TmuxPanel'
 import { ToolkitPanel } from './panels/ToolkitPanel'
@@ -57,6 +58,7 @@ export function RightPanel() {
   const tabs: Array<{ id: PanelKind; label: string; icon: typeof Bot; badge?: number }> = [
     { id: 'detail', label: 'Detail', icon: Bot },
     { id: 'broadcast', label: 'Broadcast', icon: Radio, badge: targets.length },
+    { id: 'metrics', label: 'Metrics', icon: Activity },
     { id: 'tmux', label: 'tmux', icon: TerminalSquare },
     { id: 'toolkit', label: 'Install', icon: Sparkles },
   ]
@@ -95,6 +97,7 @@ export function RightPanel() {
 
       <div className="min-h-0 flex-1">
         {panel === 'broadcast' && <BroadcastPanel />}
+        {panel === 'metrics' && <ForServer render={(id) => <MetricsPanel serverId={id} />} />}
         {panel === 'tmux' && <ForServer render={(id) => <TmuxPanel serverId={id} />} />}
         {panel === 'toolkit' && <ForServer render={(id) => <ToolkitPanel serverId={id} />} />}
         {panel === 'detail' && <DetailRouter />}

@@ -9,7 +9,7 @@ import type {
   TerminalTab,
 } from '../lib/types'
 
-export type TabKind = 'shell' | 'tmux' | 'agent' | 'command'
+export type TabKind = 'shell' | 'tmux' | 'agent' | 'command' | 'files'
 export type TabStatus = 'pending' | 'opening' | 'open' | 'closed' | 'error'
 
 /** A terminal tab in the UI. shellId is the live backend PTY, absent when the
@@ -22,7 +22,8 @@ export interface Tab {
   workspaceId: string
   agentId: string
   tmuxSession: string
-  /** Only for kind 'command': the remote command this PTY runs. */
+  /** For kind 'command' the remote command this PTY runs; for kind 'files' the
+   *  directory the browser is showing. */
   command?: string
   shellId?: string
   status: TabStatus
@@ -42,7 +43,7 @@ export interface Toast {
   text: string
 }
 
-export type RightPanel = 'detail' | 'broadcast' | 'tmux' | 'toolkit'
+export type RightPanel = 'detail' | 'broadcast' | 'tmux' | 'toolkit' | 'metrics'
 
 const emptySnapshot: Snapshot = {
   folders: [],
@@ -154,8 +155,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   async loadAll() {
     set({ loading: true })
     try {
-      const [snapshot, diagnostics] = await Promise.all([tree.snapshot(), servers.diagnostics()])
-      set({ snapshot, diagnostics, loading: false })
+      const [snapshot, diagnostics, panel] = await Promise.all([
+        tree.snapshot(),
+        servers.diagnostics(),
+        tree.getSetting('rightPanel', 'detail'),
+      ])
+      const known: RightPanel[] = ['detail', 'broadcast', 'tmux', 'toolkit', 'metrics']
+      set({
+        snapshot,
+        diagnostics,
+        loading: false,
+        rightPanel: known.includes(panel as RightPanel) ? (panel as RightPanel) : 'detail',
+      })
       await get().refreshConnections()
       await get().restoreTabs()
     } catch (e) {
@@ -216,10 +227,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   select(selection) {
-    set({ selection, rightPanel: 'detail' })
+    set({ selection })
   },
   setRightPanel(rightPanel) {
     set({ rightPanel, rightOpen: true })
+    // Remembered across restarts: whichever panel you work in is almost always
+    // the one you want back.
+    void tree.setSetting('rightPanel', rightPanel).catch(() => {})
   },
   toggleSidebar() {
     set((s) => ({ sidebarOpen: !s.sidebarOpen }))
@@ -323,9 +337,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   async restoreTabs() {
     try {
       const saved = await terminal.loadTabs()
-      // Only tmux and agent tabs are worth restoring: they reattach to work that
-      // is still running remotely. A plain shell has no state to come back to.
-      const restorable = saved.filter((t) => t.kind === 'tmux' || t.kind === 'agent')
+      // tmux and agent tabs reattach to work that is still running remotely; a
+      // file browser reopens at the directory you left it in. A plain shell has
+      // no state to come back to, so it is not restored.
+      const restorable = saved.filter(
+        (t) => t.kind === 'tmux' || t.kind === 'agent' || t.kind === 'files',
+      )
       if (!restorable.length) return
       set({
         tabs: restorable.map((t) => ({
@@ -336,6 +353,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           workspaceId: t.workspaceId,
           agentId: t.agentId,
           tmuxSession: t.tmuxSession,
+          command: t.command,
           status: 'pending' as TabStatus,
         })),
         activeTabId: restorable[0].id,

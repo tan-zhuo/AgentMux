@@ -1,8 +1,8 @@
-# Build output
+# Build output. The suffixed names are the headless server build and the
+# throwaway binary used to run a second instance while the app is open.
 /agentmux
+/agentmux-*
 /agentmux.exe
-/agentmux-server
-/agentmux-server.exe
 # Go leaves a `~` backup of the previous binary when it relinks in place.
 *.exe~
 /bin/

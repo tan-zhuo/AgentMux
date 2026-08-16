@@ -1,5 +1,16 @@
 ﻿import clsx from 'clsx'
-import { Bot, Palette, Play, Plus, Radio, Server, Sparkles, TerminalSquare } from 'lucide-react'
+import {
+  Activity,
+  Bot,
+  FolderTree,
+  Palette,
+  Play,
+  Plus,
+  Radio,
+  Server,
+  Sparkles,
+  TerminalSquare,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText } from '../lib/api'
 import { themes } from '../lib/themes'
@@ -88,6 +99,33 @@ export function CommandPalette() {
         run: () => {
           select({ kind: 'server', id: s.id })
           setRightPanel('toolkit')
+        },
+      })
+      out.push({
+        id: `files:${s.id}`,
+        label: `Browse files on ${s.name}`,
+        hint: 'SFTP: upload, download, rename, delete',
+        icon: FolderTree,
+        run: () => {
+          openTab({
+            title: s.name,
+            kind: 'files',
+            serverId: s.id,
+            workspaceId: '',
+            agentId: '',
+            tmuxSession: '',
+            command: '',
+          })
+        },
+      })
+      out.push({
+        id: `metrics:${s.id}`,
+        label: `Metrics for ${s.name}`,
+        hint: 'CPU, memory, disks, network, GPU',
+        icon: Activity,
+        run: () => {
+          select({ kind: 'server', id: s.id })
+          setRightPanel('metrics')
         },
       })
       out.push({

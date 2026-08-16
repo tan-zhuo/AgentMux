@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { agents as agentApi, errText } from '../../lib/api'
 import type { Agent, Workspace } from '../../lib/types'
 import { refreshServerAgents, useAppStore } from '../../store/useAppStore'
+import { confirmAction } from '../../store/useConfirm'
 import { useDialogs } from '../../store/useDialogs'
 import { Badge, Button, StatusDot, inputClass } from '../ui'
 
@@ -99,7 +100,13 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
               variant="danger"
               title="Delete agent definition (remote session keeps running)"
               onClick={async () => {
-                if (!confirm(`Delete agent "${agent.name}"? Its tmux session keeps running.`)) return
+                const ok = await confirmAction({
+                  title: `Delete ${agent.name}`,
+                  message: 'The agent definition is removed from AgentMux.',
+                  reassurance: `Its tmux session ${agent.tmuxSession} keeps running on the server. You can still attach to it from the tmux panel.`,
+                  confirmLabel: 'Delete agent',
+                })
+                if (!ok) return
                 await agentApi.remove(agent.id)
                 await refreshSnapshot()
               }}
@@ -166,7 +173,18 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
             variant="danger"
             title="Kill the tmux session — loses remote scrollback"
             onClick={async () => {
-              if (!confirm(`Kill session "${agent.tmuxSession}"? Remote scrollback is lost.`)) return
+              const ok = await confirmAction({
+                title: `Kill ${agent.tmuxSession}`,
+                message: 'The tmux session is destroyed along with everything running inside it.',
+                points: [
+                  'The agent process is terminated, not asked to stop',
+                  'The pane and all of its scrollback are lost',
+                  'Unsaved work inside the session is gone',
+                ],
+                confirmLabel: 'Kill session',
+                requireText: agent.name,
+              })
+              if (!ok) return
               await act(() => agentApi.kill(agent.id), 'Session killed')
             }}
           >

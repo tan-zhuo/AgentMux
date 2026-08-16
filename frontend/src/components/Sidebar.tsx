@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
+import { confirmAction } from '../store/useConfirm'
 import { useDialogs } from '../store/useDialogs'
 import { Button, ConnDot, StatusDot } from './ui'
 
@@ -181,8 +182,17 @@ export function Sidebar() {
   }
 
   async function deleteServer(s: Server) {
-    if (!confirm(`Delete server "${s.name}"? Its workspaces and agent definitions go too. Remote tmux sessions keep running.`))
-      return
+    const ok = await confirmAction({
+      title: `Remove ${s.name}`,
+      message: 'This removes the server from AgentMux, along with the workspaces and agent definitions that point at it.',
+      points: [
+        'Stored credentials and the pinned host key are deleted',
+        'Any open terminals for this server will disconnect',
+      ],
+      reassurance: 'Nothing on the server itself is touched. tmux sessions and the agents inside them keep running.',
+      confirmLabel: 'Remove server',
+    })
+    if (!ok) return
     try {
       await serverApi.remove(s.id)
       await refreshSnapshot()
@@ -193,7 +203,13 @@ export function Sidebar() {
   }
 
   async function deleteProject(p: Project) {
-    if (!confirm(`Delete project "${p.name}"? Remote tmux sessions keep running.`)) return
+    const ok = await confirmAction({
+      title: `Delete ${p.name}`,
+      message: 'The project and its workspaces and agent definitions are removed from AgentMux.',
+      reassurance: 'Remote tmux sessions keep running, and no files on any server are deleted.',
+      confirmLabel: 'Delete project',
+    })
+    if (!ok) return
     try {
       await treeApi.deleteProject(p.id)
       await refreshSnapshot()
@@ -338,6 +354,21 @@ export function Sidebar() {
                         }
                       />
                       <RowBtn
+                        icon={<FolderTree size={11} />}
+                        title="Browse files in this workspace"
+                        onClick={() =>
+                          openTab({
+                            title: row.workspace.name,
+                            kind: 'files',
+                            serverId: row.workspace.serverId,
+                            workspaceId: row.workspace.id,
+                            agentId: '',
+                            tmuxSession: '',
+                            command: row.workspace.remotePath,
+                          })
+                        }
+                      />
+                      <RowBtn
                         icon={<Bot size={11} />}
                         title="Add agent"
                         onClick={() => openDialog({ kind: 'agent', workspaceId: row.workspace.id })}
@@ -465,6 +496,21 @@ export function Sidebar() {
                           workspaceId: '',
                           agentId: '',
                           tmuxSession: '',
+                        })
+                      }
+                    />
+                    <RowBtn
+                      icon={<FolderTree size={11} />}
+                      title="Browse files"
+                      onClick={() =>
+                        openTab({
+                          title: s.name,
+                          kind: 'files',
+                          serverId: s.id,
+                          workspaceId: '',
+                          agentId: '',
+                          tmuxSession: '',
+                          command: '',
                         })
                       }
                     />

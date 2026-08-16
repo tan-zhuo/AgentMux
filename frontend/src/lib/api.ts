@@ -22,6 +22,9 @@ import type {
   InstallStarted,
   Presence,
   Workspace,
+  Listing,
+  Transfer,
+  MetricSample,
 } from './types'
 
 // Wails binds methods as "<go package path>.<Type>.<Method>".
@@ -111,6 +114,29 @@ export const toolkit = {
   verify: (serverId: string, toolId: string) =>
     call<Presence>('ToolkitService', 'Verify', serverId, toolId),
   installSessionName: () => call<string>('ToolkitService', 'InstallSessionName'),
+}
+
+export const files = {
+  list: (serverId: string, dir: string) => call<Listing>('FileService', 'List', serverId, dir),
+  listWorkspace: (workspaceId: string) => call<Listing>('FileService', 'ListWorkspace', workspaceId),
+  home: (serverId: string) => call<string>('FileService', 'Home', serverId),
+  mkdir: (serverId: string, dir: string) => call<void>('FileService', 'Mkdir', serverId, dir),
+  rename: (serverId: string, from: string, to: string) =>
+    call<void>('FileService', 'Rename', serverId, from, to),
+  remove: (serverId: string, target: string, recursive: boolean) =>
+    call<void>('FileService', 'Remove', serverId, target, recursive),
+  download: (serverId: string, remote: string, local: string) =>
+    call<Transfer>('FileService', 'Download', serverId, remote, local),
+  upload: (serverId: string, local: string, remoteDir: string) =>
+    call<Transfer>('FileService', 'Upload', serverId, local, remoteDir),
+  cancel: (id: string) => call<void>('FileService', 'Cancel', id),
+  transfers: () => call<Transfer[]>('FileService', 'Transfers'),
+  clearFinished: () => call<void>('FileService', 'ClearFinished'),
+}
+
+export const metrics = {
+  sample: (serverId: string) => call<MetricSample>('MetricsService', 'Sample', serverId),
+  sampleMany: (serverIds: string[]) => call<MetricSample[]>('MetricsService', 'SampleMany', serverIds),
 }
 
 export const agents = {

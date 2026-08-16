@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"agentmux/internal/sftpx"
 	"agentmux/internal/sshx"
 	"agentmux/internal/store"
 	"agentmux/internal/tmuxx"
@@ -25,6 +26,7 @@ type Core struct {
 	Pool   *sshx.Pool
 	Tmux   *tmuxx.Client
 	Shells *sshx.ShellManager
+	Files  *sftpx.Client
 
 	emitMu sync.RWMutex
 	emitFn func(name string, data any)
@@ -46,6 +48,7 @@ func NewCore() (*Core, error) {
 	})
 	c.Tmux = tmuxx.New(c.Pool)
 	c.Shells = sshx.NewShellManager(c.Pool, c.Emit)
+	c.Files = sftpx.New(c.Pool, c.Emit)
 	return c, nil
 }
 
@@ -71,6 +74,7 @@ func (c *Core) Shutdown() {
 	c.stopOnce.Do(func() {
 		close(c.stopCh)
 		c.Shells.CloseAll()
+		c.Files.Close()
 		c.Pool.Stop()
 		_ = c.Store.Close()
 	})

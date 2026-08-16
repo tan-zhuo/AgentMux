@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { CommandPalette } from './components/CommandPalette'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { Dialogs } from './components/Dialogs'
 import { RightPanel } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
@@ -74,6 +75,7 @@ export default function App() {
       <StatusBar />
       <Dialogs />
       <CommandPalette />
+      <ConfirmDialog />
       <Toasts />
     </div>
   )

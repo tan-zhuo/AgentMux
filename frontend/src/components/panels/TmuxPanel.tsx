@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { errText, tmux as tmuxApi } from '../../lib/api'
 import type { TmuxServerView } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
+import { confirmAction } from '../../store/useConfirm'
 import { Badge, Button, Empty, inputClass } from '../ui'
 
 /** Lists the tmux sessions living on one server, with attach / kill controls.
@@ -109,8 +110,16 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
                 <button
                   title="Kill session — this stops everything inside it"
                   onClick={async () => {
-                    if (!confirm(`Kill tmux session "${s.name}"? Everything running inside it stops.`))
-                      return
+                    const ok = await confirmAction({
+                      title: `Kill ${s.name}`,
+                      message: 'The tmux session is destroyed along with every window and pane in it.',
+                      points: [
+                        `${s.windows} window${s.windows === 1 ? '' : 's'} and their scrollback are lost`,
+                        'Processes inside are terminated, not asked to stop',
+                      ],
+                      confirmLabel: 'Kill session',
+                    })
+                    if (!ok) return
                     try {
                       await tmuxApi.killSession(serverId, s.name)
                       await load()

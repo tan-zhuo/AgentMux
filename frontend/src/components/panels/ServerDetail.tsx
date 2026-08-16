@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { errText, servers as serverApi } from '../../lib/api'
 import type { Probe, Server } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
+import { confirmAction } from '../../store/useConfirm'
 import { useDialogs } from '../../store/useDialogs'
 import { Badge, Button, Empty } from '../ui'
 import { TmuxPanel } from './TmuxPanel'
@@ -123,8 +124,18 @@ export function ServerDetail({ server }: { server: Server }) {
               variant="danger"
               title="Forget the pinned host key so the next connection trusts a new one"
               onClick={async () => {
-                if (!confirm('Forget the pinned host key? Only do this if you rotated the key yourself.'))
-                  return
+                const ok = await confirmAction({
+                  title: 'Forget the pinned host key',
+                  message:
+                    'The next connection will trust whatever key the server offers, and pin that one instead.',
+                  points: [
+                    'Only do this if you rotated the key yourself',
+                    'If you did not, a mismatch may mean someone is intercepting the connection',
+                  ],
+                  tone: 'warning',
+                  confirmLabel: 'Clear pinned key',
+                })
+                if (!ok) return
                 await serverApi.clearHostKey(server.id)
                 await refreshSnapshot()
                 toast('warn', 'Host key pin cleared')

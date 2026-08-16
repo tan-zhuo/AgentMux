@@ -35,6 +35,8 @@ func main() {
 			application.NewService(app.NewTerminalService(core)),
 			application.NewService(app.NewTmuxService(core)),
 			application.NewService(app.NewToolkitService(core)),
+			application.NewService(app.NewFileService(core)),
+			application.NewService(app.NewMetricsService(core)),
 			application.NewService(agentSvc),
 		},
 		Assets: application.AssetOptions{

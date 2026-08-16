@@ -1,6 +1,7 @@
 import clsx from 'clsx'
-import { Bot, Layers, PackagePlus, TerminalSquare, X } from 'lucide-react'
+import { Bot, FolderTree, Layers, PackagePlus, TerminalSquare, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
+import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
 import { Empty } from './ui'
 
@@ -9,6 +10,7 @@ const kindIcon = {
   tmux: Layers,
   agent: Bot,
   command: PackagePlus,
+  files: FolderTree,
 }
 
 export function TerminalArea() {
@@ -73,7 +75,11 @@ export function TerminalArea() {
               className="absolute inset-0"
               style={{ visibility: tab.id === activeTabId ? 'visible' : 'hidden' }}
             >
-              <TerminalPane tab={tab} active={tab.id === activeTabId} />
+              {tab.kind === 'files' ? (
+                <FileBrowser tab={tab} />
+              ) : (
+                <TerminalPane tab={tab} active={tab.id === activeTabId} />
+              )}
             </div>
           ))
         )}

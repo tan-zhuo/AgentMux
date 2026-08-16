@@ -88,7 +88,7 @@ export interface TerminalTab {
   workspaceId: string
   agentId: string
   tmuxSession: string
-  kind: 'shell' | 'tmux' | 'agent' | 'command'
+  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files'
   command: string
   sort: number
 }
@@ -140,6 +140,131 @@ export interface ToolReport {
   runtimes: ToolStatus[]
   presence: Record<string, Presence>
   error: string
+}
+
+// --- remote file system -----------------------------------------------------
+
+export interface FileEntry {
+  name: string
+  path: string
+  isDir: boolean
+  isLink: boolean
+  size: number
+  mode: string
+  modTime: number
+  target: string
+  targetIsDir: boolean
+}
+
+export interface Listing {
+  serverId: string
+  path: string
+  parent: string
+  entries: FileEntry[]
+}
+
+export interface Transfer {
+  id: string
+  serverId: string
+  kind: 'upload' | 'download'
+  local: string
+  remote: string
+  size: number
+  done: number
+  status: 'running' | 'done' | 'error' | 'cancelled'
+  error: string
+  startedAt: number
+}
+
+// --- host metrics -----------------------------------------------------------
+
+export interface DiskUsage {
+  mount: string
+  fs: string
+  type: string
+  totalBytes: number
+  usedBytes: number
+  usePercent: number
+  inodePercent: number
+}
+
+export interface NetRate {
+  name: string
+  rxps: number
+  txps: number
+}
+
+export interface GpuUsage {
+  index: number
+  name: string
+  utilPercent: number
+  memTotalMb: number
+  memUsedMb: number
+  tempC: number
+  powerW: number
+}
+
+export interface BlockIoRate {
+  name: string
+  readps: number
+  writeps: number
+}
+
+export interface ProcRow {
+  cpu: number
+  mem: number
+  pid: number
+  user: string
+  command: string
+}
+
+export interface MetricSample {
+  serverId: string
+  at: number
+  ok: boolean
+  error: string
+
+  distro: string
+  kernel: string
+  arch: string
+  hostname: string
+
+  cores: number
+  cpuPercent: number
+  cpuUser: number
+  cpuSystem: number
+  cpuIowait: number
+  cpuSteal: number
+  perCore: number[]
+  load1: number
+  load5: number
+  load15: number
+  loadPerCore: number
+  contextRate: number
+  procsRunning: number
+  procsBlocked: number
+
+  memTotalBytes: number
+  memUsedBytes: number
+  memCachedBytes: number
+  memPercent: number
+  swapTotalBytes: number
+  swapUsedBytes: number
+
+  uptimeSeconds: number
+  processes: number
+  users: number
+  connections: number
+  openFds: number
+  maxFds: number
+  tempC: number
+
+  disks: DiskUsage[]
+  nets: NetRate[]
+  blockIo: BlockIoRate[]
+  topCpu: ProcRow[]
+  topMem: ProcRow[]
+  gpus: GpuUsage[]
 }
 
 export interface InstallStarted {
