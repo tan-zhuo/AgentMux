@@ -1,0 +1,366 @@
+import { create } from 'zustand'
+import { agents as agentApi, errText, servers, terminal, tree } from '../lib/api'
+import type {
+  Agent,
+  ConnState,
+  ConnStatus,
+  Diagnostics,
+  Snapshot,
+  TerminalTab,
+} from '../lib/types'
+
+export type TabKind = 'shell' | 'tmux' | 'agent' | 'command'
+export type TabStatus = 'pending' | 'opening' | 'open' | 'closed' | 'error'
+
+/** A terminal tab in the UI. shellId is the live backend PTY, absent when the
+ *  tab is restored from disk but not yet attached. */
+export interface Tab {
+  id: string
+  title: string
+  kind: TabKind
+  serverId: string
+  workspaceId: string
+  agentId: string
+  tmuxSession: string
+  /** Only for kind 'command': the remote command this PTY runs. */
+  command?: string
+  shellId?: string
+  status: TabStatus
+  error?: string
+}
+
+export type Selection =
+  | { kind: 'none' }
+  | { kind: 'server'; id: string }
+  | { kind: 'project'; id: string }
+  | { kind: 'workspace'; id: string }
+  | { kind: 'agent'; id: string }
+
+export interface Toast {
+  id: string
+  tone: 'info' | 'ok' | 'warn' | 'error'
+  text: string
+}
+
+export type RightPanel = 'detail' | 'broadcast' | 'tmux' | 'toolkit'
+
+const emptySnapshot: Snapshot = {
+  folders: [],
+  projects: [],
+  servers: [],
+  workspaces: [],
+  agents: [],
+}
+
+let tabSeq = 0
+const nextTabId = () => `tab-${Date.now().toString(36)}-${tabSeq++}`
+
+/**
+ * Compares the agent fields the UI actually renders. `lastSeen` is excluded on
+ * purpose: the backend stamps it on every poll, so including it would report a
+ * change every few seconds and make the comparison pointless.
+ */
+function sameAgents(a: Agent[], b: Agent[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (
+      x.id !== y.id ||
+      x.status !== y.status ||
+      x.pid !== y.pid ||
+      x.progressText !== y.progressText ||
+      x.name !== y.name ||
+      x.command !== y.command ||
+      x.tmuxSession !== y.tmuxSession ||
+      x.workspaceId !== y.workspaceId
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+interface AppState {
+  snapshot: Snapshot
+  connections: Record<string, ConnStatus>
+  connState: Record<string, ConnState>
+  diagnostics: Diagnostics | null
+  loading: boolean
+
+  tabs: Tab[]
+  activeTabId: string | null
+
+  selection: Selection
+  rightPanel: RightPanel
+  sidebarOpen: boolean
+  rightOpen: boolean
+  search: string
+  expanded: Record<string, boolean>
+  broadcastTargets: string[]
+  toasts: Toast[]
+  paletteOpen: boolean
+
+  loadAll: () => Promise<void>
+  refreshSnapshot: () => Promise<void>
+  refreshConnections: () => Promise<void>
+  applyAgents: (agents: Agent[]) => void
+  applyConnState: (s: ConnState) => void
+
+  select: (s: Selection) => void
+  setRightPanel: (p: RightPanel) => void
+  toggleSidebar: () => void
+  toggleRight: () => void
+  setSearch: (q: string) => void
+  toggleExpanded: (key: string) => void
+  setExpanded: (key: string, open: boolean) => void
+  setPaletteOpen: (open: boolean) => void
+
+  toggleBroadcastTarget: (agentId: string) => void
+  setBroadcastTargets: (ids: string[]) => void
+
+  openTab: (spec: Omit<Tab, 'id' | 'status'> & { id?: string }) => string
+  setTabState: (id: string, patch: Partial<Tab>) => void
+  closeTab: (id: string) => Promise<void>
+  setActiveTab: (id: string) => void
+  persistTabs: () => Promise<void>
+  restoreTabs: () => Promise<void>
+
+  toast: (tone: Toast['tone'], text: string) => void
+  dismissToast: (id: string) => void
+}
+
+export const useAppStore = create<AppState>((set, get) => ({
+  snapshot: emptySnapshot,
+  connections: {},
+  connState: {},
+  diagnostics: null,
+  loading: true,
+
+  tabs: [],
+  activeTabId: null,
+
+  selection: { kind: 'none' },
+  rightPanel: 'detail',
+  sidebarOpen: true,
+  rightOpen: true,
+  search: '',
+  expanded: {},
+  broadcastTargets: [],
+  toasts: [],
+  paletteOpen: false,
+
+  async loadAll() {
+    set({ loading: true })
+    try {
+      const [snapshot, diagnostics] = await Promise.all([tree.snapshot(), servers.diagnostics()])
+      set({ snapshot, diagnostics, loading: false })
+      await get().refreshConnections()
+      await get().restoreTabs()
+    } catch (e) {
+      set({ loading: false })
+      get().toast('error', `Could not load local data: ${errText(e)}`)
+    }
+  },
+
+  async refreshSnapshot() {
+    try {
+      set({ snapshot: await tree.snapshot() })
+    } catch (e) {
+      get().toast('error', errText(e))
+    }
+  },
+
+  async refreshConnections() {
+    try {
+      const list = await servers.connections()
+      const map: Record<string, ConnStatus> = {}
+      for (const c of list) map[c.serverId] = c
+      set({ connections: map })
+    } catch {
+      /* connection view is best-effort */
+    }
+  },
+
+  applyAgents(list) {
+    set((s) => {
+      // Replacing the array unconditionally would hand every subscriber a new
+      // snapshot object on each poll, even when nothing about the agents moved.
+      if (sameAgents(s.snapshot.agents, list)) return s
+      return { snapshot: { ...s.snapshot, agents: list } }
+    })
+  },
+
+  applyConnState(cs) {
+    set((s) => {
+      const connected = cs.state === 'connected'
+      const prev = s.connections[cs.serverId]
+      const prevState = s.connState[cs.serverId]
+      const stateUnchanged =
+        prevState?.state === cs.state && prevState?.detail === cs.detail
+      if (stateUnchanged && prev?.connected === connected) return s
+
+      return {
+        connState: { ...s.connState, [cs.serverId]: cs },
+        connections: {
+          ...s.connections,
+          [cs.serverId]: {
+            serverId: cs.serverId,
+            connected,
+            leases: prev?.leases ?? 0,
+          },
+        },
+      }
+    })
+  },
+
+  select(selection) {
+    set({ selection, rightPanel: 'detail' })
+  },
+  setRightPanel(rightPanel) {
+    set({ rightPanel, rightOpen: true })
+  },
+  toggleSidebar() {
+    set((s) => ({ sidebarOpen: !s.sidebarOpen }))
+  },
+  toggleRight() {
+    set((s) => ({ rightOpen: !s.rightOpen }))
+  },
+  setSearch(search) {
+    set({ search })
+  },
+  toggleExpanded(key) {
+    set((s) => ({ expanded: { ...s.expanded, [key]: !s.expanded[key] } }))
+  },
+  setExpanded(key, open) {
+    set((s) => ({ expanded: { ...s.expanded, [key]: open } }))
+  },
+  setPaletteOpen(paletteOpen) {
+    set({ paletteOpen })
+  },
+
+  toggleBroadcastTarget(agentId) {
+    set((s) => ({
+      broadcastTargets: s.broadcastTargets.includes(agentId)
+        ? s.broadcastTargets.filter((x) => x !== agentId)
+        : [...s.broadcastTargets, agentId],
+    }))
+  },
+  setBroadcastTargets(broadcastTargets) {
+    set({ broadcastTargets })
+  },
+
+  openTab(spec) {
+    // Re-focus an equivalent tab instead of stacking duplicates.
+    const existing = get().tabs.find(
+      (t) =>
+        t.kind === spec.kind &&
+        t.serverId === spec.serverId &&
+        t.workspaceId === spec.workspaceId &&
+        t.agentId === spec.agentId &&
+        t.tmuxSession === spec.tmuxSession &&
+        t.status !== 'closed',
+    )
+    if (existing && spec.kind !== 'shell') {
+      set({ activeTabId: existing.id })
+      return existing.id
+    }
+
+    const id = spec.id ?? nextTabId()
+    const tab: Tab = { ...spec, id, status: 'pending' }
+    set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }))
+    void get().persistTabs()
+    return id
+  },
+
+  setTabState(id, patch) {
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)) }))
+  },
+
+  async closeTab(id) {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (tab?.shellId) {
+      try {
+        await terminal.close(tab.shellId)
+      } catch {
+        /* already gone */
+      }
+    }
+    set((s) => {
+      const tabs = s.tabs.filter((t) => t.id !== id)
+      let activeTabId = s.activeTabId
+      if (activeTabId === id) activeTabId = tabs.length ? tabs[tabs.length - 1].id : null
+      return { tabs, activeTabId }
+    })
+    void get().persistTabs()
+  },
+
+  setActiveTab(activeTabId) {
+    set({ activeTabId })
+  },
+
+  async persistTabs() {
+    const tabs = get().tabs
+    const payload: TerminalTab[] = tabs.map((t, i) => ({
+      id: t.id,
+      title: t.title,
+      serverId: t.serverId,
+      workspaceId: t.workspaceId,
+      agentId: t.agentId,
+      tmuxSession: t.tmuxSession,
+      kind: t.kind,
+      command: t.command ?? '',
+      sort: i,
+    }))
+    try {
+      await terminal.saveTabs(payload)
+    } catch {
+      /* layout persistence is best-effort */
+    }
+  },
+
+  async restoreTabs() {
+    try {
+      const saved = await terminal.loadTabs()
+      // Only tmux and agent tabs are worth restoring: they reattach to work that
+      // is still running remotely. A plain shell has no state to come back to.
+      const restorable = saved.filter((t) => t.kind === 'tmux' || t.kind === 'agent')
+      if (!restorable.length) return
+      set({
+        tabs: restorable.map((t) => ({
+          id: t.id,
+          title: t.title,
+          kind: t.kind as TabKind,
+          serverId: t.serverId,
+          workspaceId: t.workspaceId,
+          agentId: t.agentId,
+          tmuxSession: t.tmuxSession,
+          status: 'pending' as TabStatus,
+        })),
+        activeTabId: restorable[0].id,
+      })
+    } catch {
+      /* nothing to restore */
+    }
+  },
+
+  toast(tone, text) {
+    const id = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    set((s) => ({ toasts: [...s.toasts, { id, tone, text }] }))
+    setTimeout(() => get().dismissToast(id), tone === 'error' ? 9000 : 4500)
+  },
+  dismissToast(id) {
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
+  },
+}))
+
+/** Refresh agent status for a server after an action that changes it. */
+export async function refreshServerAgents(serverId: string) {
+  try {
+    const list = await agentApi.refresh(serverId)
+    useAppStore.getState().applyAgents(list)
+  } catch (e) {
+    useAppStore.getState().toast('error', errText(e))
+  }
+}

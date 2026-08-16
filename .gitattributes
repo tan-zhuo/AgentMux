@@ -1,0 +1,7 @@
+# The project is developed on Windows but the shell snippets it generates run on
+# Linux hosts, so everything is stored with LF and checked out as-is.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+*.svg text eol=lf

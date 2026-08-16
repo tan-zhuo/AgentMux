@@ -1,0 +1,21 @@
+# Build output
+/agentmux
+/agentmux.exe
+/agentmux-server
+/agentmux-server.exe
+# Go leaves a `~` backup of the previous binary when it relinks in place.
+*.exe~
+/bin/
+*.log
+
+# Frontend
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.vite/
+*.tsbuildinfo
+
+# Local editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

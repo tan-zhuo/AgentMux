@@ -1,0 +1,85 @@
+@import 'tailwindcss';
+@import '@xterm/xterm/css/xterm.css';
+
+@theme {
+  --color-ink-950: #080a0f;
+  --color-ink-900: #0b0d12;
+  --color-ink-850: #10131a;
+  --color-ink-800: #151922;
+  --color-ink-750: #1b202b;
+  --color-ink-700: #232936;
+  --color-ink-600: #333b4c;
+  --color-ink-500: #4a5468;
+  --color-ink-400: #6b768c;
+  --color-ink-300: #939eb3;
+  --color-ink-200: #c2cad8;
+  --color-ink-100: #e6eaf2;
+
+  --color-accent: #4c8dff;
+  --color-accent-dim: #2f5fb3;
+  --color-ok: #3ddc97;
+  --color-warn: #ffc857;
+  --color-danger: #ff6b6b;
+  --color-idle: #8b93a7;
+
+  --font-mono:
+    'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-ink-900);
+  color: var(--color-ink-100);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+/* Scrollbars that do not shout. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-600) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-600);
+  border-radius: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* xterm sits on the darkest surface so the terminal reads as a distinct plane. */
+.xterm .xterm-viewport {
+  background-color: transparent !important;
+}
+
+/* Wails resolves window dragging from this custom property on the event target.
+   It inherits, so every interactive child of the title bar must opt out. */
+@utility drag-region {
+  --wails-draggable: drag;
+}
+
+@utility no-drag-region {
+  --wails-draggable: no-drag;
+}
