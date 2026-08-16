@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { agents as agentApi, errText } from '../../lib/api'
 import type { BroadcastTarget, Receipt } from '../../lib/types'
 import { targetKey, useAppStore } from '../../store/useAppStore'
-import { Badge, Button, Empty, StatusDot, textareaClass } from '../ui'
+import { Button, Empty, StatusDot, textareaClass } from '../ui'
 
 /** Sends one instruction to many recipients and shows a receipt for each, so a
  *  fan-out is verifiable instead of hopeful. */
@@ -24,19 +24,44 @@ export function BroadcastPanel() {
   const serverById = new Map(snapshot.servers.map((s) => [s.id, s]))
   const okCount = receipts.filter((r) => r.ok).length
 
-  /** How a target reads in the list, whichever kind it is. */
+  /**
+   * How a target reads in the list, whichever kind it is.
+   *
+   * The server is shown for both kinds, because a broadcast can span machines —
+   * each target carries its own server — and without it a list of sessions from
+   * two hosts is indistinguishable from a list from one.
+   */
   function describe(t: BroadcastTarget) {
     if (t.agentId) {
       const a = agentById.get(t.agentId)
-      return { name: a?.name ?? t.agentId, detail: a?.tmuxSession ?? '', status: a?.status, isAgent: true }
+      const ws = a ? snapshot.workspaces.find((w) => w.id === a.workspaceId) : undefined
+      return {
+        name: a?.name ?? t.agentId,
+        server: (ws ? serverById.get(ws.serverId)?.name : '') ?? '',
+        session: a?.tmuxSession ?? '',
+        status: a?.status,
+        isAgent: true,
+      }
     }
     return {
       name: t.session,
-      detail: serverById.get(t.serverId)?.name ?? t.serverId,
+      server: serverById.get(t.serverId)?.name ?? t.serverId,
+      session: t.session,
       status: undefined,
       isAgent: false,
     }
   }
+
+  // How many machines this broadcast would reach, which is the thing worth
+  // knowing before sending to a mixed list.
+  const serverCount = new Set(
+    targets.map((t) => {
+      if (!t.agentId) return t.serverId
+      const a = agentById.get(t.agentId)
+      const ws = a ? snapshot.workspaces.find((w) => w.id === a.workspaceId) : undefined
+      return ws?.serverId ?? ''
+    }),
+  ).size
 
   async function send() {
     const text = message.trim()
@@ -63,21 +88,28 @@ export function BroadcastPanel() {
         <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
           <Radio size={11} /> Broadcast
         </span>
+        {/* The count is a label, not a control. Giving it a pill made it a
+            short box sitting in a row of taller buttons, which is what read as
+            uneven — so it is plain text and the two real buttons match. */}
         <div className="flex items-center gap-1.5">
-          <Badge tone={targets.length ? 'accent' : 'neutral'}>{targets.length} selected</Badge>
+          <span
+            className={clsx(
+              'text-[10.5px] tabular-nums',
+              targets.length ? 'text-accent' : 'text-ink-500',
+            )}
+          >
+            {targets.length} selected
+          </span>
           <Button
             size="sm"
-            variant="subtle"
             disabled={!snapshot.agents.length}
             onClick={() =>
-              setTargets(
-                snapshot.agents.map((a) => ({ agentId: a.id, serverId: '', session: '' })),
-              )
+              setTargets(snapshot.agents.map((a) => ({ agentId: a.id, serverId: '', session: '' })))
             }
           >
             All agents
           </Button>
-          <Button size="sm" variant="subtle" onClick={() => setTargets([])}>
+          <Button size="sm" disabled={!targets.length} onClick={() => setTargets([])}>
             None
           </Button>
         </div>
@@ -105,17 +137,23 @@ export function BroadcastPanel() {
           targets.map((t) => {
             const d = describe(t)
             return (
-              <div key={targetKey(t)} className="flex items-center gap-2 px-3 py-1 text-[11px]">
+              <div
+                key={targetKey(t)}
+                title={`${d.server} · ${d.session}`}
+                className="flex items-center gap-2 px-3 py-1 text-[11px]"
+              >
                 {d.isAgent ? (
                   <StatusDot status={d.status ?? 'unknown'} />
                 ) : (
                   <Layers size={11} className="shrink-0 text-ink-500" />
                 )}
                 <span className="min-w-0 flex-1 truncate text-ink-200">{d.name}</span>
-                <span className="max-w-[45%] truncate font-mono text-ink-600">{d.detail}</span>
+                {d.server && (
+                  <span className="max-w-[40%] shrink-0 truncate text-ink-500">{d.server}</span>
+                )}
                 <button
                   onClick={() => toggleTarget(t)}
-                  className="text-ink-600 hover:text-danger"
+                  className="shrink-0 text-ink-600 hover:text-danger"
                   title="Remove from broadcast"
                 >
                   <XCircle size={12} />
@@ -153,7 +191,12 @@ export function BroadcastPanel() {
             disabled={sending || !targets.length || !message.trim()}
             onClick={() => void send()}
           >
-            <Radio size={11} /> {sending ? 'Sending…' : `Send to ${targets.length}`}
+            <Radio size={11} />{' '}
+            {sending
+              ? 'Sending…'
+              : serverCount > 1
+                ? `Send to ${targets.length} on ${serverCount} servers`
+                : `Send to ${targets.length}`}
           </Button>
         </div>
       </div>

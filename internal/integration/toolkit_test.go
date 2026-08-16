@@ -280,6 +280,92 @@ func TestBroadcastReachesUnregisteredSessions(t *testing.T) {
 	t.Fatalf("the message never reached pane %s:\n%s", paneID, capture)
 }
 
+// TestBroadcastSpansServers proves one send reaches targets on more than one
+// server. Each target carries its own server id, so the fan-out is per target
+// rather than scoped to a single connection.
+//
+// Two server records point at the same host here, which is enough to exercise
+// the path that matters: two ids, two pooled connections, two resolutions.
+func TestBroadcastSpansServers(t *testing.T) {
+	pool, _ := newPool(t)
+	tm := tmuxx.New(pool)
+	svc, serverA := newAgentService(t)
+	serverB := addSameHostAgain(t, svc)
+
+	sessions := []string{"agentmux-xsrv-a", "agentmux-xsrv-b"}
+	for _, s := range sessions {
+		_ = tm.KillSession("test-server", s)
+		if err := tm.NewSession("test-server", s, ""); err != nil {
+			t.Fatalf("new-session %s: %v", s, err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, s := range sessions {
+			_ = tm.KillSession("test-server", s)
+		}
+	})
+
+	receipts := svc.BroadcastTo([]app.BroadcastTarget{
+		{ServerID: serverA, Session: sessions[0]},
+		{ServerID: serverB, Session: sessions[1]},
+	}, "echo CROSS-SERVER-OK", true)
+
+	if len(receipts) != 2 {
+		t.Fatalf("expected two receipts, got %d", len(receipts))
+	}
+	for i, r := range receipts {
+		if !r.OK {
+			t.Fatalf("target %d failed: %s", i, r.Error)
+		}
+		t.Logf("receipt %d: target=%s", i, r.Target)
+	}
+	if receipts[0].Target == receipts[1].Target {
+		t.Fatal("both messages landed in the same pane, so the two targets were not distinct")
+	}
+
+	// Confirm the text arrived in both panes, not just that the calls returned.
+	for i, r := range receipts {
+		var capture string
+		var err error
+		delivered := false
+		for attempt := 0; attempt < 25; attempt++ {
+			time.Sleep(200 * time.Millisecond)
+			capture, err = tm.CapturePane("test-server", r.Target, 50)
+			if err != nil {
+				t.Fatalf("capture %s: %v", r.Target, err)
+			}
+			if strings.Contains(capture, "CROSS-SERVER-OK") {
+				delivered = true
+				break
+			}
+		}
+		if !delivered {
+			t.Fatalf("target %d (%s) never received the message:\n%s", i, r.Target, capture)
+		}
+	}
+}
+
+// addSameHostAgain registers a second server record for the same test host.
+func addSameHostAgain(t *testing.T, svc *app.AgentService) string {
+	t.Helper()
+	port, _ := strconv.Atoi(os.Getenv("AGENTMUX_TEST_PORT"))
+	if port == 0 {
+		port = 22
+	}
+	srv, err := svc.Store().SaveServer(store.ServerInput{
+		Name:     "integration-2",
+		Host:     os.Getenv("AGENTMUX_TEST_HOST"),
+		Port:     port,
+		Username: os.Getenv("AGENTMUX_TEST_USER"),
+		AuthType: store.AuthKey,
+		KeyPath:  os.Getenv("AGENTMUX_TEST_KEY"),
+	})
+	if err != nil {
+		t.Fatalf("save second server: %v", err)
+	}
+	return srv.ID
+}
+
 func TestInstallRunsInsideTmux(t *testing.T) {
 	pool, _ := newPool(t)
 

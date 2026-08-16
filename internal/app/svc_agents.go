@@ -27,6 +27,12 @@ func (a *AgentService) ServiceName() string { return "AgentService" }
 // List returns every agent definition.
 func (a *AgentService) List() ([]store.Agent, error) { return a.core.Store.ListAgents() }
 
+// Store exposes the database to tests that need to set up fixtures against the
+// same core the service uses. It is not part of the frontend surface: Wails
+// binds exported methods, and this one returns a type it cannot marshal, so it
+// is skipped by the binding generator.
+func (a *AgentService) Store() *store.Store { return a.core.Store }
+
 // Save creates or updates an agent. A blank tmux session name is filled in with
 // the agentmux/{project}/{agent} convention.
 func (a *AgentService) Save(ag store.Agent) (store.Agent, error) {
