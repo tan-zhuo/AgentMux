@@ -6,6 +6,7 @@
 # Go leaves a `~` backup of the previous binary when it relinks in place.
 *.exe~
 /bin/
+/dist/
 *.log
 
 # Frontend

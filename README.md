@@ -1,3 +1,5 @@
+<img src="build/appicon/icon-128.png" width="96" align="right" alt="AgentMux">
+
 # AgentMux
 
 **A desktop control room for AI agents that live on other people's computers.**
@@ -130,6 +132,18 @@ go build -o agentmux .
 
 The frontend is embedded in the binary, so `npm run build` has to happen before
 `go build`.
+
+**Windows, with a proper install:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Build
+```
+
+That builds it, puts it in `%LOCALAPPDATA%\Programs\AgentMux`, and creates
+Desktop and Start Menu shortcuts. It is per-user, so it needs no administrator
+rights, and it never touches your data in `%APPDATA%\AgentMux` — installing over
+an existing copy keeps every server, key and layout you had. Pass `-Uninstall`
+to remove the app and its shortcuts again.
 
 Add a server, point a workspace at a directory on it, give an agent a command
 (`claude`, `opencode`, whatever you run), and press Start.
@@ -324,6 +338,16 @@ go build -o agentmux .
 ```
 
 前端会被嵌进二进制，所以 `npm run build` 必须在 `go build` 之前跑。
+
+**Windows 上正经装一份：**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Build
+```
+
+它会构建、装到 `%LOCALAPPDATA%\Programs\AgentMux`，并建好桌面和开始菜单快捷方式。
+按用户安装，不需要管理员权限，也不会碰 `%APPDATA%\AgentMux` 里的数据——覆盖安装
+之后你的服务器、密钥和布局都还在。想卸载就加 `-Uninstall`。
 
 加一台服务器，给工作区指一个它上面的目录，给 agent 一条命令（`claude`、
 `opencode`，你跑什么就写什么），按 Start。

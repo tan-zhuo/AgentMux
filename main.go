@@ -18,6 +18,13 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// The window and taskbar icon. Wails looks for icon resource 3 in the
+// executable first and falls back to this, so the app is correctly badged even
+// when the binary was built without an embedded resource.
+//
+//go:embed build/appicon/icon.png
+var appIcon []byte
+
 func main() {
 	core, err := app.NewCore()
 	if err != nil {
@@ -29,6 +36,7 @@ func main() {
 	wailsApp := application.New(application.Options{
 		Name:        "AgentMux",
 		Description: "Multi-server AI agent and SSH cluster control plane",
+		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(app.NewServerService(core)),
 			application.NewService(app.NewTreeService(core)),
@@ -70,8 +78,10 @@ func main() {
 		Frameless:        true,
 		BackgroundColour: chrome.Background,
 		Windows: application.WindowsWindow{
-			Theme:       winTheme,
-			DisableIcon: true,
+			Theme: winTheme,
+			// The window is frameless so there is no title bar to draw an icon
+			// in, but the icon is what the taskbar and Alt+Tab use.
+			DisableIcon: false,
 			// Windows 11 draws a light system border around the window, which
 			// reads as a bright hairline against a dark UI. Match it to the theme.
 			CustomTheme: application.ThemeSettings{
