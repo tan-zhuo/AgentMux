@@ -1,8 +1,9 @@
-import { Dialogs } from '@wailsio/runtime'
+import { Clipboard, Dialogs } from '@wailsio/runtime'
 import clsx from 'clsx'
 import {
   ArrowUp,
   ChevronRight,
+  ClipboardCopy,
   CornerUpLeft,
   Download,
   File as FileIcon,
@@ -12,15 +13,19 @@ import {
   Link2,
   Pencil,
   RefreshCw,
+  Rocket,
+  TerminalSquare,
   Trash2,
   Upload,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { errText, files as filesApi, on } from '../lib/api'
+import { errText, files as filesApi, on, windows as windowsApi } from '../lib/api'
 import type { FileEntry, Listing, Transfer } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
+import { openContextMenu, separator } from '../store/useContextMenu'
+import { LaunchHere } from './LaunchHere'
 import { Button, Empty, inputClass } from './ui'
 
 function bytes(n: number): string {
@@ -29,6 +34,11 @@ function bytes(n: number): string {
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
   const v = n / Math.pow(1024, i)
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
+}
+
+/** Quotes a path for a remote /bin/sh command line. */
+function shellQuote(p: string): string {
+  return `'${p.replaceAll("'", `'\\''`)}'`
 }
 
 /** Splits a POSIX path into clickable breadcrumb segments. */
@@ -62,6 +72,48 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [newDir, setNewDir] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null)
+  // Set when the rocket on a row is clicked, so the picker targets that folder
+  // instead of the one currently open.
+  const [launchDir, setLaunchDir] = useState<string | null>(null)
+
+  const openTab = useAppStore((s) => s.openTab)
+  const detached = useAppStore((s) => s.detached)
+
+  /** Attach to the session the launcher just started. */
+  function openAgentTab(session: string, title: string) {
+    setLaunchDir(null)
+    if (detached) {
+      // This window shows one tab and has no strip to add another to, so the
+      // new session gets a window of its own.
+      void windowsApi
+        .detach(
+          {
+            title,
+            kind: 'tmux',
+            serverId: tab.serverId,
+            workspaceId: tab.workspaceId,
+            agentId: '',
+            tmuxSession: session,
+            command: '',
+            shellId: '',
+          },
+          Math.round(window.screenX + 60),
+          Math.round(window.screenY + 60),
+          1000,
+          680,
+        )
+        .catch((e) => toast('error', errText(e)))
+      return
+    }
+    openTab({
+      title,
+      kind: 'tmux',
+      serverId: tab.serverId,
+      workspaceId: tab.workspaceId,
+      agentId: '',
+      tmuxSession: session,
+    })
+  }
 
   const load = useCallback(
     async (dir: string) => {
@@ -199,9 +251,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button size="sm" variant="subtle" title="Refresh" onClick={() => void load(cwd)} disabled={loading}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : undefined} />
         </Button>
-        <Button size="sm" variant="primary" onClick={() => void upload()}>
+        <Button size="sm" onClick={() => void upload()}>
           <Upload size={11} /> Upload
         </Button>
+        <LaunchHere serverId={tab.serverId} dir={cwd} onLaunched={openAgentTab} />
       </div>
 
       {newDir !== null && (
@@ -239,6 +292,18 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         </div>
       )}
 
+      {launchDir && (
+        <div className="flex items-center gap-2 border-b border-ink-800 bg-ink-900 px-2.5 py-2">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-400">
+            {launchDir}
+          </span>
+          <LaunchHere serverId={tab.serverId} dir={launchDir} onLaunched={openAgentTab} />
+          <Button size="sm" onClick={() => setLaunchDir(null)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
       {error && (
         <p className="border-b border-ink-800 px-3 py-2 text-[11px] leading-relaxed text-danger">{error}</p>
       )}
@@ -257,6 +322,65 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                   key={e.path}
                   onClick={() => setSelected(e.path)}
                   onDoubleClick={() => isDir && void load(e.path)}
+                  onContextMenu={(ev) => {
+                    setSelected(e.path)
+                    openContextMenu(ev, [
+                      isDir
+                        ? { label: 'Open', icon: Folder, onSelect: () => void load(e.path) }
+                        : {
+                            label: 'Download',
+                            icon: Download,
+                            onSelect: () => void download(e),
+                          },
+                      isDir
+                        ? {
+                            label: 'Run agent here',
+                            icon: Rocket,
+                            onSelect: () => setLaunchDir(e.path),
+                          }
+                        : {},
+                      isDir
+                        ? {
+                            label: 'Open terminal here',
+                            icon: TerminalSquare,
+                            onSelect: () => {
+                              openTab({
+                                title: e.name,
+                                kind: 'command',
+                                serverId: tab.serverId,
+                                workspaceId: '',
+                                agentId: '',
+                                tmuxSession: '',
+                                command: `cd ${shellQuote(e.path)} && exec "\${SHELL:-/bin/sh}" -l`,
+                              })
+                            },
+                          }
+                        : {},
+                      separator,
+                      {
+                        label: 'Copy path',
+                        icon: ClipboardCopy,
+                        onSelect: () => void Clipboard.SetText(e.path),
+                      },
+                      {
+                        label: 'Copy name',
+                        icon: ClipboardCopy,
+                        onSelect: () => void Clipboard.SetText(e.name),
+                      },
+                      separator,
+                      {
+                        label: 'Rename',
+                        icon: Pencil,
+                        onSelect: () => setRenaming({ path: e.path, name: e.name }),
+                      },
+                      {
+                        label: isDir ? 'Delete directory' : 'Delete file',
+                        icon: Trash2,
+                        danger: true,
+                        onSelect: () => void remove(e),
+                      },
+                    ])
+                  }}
                   className={clsx(
                     'group cursor-default border-b border-ink-900',
                     selected === e.path ? 'bg-accent/12' : 'hover:bg-ink-900',
@@ -313,8 +437,20 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     {e.modTime ? new Date(e.modTime * 1000).toLocaleString() : ''}
                   </td>
                   <td className="w-24 py-1 pr-2 font-mono text-[10.5px] text-ink-600">{e.mode}</td>
-                  <td className="w-24 py-1 pr-3">
+                  <td className="w-28 py-1 pr-3">
                     <span className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100">
+                      {isDir && (
+                        <button
+                          title={`Run an agent in ${e.name}`}
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            setLaunchDir(e.path)
+                          }}
+                          className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
+                        >
+                          <Rocket size={12} />
+                        </button>
+                      )}
                       {!isDir && (
                         <button
                           title="Download"

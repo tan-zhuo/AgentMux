@@ -1,9 +1,15 @@
 package integration
 
 import (
+	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"agentmux/internal/agentkit"
+	"agentmux/internal/app"
+	"agentmux/internal/store"
+	"agentmux/internal/tmuxx"
 )
 
 func TestDetectToolchain(t *testing.T) {
@@ -60,6 +66,107 @@ func TestDetectToolchain(t *testing.T) {
 	} else {
 		t.Logf("curl present=%v at %q", p.Installed, p.Path)
 	}
+}
+
+// TestLaunchInDirNamesSessionAfterFolder covers the file-browser quick launch:
+// pick a directory, get a tmux session named after it with the command running
+// in that directory, and get an attach rather than a second agent if it is run
+// again while something is already there.
+func TestLaunchInDirNamesSessionAfterFolder(t *testing.T) {
+	pool, _ := newPool(t)
+	tm := tmuxx.New(pool)
+
+	// A directory whose name we control, so the derived session name is known.
+	dir := "/tmp/Orbit API"
+	if r, err := pool.Exec("test-server", `mkdir -p '/tmp/Orbit API'`); err != nil || r.Code != 0 {
+		t.Fatalf("mkdir: %v %+v", err, r)
+	}
+	const session = "agentmux/orbit-api"
+	_ = tm.KillSession("test-server", session)
+	t.Cleanup(func() {
+		_ = tm.KillSession("test-server", session)
+		_, _ = pool.Exec("test-server", `rmdir '/tmp/Orbit API' 2>/dev/null`)
+	})
+
+	svc, serverID := newAgentService(t)
+
+	res, err := svc.LaunchInDir(serverID, dir, "sleep 120")
+	if err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	if res.Session != session {
+		t.Fatalf("session name: got %q want %q", res.Session, session)
+	}
+	if !res.Created {
+		t.Error("expected the session to have been created")
+	}
+
+	// It must actually be running, in that directory.
+	var pane *tmuxx.Pane
+	for i := 0; i < 30; i++ {
+		time.Sleep(200 * time.Millisecond)
+		panes, err := tm.ListPanes("test-server")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for j := range panes {
+			if panes[j].SessionName == session {
+				pane = &panes[j]
+			}
+		}
+		if pane != nil && pane.Command == "sleep" {
+			break
+		}
+	}
+	if pane == nil {
+		t.Fatalf("no pane for %s", session)
+	}
+	if pane.Command != "sleep" {
+		t.Fatalf("expected the command to be running, pane shows %q", pane.Command)
+	}
+	if pane.Path != dir {
+		t.Errorf("expected the pane to be in %q, got %q", dir, pane.Path)
+	}
+	t.Logf("session %s running %q in %s", session, pane.Command, pane.Path)
+
+	// Launching again must attach rather than stack a second command on top.
+	again, err := svc.LaunchInDir(serverID, dir, "sleep 120")
+	if err != nil {
+		t.Fatalf("second launch: %v", err)
+	}
+	if !again.Reused {
+		t.Error("expected the second launch to report that it reused the session")
+	}
+}
+
+// newAgentService builds the real service against a throwaway data directory,
+// so the test exercises the same path the UI calls rather than a stand-in.
+func newAgentService(t *testing.T) (*app.AgentService, string) {
+	t.Helper()
+	t.Setenv("AGENTMUX_DATA_DIR", t.TempDir())
+
+	core, err := app.NewCore()
+	if err != nil {
+		t.Fatalf("core: %v", err)
+	}
+	t.Cleanup(core.Shutdown)
+
+	port, _ := strconv.Atoi(os.Getenv("AGENTMUX_TEST_PORT"))
+	if port == 0 {
+		port = 22
+	}
+	srv, err := core.Store.SaveServer(store.ServerInput{
+		Name:     "integration",
+		Host:     os.Getenv("AGENTMUX_TEST_HOST"),
+		Port:     port,
+		Username: os.Getenv("AGENTMUX_TEST_USER"),
+		AuthType: store.AuthKey,
+		KeyPath:  os.Getenv("AGENTMUX_TEST_KEY"),
+	})
+	if err != nil {
+		t.Fatalf("save server: %v", err)
+	}
+	return app.NewAgentService(core), srv.ID
 }
 
 func TestInstallRunsInsideTmux(t *testing.T) {

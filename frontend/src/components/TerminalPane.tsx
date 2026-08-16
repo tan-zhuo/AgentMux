@@ -1,3 +1,5 @@
+import { Clipboard } from '@wailsio/runtime'
+import { ClipboardPaste, Copy, Eraser, Search, TextSelect } from 'lucide-react'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -6,6 +8,7 @@ import { useEffect, useRef } from 'react'
 import { errText, on, terminal as termApi } from '../lib/api'
 import type { ShellInfo } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
+import { openContextMenu, separator } from '../store/useContextMenu'
 import { useTheme } from '../store/useTheme'
 import { Button } from './ui'
 
@@ -134,20 +137,33 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
 
       try {
         let info: ShellInfo
-        switch (tab.kind) {
-          case 'agent':
-            info = await termApi.attachAgent(tab.agentId, cols, rows)
-            break
-          case 'tmux':
-            info = await termApi.attachTmux(tab.serverId, tab.tmuxSession, cols, rows)
-            break
-          case 'command':
-            info = await termApi.openCommand(tab.serverId, tab.command ?? '', cols, rows)
-            break
-          default:
-            info = tab.workspaceId
-              ? await termApi.openWorkspace(tab.workspaceId, cols, rows)
-              : await termApi.openShell(tab.serverId, cols, rows)
+        if (tab.adoptShellId) {
+          // The PTY is already open — this pane is taking over a session that
+          // was started in another window. Opening a second one would leave the
+          // first orphaned and the agent talking to nobody.
+          const live = await termApi.list()
+          const existing = live.find((s) => s.id === tab.adoptShellId)
+          if (!existing) {
+            throw new Error('that terminal session has already ended')
+          }
+          info = existing
+          await termApi.resize(info.id, cols, rows).catch(() => {})
+        } else {
+          switch (tab.kind) {
+            case 'agent':
+              info = await termApi.attachAgent(tab.agentId, cols, rows)
+              break
+            case 'tmux':
+              info = await termApi.attachTmux(tab.serverId, tab.tmuxSession, cols, rows)
+              break
+            case 'command':
+              info = await termApi.openCommand(tab.serverId, tab.command ?? '', cols, rows)
+              break
+            default:
+              info = tab.workspaceId
+                ? await termApi.openWorkspace(tab.workspaceId, cols, rows)
+                : await termApi.openShell(tab.serverId, cols, rows)
+          }
         }
         if (!mountedRef.current) {
           // The tab closed while the connection was still being made; do not
@@ -215,8 +231,52 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
 
   const dead = tab.status === 'closed' || tab.status === 'error'
 
+  function terminalMenu(e: React.MouseEvent) {
+    const term = termRef.current
+    const selection = term?.getSelection() ?? ''
+    openContextMenu(e, [
+      {
+        label: 'Copy',
+        icon: Copy,
+        hint: 'Ctrl+Shift+C',
+        disabled: !selection,
+        onSelect: () => void Clipboard.SetText(selection),
+      },
+      {
+        label: 'Paste',
+        icon: ClipboardPaste,
+        hint: 'Ctrl+Shift+V',
+        disabled: !shellIdRef.current,
+        onSelect: async () => {
+          const text = await Clipboard.Text()
+          const id = shellIdRef.current
+          if (text && id) await termApi.write(id, toBase64(text))
+        },
+      },
+      {
+        label: 'Select all',
+        icon: TextSelect,
+        onSelect: () => term?.selectAll(),
+      },
+      separator,
+      {
+        label: 'Clear scrollback',
+        icon: Eraser,
+        onSelect: () => term?.clear(),
+      },
+      {
+        label: 'Find',
+        icon: Search,
+        onSelect: () => {
+          const needle = window.prompt('Find in terminal')
+          if (needle) searchRef.current?.findNext(needle)
+        },
+      },
+    ])
+  }
+
   return (
-    <div className="relative h-full w-full bg-ink-950">
+    <div className="relative h-full w-full bg-ink-950" onContextMenu={terminalMenu}>
       <div ref={hostRef} className="h-full w-full px-2 py-1.5" />
       {dead && (
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t border-ink-750 bg-ink-850/95 px-3 py-2">

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { agents as agentApi, errText, servers, terminal, tree } from '../lib/api'
+import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
 import type {
   Agent,
   ConnState,
@@ -25,6 +25,9 @@ export interface Tab {
   /** For kind 'command' the remote command this PTY runs; for kind 'files' the
    *  directory the browser is showing. */
   command?: string
+  /** Take over this already-open PTY instead of starting a new one. Set when a
+   *  tab is torn out of another window. */
+  adoptShellId?: string
   shellId?: string
   status: TabStatus
   error?: string
@@ -106,6 +109,9 @@ interface AppState {
 
   tabs: Tab[]
   activeTabId: string | null
+  /** True in a window holding a single torn-out tab. Such a window must not
+   *  write the persisted layout: its one tab is not the main window's list. */
+  detached: boolean
 
   selection: Selection
   rightPanel: RightPanel
@@ -141,6 +147,8 @@ interface AppState {
 
   openTab: (spec: Omit<Tab, 'id' | 'status'> & { id?: string }) => string
   setTabState: (id: string, patch: Partial<Tab>) => void
+  moveTab: (from: number, to: number) => void
+  detachTab: (id: string, x: number, y: number, width: number, height: number) => Promise<void>
   closeTab: (id: string) => Promise<void>
   setActiveTab: (id: string) => void
   persistTabs: () => Promise<void>
@@ -159,6 +167,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   tabs: [],
   activeTabId: null,
+  detached: false,
 
   selection: { kind: 'none' },
   rightPanel: 'detail',
@@ -329,6 +338,56 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)) }))
   },
 
+  moveTab(from, to) {
+    set((s) => {
+      if (from === to || from < 0 || to < 0 || from >= s.tabs.length || to >= s.tabs.length) {
+        return s
+      }
+      const tabs = [...s.tabs]
+      const [moved] = tabs.splice(from, 1)
+      tabs.splice(to, 0, moved)
+      return { tabs }
+    })
+    void get().persistTabs()
+  },
+
+  async detachTab(id, x, y, width, height) {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab) return
+    try {
+      await windows.detach(
+        {
+          title: tab.title,
+          kind: tab.kind,
+          serverId: tab.serverId,
+          workspaceId: tab.workspaceId,
+          agentId: tab.agentId,
+          tmuxSession: tab.tmuxSession,
+          command: tab.command ?? '',
+          // Hand over the live PTY so the new window continues the same
+          // session rather than opening a second one beside it.
+          shellId: tab.shellId ?? '',
+        },
+        x,
+        y,
+        width,
+        height,
+      )
+    } catch (e) {
+      get().toast('error', errText(e))
+      return
+    }
+    // The tab now lives in the other window. Drop it here without closing the
+    // shell, which the new window has taken over.
+    set((s) => {
+      const tabs = s.tabs.filter((t) => t.id !== id)
+      let activeTabId = s.activeTabId
+      if (activeTabId === id) activeTabId = tabs.length ? tabs[tabs.length - 1].id : null
+      return { tabs, activeTabId }
+    })
+    void get().persistTabs()
+  },
+
   async closeTab(id) {
     const tab = get().tabs.find((t) => t.id === id)
     if (tab?.shellId) {
@@ -352,6 +411,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async persistTabs() {
+    // A detached window holds one tab. Writing that as "the layout" would wipe
+    // everything the main window has open the next time it starts.
+    if (get().detached) return
     const tabs = get().tabs
     const payload: TerminalTab[] = tabs.map((t, i) => ({
       id: t.id,

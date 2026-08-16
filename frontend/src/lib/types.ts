@@ -267,6 +267,39 @@ export interface MetricSample {
   gpus: GpuUsage[]
 }
 
+/** An agent CLI a server can run right now. */
+export interface AgentChoice {
+  id: string
+  name: string
+  command: string
+  version: string
+}
+
+/** The outcome of launching an agent straight from a directory. */
+export interface QuickLaunch {
+  serverId: string
+  dir: string
+  session: string
+  command: string
+  createdSession: boolean
+  reusedSession: boolean
+  agentId: string
+}
+
+/** A tab handed to a new window when it is torn out of the tab strip. */
+export interface DetachedTab {
+  token?: string
+  title: string
+  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files'
+  serverId: string
+  workspaceId: string
+  agentId: string
+  tmuxSession: string
+  command: string
+  /** An already-open PTY the new window takes over. */
+  shellId: string
+}
+
 export interface InstallStarted {
   serverId: string
   toolId: string

@@ -25,6 +25,9 @@ import type {
   Listing,
   Transfer,
   MetricSample,
+  DetachedTab,
+  AgentChoice,
+  QuickLaunch,
 } from './types'
 
 // Wails binds methods as "<go package path>.<Type>.<Method>".
@@ -113,6 +116,8 @@ export const toolkit = {
     call<InstallStarted>('ToolkitService', 'InstallCustom', serverId, label, script),
   verify: (serverId: string, toolId: string) =>
     call<Presence>('ToolkitService', 'Verify', serverId, toolId),
+  installedAgents: (serverId: string) =>
+    call<AgentChoice[]>('ToolkitService', 'InstalledAgents', serverId),
   installSessionName: () => call<string>('ToolkitService', 'InstallSessionName'),
 }
 
@@ -132,6 +137,12 @@ export const files = {
   cancel: (id: string) => call<void>('FileService', 'Cancel', id),
   transfers: () => call<Transfer[]>('FileService', 'Transfers'),
   clearFinished: () => call<void>('FileService', 'ClearFinished'),
+}
+
+export const windows = {
+  detach: (tab: DetachedTab, x: number, y: number, width: number, height: number) =>
+    call<string>('WindowService', 'Detach', tab, x, y, width, height),
+  claim: (token: string) => call<DetachedTab>('WindowService', 'Claim', token),
 }
 
 export const metrics = {
@@ -154,6 +165,8 @@ export const agents = {
   broadcast: (ids: string[], message: string, execute: boolean) =>
     call<Receipt[]>('AgentService', 'Broadcast', ids, message, execute),
   logs: (id: string, lines: number) => call<string>('AgentService', 'Logs', id, lines),
+  launchInDir: (serverId: string, dir: string, command: string) =>
+    call<QuickLaunch>('AgentService', 'LaunchInDir', serverId, dir, command),
   refresh: (serverId: string) => call<Agent[]>('AgentService', 'Refresh', serverId),
   refreshAll: () => call<Agent[]>('AgentService', 'RefreshAll'),
 }

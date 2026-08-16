@@ -31,6 +31,34 @@ func (t *ToolkitService) Detect(serverID string) agentkit.Report {
 	return agentkit.Detect(t.core.Pool, serverID)
 }
 
+// AgentChoice is one runnable agent CLI found on a server.
+type AgentChoice struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Command string `json:"command"`
+	Version string `json:"version"`
+}
+
+// InstalledAgents lists the agent CLIs a server can actually run right now.
+// The quick-launch picker needs only this, so it avoids paying for the full
+// report every time someone opens the menu.
+func (t *ToolkitService) InstalledAgents(serverID string) []AgentChoice {
+	rep := agentkit.Detect(t.core.Pool, serverID)
+	out := []AgentChoice{}
+	for _, a := range rep.Agents {
+		if !a.Installed {
+			continue
+		}
+		out = append(out, AgentChoice{
+			ID:      a.Tool.ID,
+			Name:    a.Tool.Name,
+			Command: a.Tool.RunCommand,
+			Version: a.Version,
+		})
+	}
+	return out
+}
+
 // InstallStarted tells the frontend where to watch the install run.
 type InstallStarted struct {
 	ServerID string `json:"serverId"`

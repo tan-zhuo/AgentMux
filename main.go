@@ -49,6 +49,7 @@ func main() {
 			application.NewService(app.NewToolkitService(core)),
 			application.NewService(app.NewFileService(core)),
 			application.NewService(app.NewMetricsService(core)),
+			application.NewService(app.NewWindowService(core)),
 			application.NewService(agentSvc),
 		},
 		Assets: application.AssetOptions{

@@ -1,13 +1,23 @@
+import { Clipboard } from '@wailsio/runtime'
 import clsx from 'clsx'
 import {
+  Activity,
   Bot,
   ChevronDown,
   ChevronRight,
+  ClipboardCopy,
   FolderTree,
+  Layers,
+  Link2,
+  Link2Off,
   Play,
   Plus,
+  Radio,
+  RotateCw,
   Search,
   Server as ServerIcon,
+  Skull,
+  Sparkles,
   Square,
   TerminalSquare,
   Trash2,
@@ -19,6 +29,7 @@ import { agents as agentApi, errText, servers as serverApi, tree as treeApi } fr
 import type { Agent, Project, Server, Workspace } from '../lib/types'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
+import { openContextMenu, separator } from '../store/useContextMenu'
 import { useDialogs } from '../store/useDialogs'
 import { Button, ConnDot, StatusDot } from './ui'
 
@@ -43,6 +54,7 @@ export function Sidebar() {
   const selection = useAppStore((s) => s.selection)
   const select = useAppStore((s) => s.select)
   const openTab = useAppStore((s) => s.openTab)
+  const setRightPanel = useAppStore((s) => s.setRightPanel)
   const toast = useAppStore((s) => s.toast)
   const broadcastTargets = useAppStore((s) => s.broadcastTargets)
   const toggleBroadcastTarget = useAppStore((s) => s.toggleBroadcastTarget)
@@ -294,6 +306,28 @@ export function Sidebar() {
                   depth={row.depth}
                   selected={selected}
                   onClick={() => select({ kind: 'project', id: row.project.id })}
+                  onContextMenu={(e) => {
+                    select({ kind: 'project', id: row.project.id })
+                    openContextMenu(e, [
+                      {
+                        label: 'Add workspace',
+                        icon: Plus,
+                        onSelect: () => openDialog({ kind: 'workspace', projectId: row.project.id }),
+                      },
+                      separator,
+                      {
+                        label: 'Edit project',
+                        icon: Pencil,
+                        onSelect: () => openDialog({ kind: 'project', project: row.project }),
+                      },
+                      {
+                        label: 'Delete project',
+                        icon: Trash2,
+                        danger: true,
+                        onSelect: () => void deleteProject(row.project),
+                      },
+                    ])
+                  }}
                   chevron={open ? 'down' : 'right'}
                   onChevron={() => toggleExpanded(`p:${row.project.id}`)}
                   label={row.project.name}
@@ -332,6 +366,75 @@ export function Sidebar() {
                   depth={row.depth}
                   selected={selected}
                   onClick={() => select({ kind: 'workspace', id: row.workspace.id })}
+                  onContextMenu={(e) => {
+                    select({ kind: 'workspace', id: row.workspace.id })
+                    openContextMenu(e, [
+                      {
+                        label: 'Open shell here',
+                        icon: TerminalSquare,
+                        onSelect: () => {
+                          openTab({
+                            title: row.workspace.name,
+                            kind: 'shell',
+                            serverId: row.workspace.serverId,
+                            workspaceId: row.workspace.id,
+                            agentId: '',
+                            tmuxSession: '',
+                          })
+                        },
+                      },
+                      {
+                        label: 'Browse files',
+                        icon: FolderTree,
+                        onSelect: () => {
+                          openTab({
+                            title: row.workspace.name,
+                            kind: 'files',
+                            serverId: row.workspace.serverId,
+                            workspaceId: row.workspace.id,
+                            agentId: '',
+                            tmuxSession: '',
+                            command: row.workspace.remotePath,
+                          })
+                        },
+                      },
+                      separator,
+                      {
+                        label: 'Add agent',
+                        icon: Bot,
+                        onSelect: () => openDialog({ kind: 'agent', workspaceId: row.workspace.id }),
+                      },
+                      {
+                        label: 'Copy remote path',
+                        icon: ClipboardCopy,
+                        onSelect: () => void Clipboard.SetText(row.workspace.remotePath),
+                      },
+                      separator,
+                      {
+                        label: 'Edit workspace',
+                        icon: Pencil,
+                        onSelect: () => openDialog({ kind: 'workspace', workspace: row.workspace }),
+                      },
+                      {
+                        label: 'Delete workspace',
+                        icon: Trash2,
+                        danger: true,
+                        onSelect: async () => {
+                          const ok = await confirmAction({
+                            title: `Delete ${row.workspace.name}`,
+                            message:
+                              'The workspace and its agent definitions are removed from AgentMux.',
+                            reassurance:
+                              'No files are deleted and remote tmux sessions keep running.',
+                            confirmLabel: 'Delete workspace',
+                          })
+                          if (!ok) return
+                          await treeApi.deleteWorkspace(row.workspace.id)
+                          await refreshSnapshot()
+                        },
+                      },
+                    ])
+                  }}
                   chevron={open ? 'down' : 'right'}
                   onChevron={() => toggleExpanded(`w:${row.workspace.id}`)}
                   icon={<ConnDot connected={!!connections[row.workspace.serverId]?.connected} />}
@@ -395,6 +498,106 @@ export function Sidebar() {
                   depth={row.depth}
                   selected={selected}
                   onClick={() => select({ kind: 'agent', id: a.id })}
+                  onContextMenu={(e) => {
+                    select({ kind: 'agent', id: a.id })
+                    const attach = () => {
+                      openTab({
+                        title: a.name,
+                        kind: 'agent',
+                        serverId: row.workspace.serverId,
+                        workspaceId: row.workspace.id,
+                        agentId: a.id,
+                        tmuxSession: a.tmuxSession,
+                      })
+                    }
+                    openContextMenu(e, [
+                      { label: 'Attach terminal', icon: TerminalSquare, onSelect: attach },
+                      separator,
+                      {
+                        label: 'Start',
+                        icon: Play,
+                        disabled: a.status === 'running',
+                        onSelect: () => void startAgent(a, row.workspace),
+                      },
+                      {
+                        label: 'Stop (Ctrl-C)',
+                        icon: Square,
+                        disabled: a.status !== 'running',
+                        onSelect: () => void stopAgent(a, row.workspace),
+                      },
+                      {
+                        label: 'Restart',
+                        icon: RotateCw,
+                        onSelect: async () => {
+                          try {
+                            await agentApi.restart(a.id)
+                            toast('ok', `${a.name} restarted`)
+                            await refreshServerAgents(row.workspace.serverId)
+                          } catch (err) {
+                            toast('error', errText(err))
+                          }
+                        },
+                      },
+                      separator,
+                      {
+                        label: checked ? 'Remove from broadcast' : 'Add to broadcast',
+                        icon: Radio,
+                        onSelect: () => toggleBroadcastTarget(a.id),
+                      },
+                      {
+                        label: 'Copy session name',
+                        icon: ClipboardCopy,
+                        onSelect: () => void Clipboard.SetText(a.tmuxSession),
+                      },
+                      separator,
+                      {
+                        label: 'Edit agent',
+                        icon: Pencil,
+                        onSelect: () => openDialog({ kind: 'agent', agent: a }),
+                      },
+                      {
+                        label: 'Kill session',
+                        icon: Skull,
+                        danger: true,
+                        onSelect: async () => {
+                          const ok = await confirmAction({
+                            title: `Kill ${a.tmuxSession}`,
+                            message:
+                              'The tmux session is destroyed along with everything running inside it.',
+                            points: [
+                              'The agent is terminated, not asked to stop',
+                              'The pane and all of its scrollback are lost',
+                            ],
+                            confirmLabel: 'Kill session',
+                            requireText: a.name,
+                          })
+                          if (!ok) return
+                          try {
+                            await agentApi.kill(a.id)
+                            await refreshServerAgents(row.workspace.serverId)
+                          } catch (err) {
+                            toast('error', errText(err))
+                          }
+                        },
+                      },
+                      {
+                        label: 'Delete agent',
+                        icon: Trash2,
+                        danger: true,
+                        onSelect: async () => {
+                          const ok = await confirmAction({
+                            title: `Delete ${a.name}`,
+                            message: 'The agent definition is removed from AgentMux.',
+                            reassurance: `Its tmux session ${a.tmuxSession} keeps running on the server.`,
+                            confirmLabel: 'Delete agent',
+                          })
+                          if (!ok) return
+                          await agentApi.remove(a.id)
+                          await refreshSnapshot()
+                        },
+                      },
+                    ])
+                  }}
                   onDoubleClick={() =>
                     openTab({
                       title: a.name,
@@ -469,6 +672,93 @@ export function Sidebar() {
                 depth={row.depth}
                 selected={selected}
                 onClick={() => select({ kind: 'server', id: s.id })}
+                onContextMenu={(e) => {
+                  select({ kind: 'server', id: s.id })
+                  openContextMenu(e, [
+                    {
+                      label: 'Open shell',
+                      icon: TerminalSquare,
+                      onSelect: () => {
+                        openTab({
+                          title: s.name,
+                          kind: 'shell',
+                          serverId: s.id,
+                          workspaceId: '',
+                          agentId: '',
+                          tmuxSession: '',
+                        })
+                      },
+                    },
+                    {
+                      label: 'Browse files',
+                      icon: FolderTree,
+                      onSelect: () => {
+                        openTab({
+                          title: s.name,
+                          kind: 'files',
+                          serverId: s.id,
+                          workspaceId: '',
+                          agentId: '',
+                          tmuxSession: '',
+                          command: '',
+                        })
+                      },
+                    },
+                    separator,
+                    { label: 'Metrics', icon: Activity, onSelect: () => setRightPanel('metrics') },
+                    { label: 'tmux sessions', icon: Layers, onSelect: () => setRightPanel('tmux') },
+                    {
+                      label: 'Install agents',
+                      icon: Sparkles,
+                      onSelect: () => setRightPanel('toolkit'),
+                    },
+                    separator,
+                    conn?.connected
+                      ? {
+                          label: 'Disconnect',
+                          icon: Link2Off,
+                          onSelect: async () => {
+                            await serverApi.disconnect(s.id)
+                            await useAppStore.getState().refreshConnections()
+                          },
+                        }
+                      : {
+                          label: 'Connect',
+                          icon: Link2,
+                          onSelect: async () => {
+                            try {
+                              await serverApi.connect(s.id)
+                              toast('ok', `Connected to ${s.name}`)
+                            } catch (err) {
+                              toast('error', errText(err))
+                            }
+                            await useAppStore.getState().refreshConnections()
+                          },
+                        },
+                    {
+                      label: 'Test connection',
+                      icon: Zap,
+                      onSelect: async () => {
+                        const p = await serverApi.test(s.id)
+                        if (p.ok) toast('ok', `${s.name}: ${p.latencyMs} ms · ${p.os || 'unknown'}`)
+                        else toast('error', `${s.name}: ${p.error}`)
+                        await useAppStore.getState().refreshConnections()
+                      },
+                    },
+                    separator,
+                    {
+                      label: 'Edit server',
+                      icon: Pencil,
+                      onSelect: () => openDialog({ kind: 'server', server: s }),
+                    },
+                    {
+                      label: 'Remove server',
+                      icon: Trash2,
+                      danger: true,
+                      onSelect: () => void deleteServer(s),
+                    },
+                  ])
+                }}
                 onDoubleClick={() =>
                   openTab({
                     title: s.name,
@@ -567,6 +857,7 @@ function TreeRow({
   selected,
   onClick,
   onDoubleClick,
+  onContextMenu,
   chevron,
   onChevron,
   icon,
@@ -581,6 +872,7 @@ function TreeRow({
   selected?: boolean
   onClick?: () => void
   onDoubleClick?: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
   chevron?: 'right' | 'down'
   onChevron?: () => void
   icon?: React.ReactNode
@@ -595,6 +887,7 @@ function TreeRow({
       style={style}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
       className={clsx(
         'group flex cursor-default items-center gap-1.5 pr-1.5 text-xs',
         selected ? 'bg-accent/12 text-ink-100' : 'text-ink-200 hover:bg-ink-850',

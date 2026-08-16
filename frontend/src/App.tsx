@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { CommandPalette } from './components/CommandPalette'
 import { ConfirmDialog } from './components/ConfirmDialog'
+import { ContextMenu } from './components/ContextMenu'
 import { Dialogs } from './components/Dialogs'
+import { showEditMenu } from './lib/editMenu'
 import { RightPanel } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
 import { Splitter } from './components/Splitter'
@@ -51,6 +53,32 @@ export default function App() {
       offConn()
     }
   }, [applyAgents, applyConnState])
+
+  // The webview's own menu offers Reload and Back, which are meaningless here
+  // and destructive — a stray Reload drops every attached terminal view. Text
+  // fields get an editing menu instead of nothing, and everything else is
+  // handled by the component that was clicked.
+  useEffect(() => {
+    const onMenu = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null
+      const editable =
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.isContentEditable ||
+          el.closest('input, textarea'))
+      if (editable) {
+        e.preventDefault()
+        void showEditMenu(e, el as HTMLElement)
+        return
+      }
+      // Components that want a menu call openContextMenu, which already
+      // prevented the default. Anything else simply gets no menu.
+      if (!e.defaultPrevented) e.preventDefault()
+    }
+    document.addEventListener('contextmenu', onMenu)
+    return () => document.removeEventListener('contextmenu', onMenu)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -112,6 +140,7 @@ export default function App() {
       <Dialogs />
       <CommandPalette />
       <ConfirmDialog />
+      <ContextMenu />
       <Toasts />
     </div>
   )

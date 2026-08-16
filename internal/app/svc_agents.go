@@ -1,7 +1,9 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -266,6 +268,88 @@ func (a *AgentService) Broadcast(agentIDs []string, message string, execute bool
 	}
 	wg.Wait()
 	return out
+}
+
+// QuickLaunch is the result of starting an agent straight from a directory.
+type QuickLaunch struct {
+	ServerID string `json:"serverId"`
+	Dir      string `json:"dir"`
+	Session  string `json:"session"`
+	Command  string `json:"command"`
+	Created  bool   `json:"createdSession"`
+	Reused   bool   `json:"reusedSession"`
+	AgentID  string `json:"agentId"`
+}
+
+// LaunchInDir starts an agent in a directory without any prior setup: it names
+// a tmux session after the folder, creates it there, and types the command in.
+//
+// This is the path from "I am looking at a project directory" to "an agent is
+// working in it" — the reason the file browser exists next to the tree rather
+// than instead of it. Re-running it on a directory whose session already has
+// something in the pane attaches instead of stacking a second agent on top.
+func (a *AgentService) LaunchInDir(serverID, dir, command string) (QuickLaunch, error) {
+	dir = strings.TrimRight(strings.TrimSpace(dir), "/")
+	if serverID == "" || dir == "" {
+		return QuickLaunch{}, errors.New("a server and a directory are required")
+	}
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return QuickLaunch{}, errors.New("pick a command to run")
+	}
+
+	if info := a.core.Tmux.Available(serverID); !info.Available {
+		return QuickLaunch{}, fmt.Errorf("tmux is not available on this server: %s", info.Error)
+	}
+
+	base := path.Base(dir)
+	if base == "" || base == "." || base == "/" {
+		base = "root"
+	}
+	session := "agentmux/" + Slug(base)
+
+	res := QuickLaunch{ServerID: serverID, Dir: dir, Session: session, Command: command}
+
+	exists, err := a.core.Tmux.HasSession(serverID, session)
+	if err != nil {
+		return res, err
+	}
+	if !exists {
+		if err := a.core.Tmux.NewSession(serverID, session, dir); err != nil {
+			return res, err
+		}
+		res.Created = true
+	}
+
+	panes, err := a.core.Tmux.ListPanes(serverID)
+	if err != nil {
+		return res, err
+	}
+	var pane *tmuxx.Pane
+	for i := range panes {
+		if panes[i].SessionName == session {
+			if pane == nil || panes[i].WindowIndex < pane.WindowIndex {
+				pane = &panes[i]
+			}
+		}
+	}
+	if pane == nil {
+		return res, fmt.Errorf("tmux session %q has no panes", session)
+	}
+
+	// Something is already running in there — most likely the agent from the
+	// last time this directory was launched. Leave it be and let the caller
+	// attach to it.
+	if !shellCommands[pane.Command] {
+		res.Reused = true
+		return res, nil
+	}
+
+	full := "cd " + sshx.ShellQuote(dir) + " && " + command
+	if err := a.core.Tmux.SendText(serverID, pane.PaneID, full, true); err != nil {
+		return res, err
+	}
+	return res, nil
 }
 
 // Logs returns the tail of an agent's pane without attaching a terminal.
