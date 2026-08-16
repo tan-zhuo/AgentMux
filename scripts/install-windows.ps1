@@ -77,7 +77,10 @@ if ($Build) {
     go run ./tools/icongen | Out-Null
     Write-Host '  building binary'
     New-Item -ItemType Directory -Force (Join-Path $repoRoot 'dist') | Out-Null
-    go build -o (Join-Path $repoRoot 'dist\agentmux.exe') .
+    # -H windowsgui marks the executable as a GUI subsystem binary. Without it
+    # Go produces a console binary and Windows opens a black console window
+    # behind the app every time it launches.
+    go build -ldflags '-H windowsgui' -o (Join-Path $repoRoot 'dist\agentmux.exe') .
     Pop-Location
 }
 

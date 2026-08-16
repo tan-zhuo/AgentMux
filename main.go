@@ -7,10 +7,14 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"agentmux/internal/app"
+	"agentmux/internal/store"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -28,7 +32,7 @@ var appIcon []byte
 func main() {
 	core, err := app.NewCore()
 	if err != nil {
-		log.Fatalf("AgentMux failed to start: %v", err)
+		fatal("AgentMux could not start", err)
 	}
 
 	agentSvc := app.NewAgentService(core)
@@ -97,6 +101,26 @@ func main() {
 	})
 
 	if err := wailsApp.Run(); err != nil {
-		log.Fatalf("AgentMux exited: %v", err)
+		fatal("AgentMux exited with an error", err)
 	}
+}
+
+// fatal records a startup failure somewhere a user can find it.
+//
+// Release builds are linked as GUI subsystem binaries so that launching the app
+// does not open a console window. The cost is that anything written to stderr
+// goes nowhere, which would turn a failure to start into the app simply not
+// appearing. Writing the reason next to the database makes it diagnosable.
+func fatal(context string, err error) {
+	msg := fmt.Sprintf("%s\n\n%s: %v\n", time.Now().Format(time.RFC3339), context, err)
+	if dir, derr := store.AppDir(); derr == nil {
+		path := filepath.Join(dir, "startup-error.log")
+		if f, ferr := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); ferr == nil {
+			_, _ = f.WriteString(msg)
+			_ = f.Close()
+			log.Printf("%s: %v (also written to %s)", context, err, path)
+			os.Exit(1)
+		}
+	}
+	log.Fatalf("%s: %v", context, err)
 }

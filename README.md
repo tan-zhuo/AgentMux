@@ -133,6 +133,17 @@ go build -o agentmux .
 The frontend is embedded in the binary, so `npm run build` has to happen before
 `go build`.
 
+On Windows that plain `go build` gives you a console binary, which is what you
+want while developing — the Wails log goes to the terminal. For something you
+double-click, link it as a GUI binary so no console window opens behind the app:
+
+```sh
+go build -ldflags "-H windowsgui" -o agentmux.exe .
+```
+
+Then stderr goes nowhere, so a failure to start would be silent. AgentMux writes
+those to `startup-error.log` in its data directory instead.
+
 **Windows, with a proper install:**
 
 ```powershell
@@ -341,6 +352,17 @@ go build -o agentmux .
 ```
 
 前端会被嵌进二进制，所以 `npm run build` 必须在 `go build` 之前跑。
+
+在 Windows 上，这样直接 `go build` 出来的是 console 子系统的二进制——开发时正好，
+Wails 的日志会打到终端里。但如果是要双击运行的，得链接成 GUI 子系统，否则应用后面
+会挂一个黑色控制台窗口：
+
+```sh
+go build -ldflags "-H windowsgui" -o agentmux.exe .
+```
+
+代价是 stderr 无处可去，启动失败会变成"什么都没发生"。所以 AgentMux 会把这类错误
+写到数据目录下的 `startup-error.log`。
 
 **Windows 上正经装一份：**
 
