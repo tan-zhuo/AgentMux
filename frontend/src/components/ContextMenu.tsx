@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useContextMenu, type MenuItem } from '../store/useContextMenu'
 
 /**
@@ -32,8 +32,18 @@ function tidy(items: MenuItem[]): MenuItem[] {
 }
 
 export function ContextMenu() {
-  const { open, x, y, items: raw, hide } = useContextMenu()
-  const items = tidy(raw)
+  // Selected field by field, and the tidied list memoised on the raw one.
+  // Rebuilding the array on every render would make it a new dependency each
+  // time, so the positioning effect below would re-run, set state, and render
+  // again — an infinite loop that React ends by tearing the tree down, which
+  // shows up as a blank window.
+  const open = useContextMenu((s) => s.open)
+  const x = useContextMenu((s) => s.x)
+  const y = useContextMenu((s) => s.y)
+  const raw = useContextMenu((s) => s.items)
+  const hide = useContextMenu((s) => s.hide)
+  const items = useMemo(() => tidy(raw), [raw])
+
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ left: x, top: y })
   const [cursor, setCursor] = useState(-1)
@@ -44,10 +54,13 @@ export function ContextMenu() {
     const w = el?.offsetWidth ?? 200
     const h = el?.offsetHeight ?? 200
     const pad = 8
-    setPos({
-      left: Math.min(x, window.innerWidth - w - pad),
-      top: Math.min(y, window.innerHeight - h - pad),
-    })
+    const next = {
+      left: Math.max(pad, Math.min(x, window.innerWidth - w - pad)),
+      top: Math.max(pad, Math.min(y, window.innerHeight - h - pad)),
+    }
+    // Belt and braces: never set identical coordinates, so even an unexpected
+    // extra run cannot start a loop.
+    setPos((prev) => (prev.left === next.left && prev.top === next.top ? prev : next))
     setCursor(-1)
   }, [open, x, y, items])
 

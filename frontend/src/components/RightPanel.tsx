@@ -74,8 +74,25 @@ export function RightPanel() {
     const el = stripRef.current
     if (!el) return
     syncOverflow()
+
+    // A vertical wheel does not move a strip that only scrolls horizontally,
+    // so the gesture people actually make over a row of tabs is translated
+    // here. Registered non-passive because it has to preventDefault, otherwise
+    // the wheel keeps bubbling and scrolls something else.
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (delta === 0) return
+      e.preventDefault()
+      el.scrollLeft += delta
+    }
+
     el.addEventListener('scroll', syncOverflow, { passive: true })
-    return () => el.removeEventListener('scroll', syncOverflow)
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('scroll', syncOverflow)
+      el.removeEventListener('wheel', onWheel)
+    }
   }, [syncOverflow])
 
   // Re-check when the panel is resized or the badge changes the strip's width.

@@ -10,7 +10,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { FileBrowser } from './FileBrowser'
@@ -53,6 +53,22 @@ export function TerminalArea() {
 
   const stripRef = useRef<HTMLDivElement | null>(null)
   const drag = useRef<DragState | null>(null)
+
+  // The tab strip scrolls sideways once there are more tabs than fit, and a
+  // vertical wheel does not move a horizontally-scrolling element on its own.
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (delta === 0) return
+      e.preventDefault()
+      el.scrollLeft += delta
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
   const [dragId, setDragId] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [tearing, setTearing] = useState(false)
