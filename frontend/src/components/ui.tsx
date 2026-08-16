@@ -95,10 +95,15 @@ export function Modal({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-10 backdrop-blur-sm">
+    // No click-to-dismiss on the backdrop: these hold forms, and losing a
+    // half-typed server password to a stray click outside the panel is a worse
+    // outcome than having to aim for Cancel. Escape still closes.
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-10 backdrop-blur-sm">
       <div
         className={clsx(
-          'flex max-h-full w-full flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 shadow-2xl',
+          // Capped rather than full height so a tall dialog stays centred and
+          // scrolls inside itself instead of growing to touch both edges.
+          'flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 shadow-2xl',
           wide ? 'max-w-3xl' : 'max-w-lg',
         )}
       >

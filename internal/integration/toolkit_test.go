@@ -3,6 +3,7 @@ package integration
 import (
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,6 +168,60 @@ func newAgentService(t *testing.T) (*app.AgentService, string) {
 		t.Fatalf("save server: %v", err)
 	}
 	return app.NewAgentService(core), srv.ID
+}
+
+// TestDetectFindsToolsOutsideTheSystemPath is the regression test for agent
+// CLIs installed under $HOME going unnoticed.
+//
+// An SSH exec channel gets a non-login, non-interactive shell, so it never
+// reads the profile line that puts ~/.local/bin on PATH. Claude Code installs
+// itself there by default, which meant the tool reported "not installed" for
+// something the user runs by hand every day.
+func TestDetectFindsToolsOutsideTheSystemPath(t *testing.T) {
+	pool, _ := newPool(t)
+
+	// Prove the premise: the binary is unreachable from the inherited PATH.
+	bare, err := pool.Exec("test-server", `command -v claude || echo MISSING`)
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if !strings.Contains(bare.Stdout, "MISSING") {
+		t.Skip("claude is already on the default PATH here, so this test proves nothing")
+	}
+
+	// And that it really is installed where the profile would have put it.
+	home, err := pool.Exec("test-server", `test -x "$HOME/.local/bin/claude" && echo YES || echo NO`)
+	if err != nil {
+		t.Fatalf("home probe: %v", err)
+	}
+	if !strings.Contains(home.Stdout, "YES") {
+		t.Skip("no ~/.local/bin/claude on the test host")
+	}
+
+	rep := agentkit.Detect(pool, "test-server")
+	if rep.Error != "" {
+		t.Fatalf("detect: %s", rep.Error)
+	}
+
+	var claude *agentkit.ToolStatus
+	for i := range rep.Agents {
+		if rep.Agents[i].Tool.ID == "claude-code" {
+			claude = &rep.Agents[i]
+		}
+	}
+	if claude == nil {
+		t.Fatal("claude-code missing from the report")
+	}
+	if !claude.Installed {
+		t.Fatal("claude is installed in ~/.local/bin but detection did not find it")
+	}
+	if claude.Path == "" {
+		t.Error("expected the path it was found at")
+	}
+	if claude.Version == "" {
+		t.Error("expected a version, which means the binary was actually run")
+	}
+	t.Logf("found claude %s at %s", claude.Version, claude.Path)
 }
 
 func TestInstallRunsInsideTmux(t *testing.T) {

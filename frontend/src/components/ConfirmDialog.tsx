@@ -77,7 +77,7 @@ export function ConfirmDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-80 flex items-start justify-center bg-black/60 p-24 backdrop-blur-sm"
+      className="fixed inset-0 z-80 flex items-center justify-center bg-black/60 p-10 backdrop-blur-sm"
       onClick={() => settle(false)}
       role="presentation"
     >
@@ -86,7 +86,7 @@ export function ConfirmDialog() {
         aria-modal="true"
         aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md overflow-hidden rounded-xl border border-ink-700 bg-ink-850 shadow-2xl"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-ink-700 bg-ink-850 shadow-2xl"
       >
         <div className="flex gap-3 px-4 pt-4">
           <span

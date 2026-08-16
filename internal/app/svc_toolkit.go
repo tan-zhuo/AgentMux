@@ -166,12 +166,14 @@ func (t *ToolkitService) Verify(serverID, toolID string) (agentkit.Presence, err
 	if !ok {
 		return agentkit.Presence{}, fmt.Errorf("unknown tool %q", toolID)
 	}
-	// A fresh login shell is required: installers that drop a binary into
-	// ~/.local/bin or set up nvm only take effect in a shell that re-read the
-	// profile, so probing the old environment would report a false negative.
+	// Two things are needed to see a freshly installed binary. A login shell,
+	// because installers write their PATH line into a profile that an SSH exec
+	// never reads; and the explicit search path, because the profile line is
+	// often guarded behind an interactivity check that a login shell still does
+	// not satisfy.
 	cmd := fmt.Sprintf(
 		`bash -lc %s`,
-		sshx.ShellQuote(fmt.Sprintf(
+		sshx.ShellQuote(agentkit.PathPrelude()+fmt.Sprintf(
 			`p=$(command -v %s 2>/dev/null) && printf '%%s\n%%s\n' "$p" "$(%s %s 2>/dev/null | head -1)"`,
 			sshx.ShellQuote(tool.Binary), tool.Binary, tool.VersionArgs)),
 	)
