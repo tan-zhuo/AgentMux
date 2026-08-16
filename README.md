@@ -152,6 +152,9 @@ Keyboard: `Ctrl+K` opens the command palette, which is the fastest way to attach
 to an agent, open a shell, switch theme or install a CLI. `Ctrl+B` toggles the
 sidebar.
 
+Both side panes resize by dragging the divider, and the widths are remembered.
+Double-click a divider to put it back, or focus it and use the arrow keys.
+
 ### Where your secrets live
 
 Passwords and key passphrases are encrypted with AES-256-GCM before they touch
@@ -354,6 +357,9 @@ powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Build
 
 快捷键：`Ctrl+K` 打开命令面板，这是附加 agent、开 shell、换主题、装 CLI 最快的
 路子。`Ctrl+B` 收起侧栏。
+
+左右两侧栏都可以拖分隔线改宽度，宽度会记住。双击分隔线恢复默认，或者用 Tab 聚焦
+它之后按方向键微调。
 
 ### 你的密钥放在哪
 

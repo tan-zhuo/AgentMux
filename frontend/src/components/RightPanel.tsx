@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { Activity, Bot, PanelRightClose, Plus, Radio, Sparkles, TerminalSquare } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { AgentDetail } from './panels/AgentDetail'
@@ -54,6 +55,39 @@ export function RightPanel() {
   const setPanel = useAppStore((s) => s.setRightPanel)
   const toggleRight = useAppStore((s) => s.toggleRight)
   const targets = useAppStore((s) => s.broadcastTargets)
+  const width = useAppStore((s) => s.rightWidth)
+
+  const stripRef = useRef<HTMLDivElement | null>(null)
+  const activeRef = useRef<HTMLButtonElement | null>(null)
+  const [overflow, setOverflow] = useState({ left: false, right: false })
+
+  const syncOverflow = useCallback(() => {
+    const el = stripRef.current
+    if (!el) return
+    setOverflow({
+      left: el.scrollLeft > 2,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+    })
+  }, [])
+
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    syncOverflow()
+    el.addEventListener('scroll', syncOverflow, { passive: true })
+    return () => el.removeEventListener('scroll', syncOverflow)
+  }, [syncOverflow])
+
+  // Re-check when the panel is resized or the badge changes the strip's width.
+  useEffect(() => {
+    syncOverflow()
+  }, [width, targets.length, syncOverflow])
+
+  // Selecting a tab that is scrolled out of view should bring it into view.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    syncOverflow()
+  }, [panel, syncOverflow])
 
   const tabs: Array<{ id: PanelKind; label: string; icon: typeof Bot; badge?: number }> = [
     { id: 'detail', label: 'Detail', icon: Bot },
@@ -65,31 +99,47 @@ export function RightPanel() {
 
   return (
     <div className="flex h-full w-full flex-col border-l border-ink-800 bg-ink-900">
-      <div className="flex h-9 shrink-0 items-center gap-px border-b border-ink-800">
-        {tabs.map((t) => {
-          const Icon = t.icon
-          return (
-            <button
-              key={t.id}
-              onClick={() => setPanel(t.id)}
-              className={clsx(
-                'flex h-full items-center gap-1.5 px-3 text-[11px] font-medium',
-                panel === t.id
-                  ? 'border-b-2 border-accent bg-ink-850 text-ink-100'
-                  : 'text-ink-400 hover:bg-ink-850 hover:text-ink-200',
-              )}
-            >
-              <Icon size={12} />
-              {t.label}
-              {!!t.badge && <Badge tone="accent">{t.badge}</Badge>}
-            </button>
-          )
-        })}
-        <div className="flex-1" />
+      <div className="flex h-9 shrink-0 items-stretch border-b border-ink-800">
+        {/* The strip scrolls rather than squeezing: five tabs do not fit a
+            narrow panel, and shrinking them to fit makes every label unreadable
+            instead of just the ones off-screen. */}
+        <div className="relative min-w-0 flex-1">
+          <div ref={stripRef} className="no-scrollbar flex h-full items-stretch gap-px overflow-x-auto">
+            {tabs.map((t) => {
+              const Icon = t.icon
+              const active = panel === t.id
+              return (
+                <button
+                  key={t.id}
+                  ref={active ? activeRef : undefined}
+                  onClick={() => setPanel(t.id)}
+                  className={clsx(
+                    'flex h-full shrink-0 items-center gap-1.5 px-3 text-[11px] font-medium whitespace-nowrap',
+                    active
+                      ? 'border-b-2 border-accent bg-ink-850 text-ink-100'
+                      : 'text-ink-400 hover:bg-ink-850 hover:text-ink-200',
+                  )}
+                >
+                  <Icon size={12} />
+                  {t.label}
+                  {!!t.badge && <Badge tone="accent">{t.badge}</Badge>}
+                </button>
+              )
+            })}
+          </div>
+          {/* Fades hint that the strip continues. They are opaque for the first
+              half so a clipped tab dissolves instead of looking sliced off. */}
+          {overflow.left && (
+            <span className="pointer-events-none absolute inset-y-0 left-0 w-9 bg-gradient-to-r from-ink-900 via-ink-900/80 to-transparent" />
+          )}
+          {overflow.right && (
+            <span className="pointer-events-none absolute inset-y-0 right-0 w-9 bg-gradient-to-l from-ink-900 via-ink-900/80 to-transparent" />
+          )}
+        </div>
         <button
           onClick={toggleRight}
           title="Collapse panel"
-          className="px-2 text-ink-500 hover:text-ink-100"
+          className="shrink-0 border-l border-ink-850 px-2 text-ink-500 hover:text-ink-100"
         >
           <PanelRightClose size={14} />
         </button>

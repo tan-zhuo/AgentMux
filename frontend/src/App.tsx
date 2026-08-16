@@ -4,13 +4,22 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { Dialogs } from './components/Dialogs'
 import { RightPanel } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
+import { Splitter } from './components/Splitter'
 import { StatusBar } from './components/StatusBar'
 import { TerminalArea } from './components/TerminalArea'
 import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
 import { on } from './lib/api'
 import type { Agent, ConnState } from './lib/types'
-import { useAppStore } from './store/useAppStore'
+import {
+  RIGHT_DEFAULT,
+  RIGHT_MAX,
+  RIGHT_MIN,
+  SIDEBAR_DEFAULT,
+  SIDEBAR_MAX,
+  SIDEBAR_MIN,
+  useAppStore,
+} from './store/useAppStore'
 import { useTheme } from './store/useTheme'
 
 export default function App() {
@@ -20,6 +29,10 @@ export default function App() {
   const applyConnState = useAppStore((s) => s.applyConnState)
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
   const rightOpen = useAppStore((s) => s.rightOpen)
+  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
+  const rightWidth = useAppStore((s) => s.rightWidth)
+  const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
+  const setRightWidth = useAppStore((s) => s.setRightWidth)
   const setPaletteOpen = useAppStore((s) => s.setPaletteOpen)
 
   useEffect(() => {
@@ -60,15 +73,38 @@ export default function App() {
 
       <div className="flex min-h-0 flex-1">
         {sidebarOpen && (
-          <div className="w-72 shrink-0">
-            <Sidebar />
-          </div>
+          <>
+            <div style={{ width: sidebarWidth }} className="shrink-0">
+              <Sidebar />
+            </div>
+            <Splitter
+              label="Sidebar width"
+              value={sidebarWidth}
+              min={SIDEBAR_MIN}
+              max={SIDEBAR_MAX}
+              resetTo={SIDEBAR_DEFAULT}
+              onChange={(w) => setSidebarWidth(w)}
+              onCommit={(w) => setSidebarWidth(w, true)}
+            />
+          </>
         )}
         <TerminalArea />
         {rightOpen && (
-          <div className="w-96 shrink-0">
-            <RightPanel />
-          </div>
+          <>
+            <Splitter
+              label="Panel width"
+              value={rightWidth}
+              min={RIGHT_MIN}
+              max={RIGHT_MAX}
+              resetTo={RIGHT_DEFAULT}
+              invert
+              onChange={(w) => setRightWidth(w)}
+              onCommit={(w) => setRightWidth(w, true)}
+            />
+            <div style={{ width: rightWidth }} className="shrink-0">
+              <RightPanel />
+            </div>
+          </>
         )}
       </div>
 

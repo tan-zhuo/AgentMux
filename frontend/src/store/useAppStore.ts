@@ -53,6 +53,20 @@ const emptySnapshot: Snapshot = {
   agents: [],
 }
 
+/** Pane width limits. The maxima leave room for a usable terminal even on a
+ *  small window; the exact figure is re-clamped against the real window width
+ *  while dragging. */
+export const SIDEBAR_DEFAULT = 288
+export const SIDEBAR_MIN = 200
+export const SIDEBAR_MAX = 620
+export const RIGHT_DEFAULT = 384
+export const RIGHT_MIN = 300
+export const RIGHT_MAX = 760
+
+function clampPane(w: number, min: number, max: number): number {
+  return Math.round(Math.max(min, Math.min(max, w)))
+}
+
 let tabSeq = 0
 const nextTabId = () => `tab-${Date.now().toString(36)}-${tabSeq++}`
 
@@ -97,6 +111,8 @@ interface AppState {
   rightPanel: RightPanel
   sidebarOpen: boolean
   rightOpen: boolean
+  sidebarWidth: number
+  rightWidth: number
   search: string
   expanded: Record<string, boolean>
   broadcastTargets: string[]
@@ -113,6 +129,8 @@ interface AppState {
   setRightPanel: (p: RightPanel) => void
   toggleSidebar: () => void
   toggleRight: () => void
+  setSidebarWidth: (w: number, commit?: boolean) => void
+  setRightWidth: (w: number, commit?: boolean) => void
   setSearch: (q: string) => void
   toggleExpanded: (key: string) => void
   setExpanded: (key: string, open: boolean) => void
@@ -146,6 +164,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   rightPanel: 'detail',
   sidebarOpen: true,
   rightOpen: true,
+  sidebarWidth: SIDEBAR_DEFAULT,
+  rightWidth: RIGHT_DEFAULT,
   search: '',
   expanded: {},
   broadcastTargets: [],
@@ -155,10 +175,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   async loadAll() {
     set({ loading: true })
     try {
-      const [snapshot, diagnostics, panel] = await Promise.all([
+      const [snapshot, diagnostics, panel, sideW, rightW] = await Promise.all([
         tree.snapshot(),
         servers.diagnostics(),
         tree.getSetting('rightPanel', 'detail'),
+        tree.getSetting('sidebarWidth', String(SIDEBAR_DEFAULT)),
+        tree.getSetting('rightWidth', String(RIGHT_DEFAULT)),
       ])
       const known: RightPanel[] = ['detail', 'broadcast', 'tmux', 'toolkit', 'metrics']
       set({
@@ -166,6 +188,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         diagnostics,
         loading: false,
         rightPanel: known.includes(panel as RightPanel) ? (panel as RightPanel) : 'detail',
+        sidebarWidth: clampPane(Number(sideW) || SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX),
+        rightWidth: clampPane(Number(rightW) || RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX),
       })
       await get().refreshConnections()
       await get().restoreTabs()
@@ -240,6 +264,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   toggleRight() {
     set((s) => ({ rightOpen: !s.rightOpen }))
+  },
+
+  // While a splitter is being dragged the width changes on every pointer move,
+  // so only the final value is written to the settings table.
+  setSidebarWidth(w, commit) {
+    const next = clampPane(w, SIDEBAR_MIN, SIDEBAR_MAX)
+    set({ sidebarWidth: next })
+    if (commit) void tree.setSetting('sidebarWidth', String(next)).catch(() => {})
+  },
+  setRightWidth(w, commit) {
+    const next = clampPane(w, RIGHT_MIN, RIGHT_MAX)
+    set({ rightWidth: next })
+    if (commit) void tree.setSetting('rightWidth', String(next)).catch(() => {})
   },
   setSearch(search) {
     set({ search })

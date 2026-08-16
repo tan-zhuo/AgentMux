@@ -26,52 +26,58 @@
     'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-:root {
-  color-scheme: dark;
-}
+/* These are element defaults, so they belong in the base layer. Left unlayered
+   they would outrank every Tailwind utility — an unlayered rule beats any
+   layered one — and a utility like `no-scrollbar` could never override the
+   universal scrollbar rule below. */
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
 
-body {
-  background: var(--color-ink-900);
-  color: var(--color-ink-100);
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  font-size: 13px;
-  overflow: hidden;
-  user-select: none;
-}
+  body {
+    background: var(--color-ink-900);
+    color: var(--color-ink-100);
+    font-family:
+      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+    user-select: none;
+  }
 
-input,
-textarea {
-  user-select: text;
-}
+  input,
+  textarea {
+    user-select: text;
+  }
 
-/* Scrollbars that do not shout. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-ink-600) transparent;
-}
-*::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--color-ink-600);
-  border-radius: 5px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
+  /* Scrollbars that do not shout. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-600) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-ink-600);
+    border-radius: 5px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-/* xterm sits on the darkest surface so the terminal reads as a distinct plane. */
-.xterm .xterm-viewport {
-  background-color: transparent !important;
+  /* xterm sits on the darkest surface so the terminal reads as a distinct plane. */
+  .xterm .xterm-viewport {
+    background-color: transparent !important;
+  }
 }
 
 /* Wails resolves window dragging from this custom property on the event target.
@@ -82,4 +88,15 @@ textarea {
 
 @utility no-drag-region {
   --wails-draggable: no-drag;
+}
+
+/* A horizontal scrollbar inside a 36px tab strip is thicker than the thing it
+   scrolls; the edge fades carry the affordance instead. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
