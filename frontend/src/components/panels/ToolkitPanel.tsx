@@ -15,7 +15,7 @@ import { errText, toolkit } from '../../lib/api'
 import type { InstallMethod, ToolReport, ToolStatus } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
 import { useDialogs } from '../../store/useDialogs'
-import { Badge, Button, Empty, inputClass } from '../ui'
+import { Badge, Button, Empty, textareaClass } from '../ui'
 
 /**
  * One-click install for the common agent CLIs.
@@ -163,7 +163,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
             placeholder="Any install command — runs in the tmux install session"
-            className={clsx(inputClass, 'resize-none font-mono')}
+            className={clsx(textareaClass, 'resize-none font-mono')}
           />
           <div className="mt-1.5 flex justify-end">
             <Button size="sm" variant="primary" disabled={!custom.trim()} onClick={() => void runCustom()}>

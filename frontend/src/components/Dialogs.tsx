@@ -7,7 +7,7 @@ import type { Agent, AuthType, Project, ServerInput, Workspace } from '../lib/ty
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useTheme } from '../store/useTheme'
-import { Button, Field, Modal, inputClass } from './ui'
+import { Button, Field, Modal, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
   const dialog = useDialogs((s) => s.dialog)
@@ -302,7 +302,7 @@ function ProjectDialog() {
         <Field label="Description">
           <textarea
             rows={3}
-            className={`${inputClass} resize-none`}
+            className={`${textareaClass} resize-none`}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
@@ -416,7 +416,7 @@ function WorkspaceDialog() {
         <Field label="Environment" hint="One KEY=value per line; applied before the agent starts">
           <textarea
             rows={4}
-            className={`${inputClass} resize-none font-mono`}
+            className={`${textareaClass} resize-none font-mono`}
             value={envText}
             onChange={(e) => setEnvText(e.target.value)}
             placeholder={'ANTHROPIC_API_KEY=sk-...\nNODE_ENV=development'}

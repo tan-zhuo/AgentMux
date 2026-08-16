@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
 import type {
   Agent,
+  BroadcastTarget,
   ConnState,
   ConnStatus,
   Diagnostics,
@@ -70,6 +71,11 @@ function clampPane(w: number, min: number, max: number): number {
   return Math.round(Math.max(min, Math.min(max, w)))
 }
 
+/** Identity for a broadcast recipient, which is either an agent or a session. */
+export function targetKey(t: BroadcastTarget): string {
+  return t.agentId ? `agent:${t.agentId}` : `session:${t.serverId}:${t.session}`
+}
+
 let tabSeq = 0
 const nextTabId = () => `tab-${Date.now().toString(36)}-${tabSeq++}`
 
@@ -121,7 +127,7 @@ interface AppState {
   rightWidth: number
   search: string
   expanded: Record<string, boolean>
-  broadcastTargets: string[]
+  broadcastTargets: BroadcastTarget[]
   toasts: Toast[]
   paletteOpen: boolean
 
@@ -142,8 +148,9 @@ interface AppState {
   setExpanded: (key: string, open: boolean) => void
   setPaletteOpen: (open: boolean) => void
 
-  toggleBroadcastTarget: (agentId: string) => void
-  setBroadcastTargets: (ids: string[]) => void
+  toggleBroadcastTarget: (target: BroadcastTarget) => void
+  setBroadcastTargets: (targets: BroadcastTarget[]) => void
+  isBroadcastTarget: (target: BroadcastTarget) => boolean
 
   openTab: (spec: Omit<Tab, 'id' | 'status'> & { id?: string }) => string
   setTabState: (id: string, patch: Partial<Tab>) => void
@@ -300,15 +307,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ paletteOpen })
   },
 
-  toggleBroadcastTarget(agentId) {
+  toggleBroadcastTarget(target) {
+    const key = targetKey(target)
     set((s) => ({
-      broadcastTargets: s.broadcastTargets.includes(agentId)
-        ? s.broadcastTargets.filter((x) => x !== agentId)
-        : [...s.broadcastTargets, agentId],
+      broadcastTargets: s.broadcastTargets.some((t) => targetKey(t) === key)
+        ? s.broadcastTargets.filter((t) => targetKey(t) !== key)
+        : [...s.broadcastTargets, target],
     }))
   },
   setBroadcastTargets(broadcastTargets) {
     set({ broadcastTargets })
+  },
+  isBroadcastTarget(target) {
+    const key = targetKey(target)
+    return get().broadcastTargets.some((t) => targetKey(t) === key)
   },
 
   openTab(spec) {

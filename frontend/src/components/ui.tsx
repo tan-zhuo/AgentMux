@@ -30,9 +30,13 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
       className={clsx(
-        'inline-flex items-center gap-1.5 rounded-md border font-medium transition-colors',
+        // Height is fixed rather than derived from padding and line-height.
+        // Letting content decide meant an icon-only button, one with a label,
+        // and one carrying a badge all came out different heights, and a row of
+        // them looked ragged.
+        'inline-flex shrink-0 items-center gap-1.5 rounded-md border leading-none font-medium transition-colors',
         'disabled:cursor-not-allowed disabled:opacity-40',
-        size === 'sm' ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs',
+        size === 'sm' ? 'h-7 px-2 text-[11px]' : 'h-8 px-3 text-xs',
         variant === 'primary' &&
           'border-accent-dim bg-accent/15 text-accent hover:bg-accent/25 hover:border-accent',
         variant === 'ghost' &&
@@ -69,9 +73,19 @@ export function Field({
   )
 }
 
-export const inputClass =
-  'w-full rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs text-ink-100 ' +
+const controlBase =
+  'w-full rounded-md border border-ink-700 bg-ink-850 px-2.5 text-xs text-ink-100 ' +
   'placeholder:text-ink-500 outline-none focus:border-accent focus:ring-1 focus:ring-accent/40'
+
+/**
+ * Single-line fields. The height matches a small Button exactly, because these
+ * two almost always sit side by side — a text box with a Send or Create button
+ * next to it — and a few pixels of difference there is what reads as sloppy.
+ */
+export const inputClass = `${controlBase} h-7`
+
+/** Multi-line fields, which size to their rows rather than a fixed height. */
+export const textareaClass = `${controlBase} py-1.5`
 
 export function Modal({
   title,

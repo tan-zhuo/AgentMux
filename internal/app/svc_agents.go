@@ -248,26 +248,88 @@ func (a *AgentService) Send(agentID, message string, execute bool) Receipt {
 	return r
 }
 
-// Broadcast delivers the same message to many agents at once and returns one
-// receipt per agent, so a fan-out to twenty agents is verifiable rather than
-// hopeful. Work is issued concurrently but capped so a broadcast cannot open an
+// BroadcastTarget names one recipient. It is either a registered agent, or a
+// tmux session addressed directly.
+//
+// Sessions matter as much as agents: most people start work by launching into a
+// directory, which produces a running tmux session and no agent record at all.
+// Restricting a broadcast to registered agents made the feature useless for
+// exactly the setup it was built for.
+type BroadcastTarget struct {
+	AgentID  string `json:"agentId"`
+	ServerID string `json:"serverId"`
+	Session  string `json:"session"`
+}
+
+// SendToSession types a message into a tmux session that has no agent record.
+func (a *AgentService) SendToSession(serverID, session, message string, execute bool) Receipt {
+	r := Receipt{AgentName: session, Target: session, At: time.Now().Unix()}
+	if serverID == "" || session == "" {
+		r.Error = "a server and a session are required"
+		return r
+	}
+
+	panes, err := a.core.Tmux.ListPanes(serverID)
+	if err != nil {
+		r.Error = err.Error()
+		return r
+	}
+	var pane *tmuxx.Pane
+	for i := range panes {
+		if panes[i].SessionName != session {
+			continue
+		}
+		if pane == nil || panes[i].WindowIndex < pane.WindowIndex {
+			pane = &panes[i]
+		}
+	}
+	if pane == nil {
+		r.Error = fmt.Sprintf("tmux session %q is not running on this server", session)
+		return r
+	}
+	r.Target = pane.PaneID
+
+	if err := a.core.Tmux.SendText(serverID, pane.PaneID, message, execute); err != nil {
+		r.Error = err.Error()
+		return r
+	}
+	r.OK = true
+	return r
+}
+
+// BroadcastTo delivers the same message to many recipients at once and returns
+// one receipt each, so a fan-out to twenty is verifiable rather than hopeful.
+// Work is issued concurrently but capped so a broadcast cannot open an
 // unbounded number of SSH channels.
-func (a *AgentService) Broadcast(agentIDs []string, message string, execute bool) []Receipt {
-	out := make([]Receipt, len(agentIDs))
+func (a *AgentService) BroadcastTo(targets []BroadcastTarget, message string, execute bool) []Receipt {
+	out := make([]Receipt, len(targets))
 	sem := make(chan struct{}, 8)
 	var wg sync.WaitGroup
 
-	for i, id := range agentIDs {
+	for i, t := range targets {
 		wg.Add(1)
-		go func(i int, id string) {
+		go func(i int, t BroadcastTarget) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			out[i] = a.Send(id, message, execute)
-		}(i, id)
+			if t.AgentID != "" {
+				out[i] = a.Send(t.AgentID, message, execute)
+				return
+			}
+			out[i] = a.SendToSession(t.ServerID, t.Session, message, execute)
+		}(i, t)
 	}
 	wg.Wait()
 	return out
+}
+
+// Broadcast is the agent-only form, kept for callers that already hold ids.
+func (a *AgentService) Broadcast(agentIDs []string, message string, execute bool) []Receipt {
+	targets := make([]BroadcastTarget, len(agentIDs))
+	for i, id := range agentIDs {
+		targets[i] = BroadcastTarget{AgentID: id}
+	}
+	return a.BroadcastTo(targets, message, execute)
 }
 
 // QuickLaunch is the result of starting an agent straight from a directory.

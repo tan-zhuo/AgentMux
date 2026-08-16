@@ -11,6 +11,10 @@ import { Badge, Button, Empty, inputClass } from '../ui'
 export function TmuxPanel({ serverId }: { serverId: string }) {
   const openTab = useAppStore((s) => s.openTab)
   const toast = useAppStore((s) => s.toast)
+  const toggleTarget = useAppStore((s) => s.toggleBroadcastTarget)
+  const isTarget = useAppStore((s) => s.isBroadcastTarget)
+  // Subscribed so the checkboxes re-render when the selection changes.
+  useAppStore((s) => s.broadcastTargets)
   const [view, setView] = useState<TmuxServerView | null>(null)
   const [loading, setLoading] = useState(false)
   const [newName, setNewName] = useState('')
@@ -86,6 +90,15 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
           return (
             <div key={s.name} className="border-b border-ink-850 px-3 py-2">
               <div className="flex items-center gap-1.5">
+                {/* Sessions are broadcast targets in their own right. Most work
+                    starts as a session with no agent record behind it. */}
+                <input
+                  type="checkbox"
+                  checked={isTarget({ agentId: '', serverId, session: s.name })}
+                  onChange={() => toggleTarget({ agentId: '', serverId, session: s.name })}
+                  title="Include in broadcast"
+                  className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                />
                 <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-100">
                   {s.name}
                 </span>

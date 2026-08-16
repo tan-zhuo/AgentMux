@@ -224,6 +224,62 @@ func TestDetectFindsToolsOutsideTheSystemPath(t *testing.T) {
 	t.Logf("found claude %s at %s", claude.Version, claude.Path)
 }
 
+// TestBroadcastReachesUnregisteredSessions covers the case the feature was
+// unusable for: work started from the file browser produces a running tmux
+// session and no agent record, so a broadcast limited to registered agents had
+// nothing to talk to.
+func TestBroadcastReachesUnregisteredSessions(t *testing.T) {
+	pool, _ := newPool(t)
+	tm := tmuxx.New(pool)
+	svc, serverID := newAgentService(t)
+
+	const session = "agentmux-bcast-test"
+	_ = tm.KillSession("test-server", session)
+	t.Cleanup(func() { _ = tm.KillSession("test-server", session) })
+	if err := tm.NewSession("test-server", session, ""); err != nil {
+		t.Fatalf("new-session: %v", err)
+	}
+
+	// No agent record exists for this session — that is the whole point.
+	agents, err := svc.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(agents) != 0 {
+		t.Fatalf("expected no registered agents, got %d", len(agents))
+	}
+
+	receipts := svc.BroadcastTo(
+		[]app.BroadcastTarget{{ServerID: serverID, Session: session}},
+		"echo BROADCAST-TO-SESSION-OK",
+		true,
+	)
+	if len(receipts) != 1 {
+		t.Fatalf("expected one receipt, got %d", len(receipts))
+	}
+	if !receipts[0].OK {
+		t.Fatalf("delivery failed: %s", receipts[0].Error)
+	}
+	t.Logf("receipt: ok=%v target=%s", receipts[0].OK, receipts[0].Target)
+
+	// The receipt must mean something: the text has to have landed in the pane.
+	// Captured by pane id rather than session name, because capture-pane wants
+	// a pane target.
+	paneID := receipts[0].Target
+	var capture string
+	for i := 0; i < 25; i++ {
+		time.Sleep(200 * time.Millisecond)
+		capture, err = tm.CapturePane("test-server", paneID, 50)
+		if err != nil {
+			t.Fatalf("capture %s: %v", paneID, err)
+		}
+		if strings.Contains(capture, "BROADCAST-TO-SESSION-OK") {
+			return
+		}
+	}
+	t.Fatalf("the message never reached pane %s:\n%s", paneID, capture)
+}
+
 func TestInstallRunsInsideTmux(t *testing.T) {
 	pool, _ := newPool(t)
 

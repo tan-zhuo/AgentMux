@@ -267,6 +267,17 @@ export interface MetricSample {
   gpus: GpuUsage[]
 }
 
+/**
+ * A broadcast recipient: either a registered agent, or a tmux session addressed
+ * directly. Sessions matter because launching into a directory produces a
+ * running session and no agent record.
+ */
+export interface BroadcastTarget {
+  agentId: string
+  serverId: string
+  session: string
+}
+
 /** An agent CLI a server can run right now. */
 export interface AgentChoice {
   id: string

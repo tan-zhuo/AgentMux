@@ -28,6 +28,7 @@ import type {
   DetachedTab,
   AgentChoice,
   QuickLaunch,
+  BroadcastTarget,
 } from './types'
 
 // Wails binds methods as "<go package path>.<Type>.<Method>".
@@ -164,6 +165,8 @@ export const agents = {
     call<Receipt>('AgentService', 'Send', id, message, execute),
   broadcast: (ids: string[], message: string, execute: boolean) =>
     call<Receipt[]>('AgentService', 'Broadcast', ids, message, execute),
+  broadcastTo: (targets: BroadcastTarget[], message: string, execute: boolean) =>
+    call<Receipt[]>('AgentService', 'BroadcastTo', targets, message, execute),
   logs: (id: string, lines: number) => call<string>('AgentService', 'Logs', id, lines),
   launchInDir: (serverId: string, dir: string, command: string) =>
     call<QuickLaunch>('AgentService', 'LaunchInDir', serverId, dir, command),

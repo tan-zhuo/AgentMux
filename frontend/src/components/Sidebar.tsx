@@ -490,7 +490,7 @@ export function Sidebar() {
             if (row.kind === 'agent') {
               const a = row.agent
               const selected = selection.kind === 'agent' && selection.id === a.id
-              const checked = broadcastTargets.includes(a.id)
+              const checked = broadcastTargets.some((t) => t.agentId === a.id)
               return (
                 <TreeRow
                   key={row.key}
@@ -542,7 +542,7 @@ export function Sidebar() {
                       {
                         label: checked ? 'Remove from broadcast' : 'Add to broadcast',
                         icon: Radio,
-                        onSelect: () => toggleBroadcastTarget(a.id),
+                        onSelect: () => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' }),
                       },
                       {
                         label: 'Copy session name',
@@ -616,7 +616,7 @@ export function Sidebar() {
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleBroadcastTarget(a.id)}
+                      onChange={() => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' })}
                       onClick={(e) => e.stopPropagation()}
                       title="Include in broadcast"
                       className="h-3 w-3 shrink-0 accent-[#4c8dff]"
