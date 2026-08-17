@@ -141,7 +141,7 @@ export function TitleBar() {
   const active = tabs.find((t) => t.id === activeTabId)
 
   return (
-    <header className="drag-region relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline bg-ink-850 pr-2 pl-3 select-none">
+    <header className="drag-region relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline bg-ink-900 pr-2 pl-3 select-none">
       <div
         className="no-drag-region flex items-center gap-2"
         onMouseEnter={() => setHovered(true)}

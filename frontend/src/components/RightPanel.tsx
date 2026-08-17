@@ -170,7 +170,7 @@ export function RightPanel() {
   ]
 
   return (
-    <div className="flex h-full w-full flex-col border-l hairline bg-ink-850">
+    <div className="flex h-full w-full flex-col border-l hairline bg-ink-900">
       <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1">
         {/* The strip scrolls rather than squeezing: five tabs do not fit a
             narrow panel, and shrinking them to fit makes every label unreadable

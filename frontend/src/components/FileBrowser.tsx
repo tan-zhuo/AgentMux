@@ -413,8 +413,15 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     ])
                   }}
                   className={clsx(
-                    'group cursor-default border-b border-ink-900',
-                    selected === e.path ? 'bg-accent/12' : 'hover:bg-ink-900',
+                    'group cursor-default border-b hairline',
+                    // Finder fills the selected row and turns everything in it
+                    // white. The cells carry their own greys, so they are
+                    // overridden by descendant rules rather than by hoping each
+                    // one happens to be legible on system blue.
+                    selected === e.path
+                      ? 'bg-accent [&_button:hover]:bg-white/20 [&_svg]:text-current ' +
+                        '[&_span]:text-white [&_td]:text-white'
+                      : 'hover:bg-ink-900',
                   )}
                 >
                   <td className="w-6 py-1 pl-3">

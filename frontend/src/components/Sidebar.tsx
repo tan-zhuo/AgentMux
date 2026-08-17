@@ -231,7 +231,7 @@ export function Sidebar() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col border-r hairline bg-ink-850">
+    <div className="flex h-full w-full flex-col border-r hairline bg-ink-900">
       <div className="flex items-center gap-2 border-b hairline px-2.5 py-2">
         <Search size={13} className="shrink-0 text-ink-500" />
         <input

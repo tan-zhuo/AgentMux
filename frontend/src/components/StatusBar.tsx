@@ -40,7 +40,7 @@ export function StatusBar() {
   }
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-3 border-t hairline bg-ink-850 px-2.5 text-[11px] text-ink-400">
+    <footer className="flex h-7 shrink-0 items-center gap-3 border-t hairline bg-ink-900 px-2.5 text-[11px] text-ink-400">
       <span className="flex items-center gap-1.5">
         <Server size={12} className="opacity-60" />
         {connected}/{snapshot.servers.length} connected
