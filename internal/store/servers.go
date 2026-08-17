@@ -13,7 +13,7 @@ import (
 // ErrNotFound is returned when a row does not exist.
 var ErrNotFound = errors.New("not found")
 
-const serverCols = `id, name, host, port, username, auth_type, key_path,
+const serverCols = `id, kind, name, host, port, username, auth_type, key_path,
 	secret_password IS NOT NULL AND length(secret_password) > 0,
 	secret_passphrase IS NOT NULL AND length(secret_passphrase) > 0,
 	jump_server_id, tags, favorite, host_key, created_at, last_ok_at, trust_level`
@@ -28,7 +28,7 @@ func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 		hasPass  int
 		hasPhras int
 	)
-	err := sc.Scan(&s.ID, &s.Name, &s.Host, &s.Port, &s.Username, &s.AuthType, &s.KeyPath,
+	err := sc.Scan(&s.ID, &s.Kind, &s.Name, &s.Host, &s.Port, &s.Username, &s.AuthType, &s.KeyPath,
 		&hasPass, &hasPhras, &jump, &tagsRaw, &fav, &s.HostKey, &s.CreatedAt, &lastOK, &s.TrustLevel)
 	if err != nil {
 		return Server{}, err
@@ -77,22 +77,55 @@ func (s *Store) GetServer(id string) (Server, error) {
 	return srv, err
 }
 
+// ServerKindOf returns how a host is reached, without loading the rest of the
+// row. Every command, terminal and file operation asks this first, so it reads
+// one column and treats an unknown id as SSH — the transports report a missing
+// host far better than this could.
+func (s *Store) ServerKindOf(id string) ServerKind {
+	var kind string
+	if err := s.db.QueryRow(`SELECT kind FROM servers WHERE id = ?`, id).Scan(&kind); err != nil {
+		return KindSSH
+	}
+	if ServerKind(kind) == KindLocal {
+		return KindLocal
+	}
+	return KindSSH
+}
+
 // SaveServer inserts or updates a server, encrypting any supplied secrets.
 func (s *Store) SaveServer(in ServerInput) (Server, error) {
 	if strings.TrimSpace(in.Name) == "" {
 		return Server{}, errors.New("name is required")
 	}
-	if strings.TrimSpace(in.Host) == "" {
-		return Server{}, errors.New("host is required")
+	switch in.Kind {
+	case "":
+		in.Kind = KindSSH
+	case KindSSH, KindLocal:
+	default:
+		return Server{}, fmt.Errorf("%q is not a kind of host", in.Kind)
 	}
-	if strings.TrimSpace(in.Username) == "" {
-		return Server{}, errors.New("username is required")
-	}
-	if in.Port == 0 {
-		in.Port = 22
-	}
-	if in.AuthType == "" {
+	if in.Kind == KindLocal {
+		// A local host is not addressed and not authenticated, so the fields that
+		// describe how to reach one are cleared rather than validated. Leaving a
+		// stale address on the row would be an invitation to dial it.
+		in.Host, in.Username, in.KeyPath, in.Port = "", "", "", 0
 		in.AuthType = AuthAgent
+		in.JumpServerID = nil
+		empty := ""
+		in.Password, in.Passphrase = &empty, &empty
+	} else {
+		if strings.TrimSpace(in.Host) == "" {
+			return Server{}, errors.New("host is required")
+		}
+		if strings.TrimSpace(in.Username) == "" {
+			return Server{}, errors.New("username is required")
+		}
+		if in.Port == 0 {
+			in.Port = 22
+		}
+		if in.AuthType == "" {
+			in.AuthType = AuthAgent
+		}
 	}
 	if in.Tags == nil {
 		in.Tags = []string{}
@@ -129,10 +162,10 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 			return Server{}, err
 		}
 		_, err = s.db.Exec(`INSERT INTO servers
-			(id, name, host, port, username, auth_type, key_path, secret_password, secret_passphrase,
+			(id, kind, name, host, port, username, auth_type, key_path, secret_password, secret_passphrase,
 			 jump_server_id, tags, favorite, host_key, created_at, trust_level)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'',?,?)`,
-			in.ID, in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'',?,?)`,
+			in.ID, string(in.Kind), in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
 			pw, pp, nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, time.Now().Unix(),
 			string(in.TrustLevel))
 		if err != nil {
@@ -143,10 +176,10 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 
 	// Update. Secrets are only touched when the caller sent a non-nil pointer.
 	_, err := s.db.Exec(`UPDATE servers SET
-			name = ?, host = ?, port = ?, username = ?, auth_type = ?, key_path = ?,
+			kind = ?, name = ?, host = ?, port = ?, username = ?, auth_type = ?, key_path = ?,
 			jump_server_id = ?, tags = ?, favorite = ?, trust_level = ?
 		WHERE id = ?`,
-		in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
+		string(in.Kind), in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
 		nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, string(in.TrustLevel), in.ID)
 	if err != nil {
 		return Server{}, err

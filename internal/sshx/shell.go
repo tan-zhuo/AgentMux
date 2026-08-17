@@ -57,12 +57,43 @@ type TermExit struct {
 	Reason string `json:"reason"`
 }
 
+// Session is one transport's half of an open terminal: keystrokes in, a size, and
+// an end.
+//
+// The SSH implementation is in this file. A local one — processes on the machine
+// AgentMux is running on — is injected by the application, which is what lets one
+// manager, one scrollback and one set of events serve both without either
+// transport knowing about the other.
+type Session interface {
+	io.Writer
+	Resize(cols, rows int) error
+	// Wait blocks until the terminal ends and returns why, phrased for a person.
+	Wait() error
+	Close() error
+}
+
+// Opened is a started terminal: the session that drives it and the streams to
+// read from it.
+type Opened struct {
+	Session Session
+	Stdout  io.Reader
+	// Stderr is optional. A PTY normally merges it into Stdout.
+	Stderr io.Reader
+	// Release returns whatever the transport borrowed to open this, once the
+	// terminal has ended.
+	Release func()
+}
+
+// Opener starts terminals for one transport.
+type Opener interface {
+	OpenTerminal(opts ShellOptions) (Opened, error)
+}
+
 type shell struct {
 	id       string
 	serverID string
-	sess     *ssh.Session
-	stdin    io.WriteCloser
-	lease    *Lease
+	sess     Session
+	release  func()
 	openedAt int64
 
 	mu     sync.Mutex
@@ -77,6 +108,10 @@ type ShellManager struct {
 	pool *Pool
 	emit func(name string, data any)
 
+	// local, when set, opens terminals for hosts isLocal reports as local.
+	local   Opener
+	isLocal func(serverID string) bool
+
 	mu     sync.Mutex
 	shells map[string]*shell
 }
@@ -84,6 +119,14 @@ type ShellManager struct {
 // NewShellManager builds a manager that publishes output through emit.
 func NewShellManager(pool *Pool, emit func(name string, data any)) *ShellManager {
 	return &ShellManager{pool: pool, emit: emit, shells: map[string]*shell{}}
+}
+
+// UseLocal teaches the manager to open terminals on this machine for the hosts
+// isLocal claims. Called once at startup; without it every host is an SSH host,
+// which is what every build before local hosts existed did.
+func (m *ShellManager) UseLocal(isLocal func(serverID string) bool, open Opener) {
+	m.isLocal = isLocal
+	m.local = open
 }
 
 // Open starts a PTY session and begins streaming its output.
@@ -101,73 +144,30 @@ func (m *ShellManager) Open(opts ShellOptions) (ShellInfo, error) {
 		opts.Term = "xterm-256color"
 	}
 
-	lease, err := m.pool.Acquire(opts.ServerID)
+	opened, err := m.open(opts)
 	if err != nil {
-		return ShellInfo{}, err
-	}
-
-	sess, err := lease.Client.NewSession()
-	if err != nil {
-		lease.Release()
-		return ShellInfo{}, err
-	}
-
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 38400,
-		ssh.TTY_OP_OSPEED: 38400,
-	}
-	if err := sess.RequestPty(opts.Term, opts.Rows, opts.Cols, modes); err != nil {
-		_ = sess.Close()
-		lease.Release()
-		return ShellInfo{}, fmt.Errorf("request pty: %w", err)
-	}
-
-	stdin, err := sess.StdinPipe()
-	if err != nil {
-		_ = sess.Close()
-		lease.Release()
-		return ShellInfo{}, err
-	}
-	stdout, err := sess.StdoutPipe()
-	if err != nil {
-		_ = sess.Close()
-		lease.Release()
-		return ShellInfo{}, err
-	}
-	// With a PTY the remote side already merges stderr into stdout, but ask for
-	// it anyway so pre-PTY failures are not swallowed.
-	stderr, err := sess.StderrPipe()
-	if err != nil {
-		_ = sess.Close()
-		lease.Release()
 		return ShellInfo{}, err
 	}
 
 	sh := &shell{
 		id:       uuid.NewString(),
 		serverID: opts.ServerID,
-		sess:     sess,
-		stdin:    stdin,
-		lease:    lease,
+		sess:     opened.Session,
+		release:  opened.Release,
 		openedAt: time.Now().Unix(),
 		cols:     opts.Cols,
 		rows:     opts.Rows,
 		buf:      make([]byte, 0, 8*1024),
 	}
 
-	if err := m.start(sess, opts); err != nil {
-		_ = sess.Close()
-		lease.Release()
-		return ShellInfo{}, err
-	}
-
 	m.mu.Lock()
 	m.shells[sh.id] = sh
 	m.mu.Unlock()
 
-	go m.pump(sh, stdout)
-	go m.drain(sh, stderr)
+	go m.pump(sh, opened.Stdout)
+	if opened.Stderr != nil {
+		go m.drain(sh, opened.Stderr)
+	}
 	go m.wait(sh)
 
 	return ShellInfo{
@@ -176,11 +176,108 @@ func (m *ShellManager) Open(opts ShellOptions) (ShellInfo, error) {
 	}, nil
 }
 
-// start decides between a login shell and an explicit command. Environment and
-// working directory are folded into the command rather than sent as SSH env
-// vars, because most sshd configs reject AcceptEnv for anything but LANG.
-func (m *ShellManager) start(sess *ssh.Session, opts ShellOptions) error {
-	var prefix strings.Builder
+// open routes to the transport that owns this host.
+func (m *ShellManager) open(opts ShellOptions) (Opened, error) {
+	if m.local != nil && m.isLocal != nil && m.isLocal(opts.ServerID) {
+		return m.local.OpenTerminal(opts)
+	}
+	return m.openSSH(opts)
+}
+
+// openSSH starts a PTY session on a remote host.
+func (m *ShellManager) openSSH(opts ShellOptions) (Opened, error) {
+	lease, err := m.pool.Acquire(opts.ServerID)
+	if err != nil {
+		return Opened{}, err
+	}
+
+	sess, err := lease.Client.NewSession()
+	if err != nil {
+		lease.Release()
+		return Opened{}, err
+	}
+	fail := func(err error) (Opened, error) {
+		_ = sess.Close()
+		lease.Release()
+		return Opened{}, err
+	}
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 38400,
+		ssh.TTY_OP_OSPEED: 38400,
+	}
+	if err := sess.RequestPty(opts.Term, opts.Rows, opts.Cols, modes); err != nil {
+		return fail(fmt.Errorf("request pty: %w", err))
+	}
+
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		return fail(err)
+	}
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		return fail(err)
+	}
+	// With a PTY the remote side already merges stderr into stdout, but ask for
+	// it anyway so pre-PTY failures are not swallowed.
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		return fail(err)
+	}
+
+	// A login shell is asked for as a shell rather than as a command, because
+	// that is the request sshd handles best; anything else is a command line.
+	if line := CommandLine(opts); line == "" {
+		err = sess.Shell()
+	} else {
+		err = sess.Start(line)
+	}
+	if err != nil {
+		return fail(err)
+	}
+
+	return Opened{
+		Session: &sshSession{sess: sess, stdin: stdin},
+		Stdout:  stdout,
+		Stderr:  stderr,
+		Release: lease.Release,
+	}, nil
+}
+
+// sshSession is the SSH half of an open terminal.
+type sshSession struct {
+	sess  *ssh.Session
+	stdin io.WriteCloser
+}
+
+func (s *sshSession) Write(p []byte) (int, error) { return s.stdin.Write(p) }
+
+func (s *sshSession) Resize(cols, rows int) error { return s.sess.WindowChange(rows, cols) }
+
+func (s *sshSession) Wait() error {
+	err := s.sess.Wait()
+	var exitErr *ssh.ExitError
+	if errors.As(err, &exitErr) {
+		return fmt.Errorf("exited with status %d", exitErr.ExitStatus())
+	}
+	return err
+}
+
+func (s *sshSession) Close() error {
+	_ = s.stdin.Close()
+	return s.sess.Close()
+}
+
+// CommandLine folds the working directory and environment of a terminal into one
+// POSIX command line, and reports "" when a plain login shell is all that was
+// asked for.
+//
+// They are folded into the command rather than sent as SSH environment requests
+// because most sshd configs reject AcceptEnv for anything but LANG — and because
+// a command line is the one thing every transport here can start.
+func CommandLine(opts ShellOptions) string {
+	var line strings.Builder
 	if len(opts.Env) > 0 {
 		keys := make([]string, 0, len(opts.Env))
 		for k := range opts.Env {
@@ -188,22 +285,23 @@ func (m *ShellManager) start(sess *ssh.Session, opts ShellOptions) error {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			prefix.WriteString("export " + k + "=" + ShellQuote(opts.Env[k]) + "; ")
+			line.WriteString("export " + k + "=" + ShellQuote(opts.Env[k]) + "; ")
 		}
 	}
 	if opts.Cwd != "" {
-		prefix.WriteString("cd " + ShellQuote(opts.Cwd) + " || echo 'agentmux: cannot cd to " + opts.Cwd + "' >&2; ")
+		line.WriteString("cd " + ShellQuote(opts.Cwd) + " || echo 'agentmux: cannot cd to " + opts.Cwd + "' >&2; ")
 	}
 
 	switch {
 	case opts.Command != "":
-		return sess.Start(prefix.String() + opts.Command)
-	case prefix.Len() > 0:
-		// Keep an interactive shell after applying cwd/env.
-		return sess.Start(prefix.String() + `exec "${SHELL:-/bin/sh}" -l`)
+		line.WriteString(opts.Command)
+	case line.Len() > 0:
+		// Keep an interactive shell after applying cwd and environment.
+		line.WriteString(`exec "${SHELL:-/bin/sh}" -l`)
 	default:
-		return sess.Shell()
+		return ""
 	}
+	return line.String()
 }
 
 func (m *ShellManager) pump(sh *shell, r io.Reader) {
@@ -275,15 +373,11 @@ func (m *ShellManager) drain(sh *shell, r io.Reader) {
 }
 
 func (m *ShellManager) wait(sh *shell) {
-	err := sh.sess.Wait()
+	// Each transport phrases its own ending, because only it knows what an exit
+	// status meant.
 	reason := "session ended"
-	if err != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			reason = fmt.Sprintf("exited with status %d", exitErr.ExitStatus())
-		} else {
-			reason = err.Error()
-		}
+	if err := sh.sess.Wait(); err != nil {
+		reason = err.Error()
 	}
 	m.closeShell(sh.id, reason)
 }
@@ -313,7 +407,7 @@ func (m *ShellManager) Write(id, b64 string) error {
 	if err != nil {
 		return fmt.Errorf("bad payload: %w", err)
 	}
-	_, err = sh.stdin.Write(raw)
+	_, err = sh.sess.Write(raw)
 	return err
 }
 
@@ -329,7 +423,7 @@ func (m *ShellManager) Resize(id string, cols, rows int) error {
 	sh.mu.Lock()
 	sh.cols, sh.rows = cols, rows
 	sh.mu.Unlock()
-	return sh.sess.WindowChange(rows, cols)
+	return sh.sess.Resize(cols, rows)
 }
 
 // Scrollback returns the buffered output so a re-mounted terminal can replay it.
@@ -368,9 +462,10 @@ func (m *ShellManager) closeShell(id, reason string) error {
 		return nil
 	}
 
-	_ = sh.stdin.Close()
 	_ = sh.sess.Close()
-	sh.lease.Release()
+	if sh.release != nil {
+		sh.release()
+	}
 	m.emit("term:exit:"+id, TermExit{ID: id, Reason: reason})
 	return nil
 }

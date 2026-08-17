@@ -14,8 +14,10 @@ import type {
   AuthType,
   LLMConfig,
   LLMStatus,
+  LocalHost,
   Project,
   ServerInput,
+  ServerKind,
   TrustLevel,
   Workspace,
 } from '../lib/types'
@@ -95,12 +97,30 @@ function ServerDialog() {
   const [tagText, setTagText] = useState((existing?.tags ?? []).join(', '))
   const [testing, setTesting] = useState(false)
 
+  // Which kind of host is being added. Editing never changes it: a machine does
+  // not stop being this computer, and the fields it would need do not exist.
+  const [kind, setKind] = useState<ServerKind>(existing?.kind ?? 'ssh')
+  const local = kind === 'local'
+  const [support, setSupport] = useState<LocalHost | null>(null)
+  useEffect(() => {
+    // Asked once, before offering it: on Windows this is the answer to "is there
+    // a WSL distribution to work in", and there is no point offering otherwise.
+    let cancelled = false
+    serverApi
+      .localSupport()
+      .then((s) => !cancelled && setSupport(s))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const set = <K extends keyof ServerInput>(k: K, v: ServerInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
 
   return (
     <Modal
-      title={existing ? `Edit ${existing.name}` : 'Add server'}
+      title={existing ? `Edit ${existing.name}` : 'Add host'}
       onClose={close}
       footer={
         <>
@@ -123,18 +143,21 @@ function ServerDialog() {
           <Button onClick={close}>Cancel</Button>
           <Button
             variant="primary"
-            disabled={saving}
+            disabled={saving || (local && !existing && !support?.supported)}
             onClick={() =>
               submit(
-                () =>
-                  serverApi.save({
-                    ...form,
-                    tags: tagText
-                      .split(',')
-                      .map((t) => t.trim())
-                      .filter(Boolean),
-                  }),
-                existing ? 'Server updated' : 'Server added',
+                () => {
+                  const tags = tagText
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                  // A new local host has nothing to fill in, so the backend
+                  // creates it: there is exactly one of this machine, and it
+                  // knows what to call it.
+                  if (local && !existing) return serverApi.addLocal(form.name)
+                  return serverApi.save({ ...form, kind, tags })
+                },
+                existing ? 'Host updated' : 'Host added',
               )
             }
           >
@@ -144,26 +167,74 @@ function ServerDialog() {
       }
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        {!existing && (
+          <Field
+            label="Where the work runs"
+            hint={
+              local
+                ? 'This computer, managed like any other host: agents in a local tmux session, so closing AgentMux still does not stop them.'
+                : 'A machine reached over SSH.'
+            }
+          >
+            <Segmented<ServerKind>
+              value={kind}
+              onChange={(v) => {
+                setKind(v)
+                if (v === 'local' && support?.name && !form.name) set('name', support.name)
+              }}
+              options={[
+                { value: 'ssh', label: 'Remote host', title: 'Reached over SSH' },
+                {
+                  value: 'local',
+                  label: 'This computer',
+                  title: 'The machine AgentMux is running on',
+                },
+              ]}
+            />
+          </Field>
+        )}
+
+        {local && !existing && support && !support.supported && (
+          <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] leading-relaxed text-warn">
+            {support.reason}
+          </p>
+        )}
+        {local && !existing && support?.existingId && (
+          <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] leading-relaxed text-ink-400">
+            This computer is already in the tree — saving will select it rather than adding a second
+            one.
+          </p>
+        )}
+
+        <div className={local ? '' : 'grid grid-cols-2 gap-3'}>
           <Field label="Name">
             <input
               autoFocus
               className={inputClass}
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder="gpu-box-01"
+              placeholder={local ? support?.name || 'this computer' : 'gpu-box-01'}
             />
           </Field>
-          <Field label="Tags" hint="comma separated">
-            <input
-              className={inputClass}
-              value={tagText}
-              onChange={(e) => setTagText(e.target.value)}
-              placeholder="gpu, prod"
-            />
-          </Field>
+          {!local && (
+            <Field label="Tags" hint="comma separated">
+              <input
+                className={inputClass}
+                value={tagText}
+                onChange={(e) => setTagText(e.target.value)}
+                placeholder="gpu, prod"
+              />
+            </Field>
+          )}
         </div>
 
+        {local ? (
+          <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] leading-relaxed text-ink-400">
+            Nothing to address and nothing to authenticate: no host, no account, no key. Paths on
+            this host are POSIX paths, which on Windows means paths inside WSL — the only place
+            there that has tmux, and therefore the only place an agent survives the window closing.
+          </p>
+        ) : (
         <div className="grid grid-cols-[2fr_1fr_1.5fr] gap-3">
           <Field label="Host">
             <input
@@ -190,6 +261,7 @@ function ServerDialog() {
             />
           </Field>
         </div>
+        )}
 
         <Field
           label="Orchestrator trust"
@@ -206,6 +278,7 @@ function ServerDialog() {
           />
         </Field>
 
+        {!local && (
         <Field label="Authentication">
           <Segmented<AuthType>
             value={form.authType}
@@ -217,8 +290,9 @@ function ServerDialog() {
             ]}
           />
         </Field>
+        )}
 
-        {form.authType === 'key' && (
+        {!local && form.authType === 'key' && (
           <>
             <Field label="Private key path" hint="Leave blank to try ~/.ssh/id_ed25519, id_ecdsa, id_rsa">
               <input
@@ -247,7 +321,7 @@ function ServerDialog() {
           </>
         )}
 
-        {form.authType === 'password' && (
+        {!local && form.authType === 'password' && (
           <Field
             label="Password"
             hint={
@@ -266,6 +340,7 @@ function ServerDialog() {
           </Field>
         )}
 
+        {!local && (
         <Field label="Jump host" hint="Route the connection through another configured server">
           <select
             className={inputClass}
@@ -274,7 +349,7 @@ function ServerDialog() {
           >
             <option value="">None (direct)</option>
             {servers
-              .filter((s) => s.id !== form.id)
+              .filter((s) => s.id !== form.id && s.kind !== 'local')
               .map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.host})
@@ -282,6 +357,7 @@ function ServerDialog() {
               ))}
           </select>
         </Field>
+        )}
 
         {existing?.hostKey && (
           <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] text-ink-400">
@@ -413,7 +489,7 @@ function WorkspaceDialog() {
             >
               {snapshot.servers.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.host})
+                  {s.name} ({s.kind === 'local' ? 'this computer' : s.host})
                 </option>
               ))}
             </select>

@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ClipboardCopy,
   FolderTree,
+  Laptop,
   Layers,
   Link2,
   Link2Off,
@@ -713,7 +714,10 @@ export function Sidebar() {
                       onSelect: () => setRightPanel('toolkit'),
                     },
                     separator,
-                    conn?.connected
+                    // There is no connection to this computer to open or close.
+                    s.kind === 'local'
+                      ? {}
+                      : conn?.connected
                       ? {
                           label: 'Disconnect',
                           icon: Link2Off,
@@ -736,7 +740,7 @@ export function Sidebar() {
                           },
                         },
                     {
-                      label: 'Test connection',
+                      label: s.kind === 'local' ? 'Check this computer' : 'Test connection',
                       icon: Zap,
                       onSelect: async () => {
                         const p = await serverApi.test(s.id)
@@ -747,12 +751,12 @@ export function Sidebar() {
                     },
                     separator,
                     {
-                      label: 'Edit server',
+                      label: s.kind === 'local' ? 'Edit this host' : 'Edit server',
                       icon: Pencil,
                       onSelect: () => openDialog({ kind: 'server', server: s }),
                     },
                     {
-                      label: 'Remove server',
+                      label: s.kind === 'local' ? 'Remove this host' : 'Remove server',
                       icon: Trash2,
                       danger: true,
                       onSelect: () => void deleteServer(s),
@@ -769,9 +773,15 @@ export function Sidebar() {
                     tmuxSession: '',
                   })
                 }
-                icon={<ConnDot connected={!!conn?.connected} />}
+                icon={
+                  s.kind === 'local' ? (
+                    <Laptop size={11} className={conn?.connected ? 'text-accent' : 'text-ink-500'} />
+                  ) : (
+                    <ConnDot connected={!!conn?.connected} />
+                  )
+                }
                 label={s.name}
-                meta={`${s.username}@${s.host}`}
+                meta={s.kind === 'local' ? 'this computer' : `${s.username}@${s.host}`}
                 metaDim
                 actions={
                   <>

@@ -38,7 +38,7 @@ function bytes(n: number): string {
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
 }
 
-/** Quotes a path for a remote /bin/sh command line. */
+/** Quotes a path for a /bin/sh command line on the host. */
 function shellQuote(p: string): string {
   return `'${p.replaceAll("'", `'\\''`)}'`
 }
@@ -56,7 +56,7 @@ function crumbs(p: string): Array<{ label: string; path: string }> {
 }
 
 /**
- * Remote file browser for one server.
+ * File browser for one host, remote or this computer.
  *
  * It lives in the centre area rather than the side panel because a file manager
  * needs width: a path, a name, a size and a time do not fit in 384 pixels
@@ -78,6 +78,11 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   // agent: the picker targets that folder instead of the one currently open, and
   // opens where the pointer already is.
   const [launch, setLaunch] = useState<{ dir: string; x: number; y: number } | null>(null)
+  // On this computer there is nothing to transfer: the file is already here, and
+  // copying it to another local path is a file manager's job.
+  const isLocalHost = useAppStore(
+    (s) => s.snapshot.servers.find((x) => x.id === tab.serverId)?.kind === 'local',
+  )
 
   const openTab = useAppStore((s) => s.openTab)
   const detached = useAppStore((s) => s.detached)
@@ -392,9 +397,11 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button size="sm" variant="subtle" title="Refresh" onClick={() => void load(cwd)} disabled={loading}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : undefined} />
         </Button>
-        <Button size="sm" onClick={() => void upload()}>
-          <Upload size={11} /> Upload
-        </Button>
+        {!isLocalHost && (
+          <Button size="sm" onClick={() => void upload()}>
+            <Upload size={11} /> Upload
+          </Button>
+        )}
         <LaunchHere serverId={tab.serverId} dir={cwd} onLaunched={openAgentTab} />
       </div>
 
@@ -460,7 +467,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                       isDir
                         ? { label: 'Open', icon: Folder, onSelect: () => void load(e.path) }
                         : { label: 'Edit', icon: FileCode2, onSelect: () => openEditor(e) },
-                      isDir
+                      isDir || isLocalHost
                         ? {}
                         : {
                             label: 'Download',
@@ -618,7 +625,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           <FileCode2 size={12} />
                         </button>
                       )}
-                      {!isDir && (
+                      {!isDir && !isLocalHost && (
                         <button
                           title="Download"
                           onClick={(ev) => {

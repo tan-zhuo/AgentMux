@@ -39,7 +39,7 @@ func (o fleetObserver) Observe(_ context.Context, projectID string) (string, err
 	}
 	connected := map[string]bool{}
 	for _, s := range servers {
-		connected[s.ID] = o.core.Pool.IsConnected(s.ID)
+		connected[s.ID] = o.core.IsReachable(s.ID)
 	}
 
 	var b strings.Builder

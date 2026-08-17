@@ -143,6 +143,7 @@ internal/
   app/                  Wails services — the frontend's whole API surface
   store/                SQLite: servers, projects, agents, memories, skills, runs
   sshx/                 connection pool, PTY manager, auth
+  localx/               the same three things for this computer: exec, PTY, files
   tmuxx/                the tmux wrapper
   sftpx/                file transfer
   metrics/              one-command host vitals

@@ -2,7 +2,7 @@
 
 # AgentMux
 
-**A desktop control plane for AI coding agents running on remote hosts.**
+**A desktop control plane for AI coding agents — on remote hosts, and on this one.**
 
 English · [中文](README.zh-CN.md)
 
@@ -13,11 +13,11 @@ English · [中文](README.zh-CN.md)
 ## Overview
 
 AgentMux operates coding agents — Claude Code, Codex, Gemini CLI, OpenCode,
-Aider, Cursor CLI — that execute on remote servers rather than on the
-workstation. Every agent runs inside a `tmux` session on its host, and the
-application attaches to that session instead of owning the process. Closing the
-client, suspending the laptop or losing the network therefore has no effect on
-work in progress.
+Aider, Cursor CLI — that execute on the machines where the work belongs: build
+servers, GPU boxes, staging hosts, and this computer alongside them. Every agent
+runs inside a `tmux` session on its host, and the application attaches to that
+session instead of owning the process. Closing the client, suspending the laptop
+or losing the network therefore has no effect on work in progress.
 
 It ships as a single binary with no server component, no daemon and no account.
 All state is one SQLite file in the user's application data directory.
@@ -35,19 +35,25 @@ reporting, selection, search — not a transcript view. An operator can interven
 mid-task, correct the agent and hand control back without restarting the run.
 
 **Several sessions on screen at once.** The terminal area divides into up to nine
-panes — two or three along either axis, more as the squarest grid that fits, up
-to a 3×3 wall — each holding its own session, on one host or on several, each
-independently interactive. The arrangement follows the space
-it has: panes divide the area in proportions rather than pixels, and a column too
-narrow to read is dropped so that narrowing the window — or opening both side
-panels — wraps a 3×3 wall into a taller grid instead of leaving nine slivers.
-Seams are draggable, and any one pane can fill the area for a moment —
-double-click its tab — without disturbing the split it came from. A pane is a view rather than
-a session: closing it hides the terminal and leaves the shell attached, and the
-number of panes is restored on the next start. One dialog fills
-a pane from the hosts, workspace directories, running agents and open tabs
+panes — two or three along either axis, more as the squarest grid that fits, up to
+a 3×3 wall — each holding its own session, on one host or on several, each
+independently interactive. The arrangement follows the space it has: panes divide
+the area in proportions rather than pixels, and a column too narrow to read is
+dropped, so narrowing the window wraps a 3×3 wall into a taller grid instead of
+leaving nine slivers. Seams are draggable, and any one pane can fill the area for
+a moment — double-click its tab — without disturbing the split it came from. A
+pane is a view rather than a session: closing it hides the terminal and leaves the
+shell attached, and the number of panes is restored on the next start. One dialog
+fills a pane from the hosts, workspace directories, running agents and open tabs
 available, so watching two agents on two servers costs a keystroke and a choice
 rather than an exercise in window management.
+
+**This computer, as a host.** The machine AgentMux runs on is managed like any
+other: same tree, same shells, same file browser, and agents in a local `tmux`
+session — so quitting the application does not stop them there either. It needs no
+sshd, no account and no credentials, because nothing is dialled. On Windows a local
+host means WSL, since that is where `tmux` exists and therefore the only place on
+that platform where work outlives the window.
 
 **Coordinated dispatch with delivery receipts.** One instruction can be sent to
 any selection of agents, and each returns a receipt confirming whether it was
@@ -121,8 +127,11 @@ Stated plainly, because they decide whether this is the right tool:
 - **Model spend is out of scope.** Agent traffic goes from the host to whichever
   provider the agent CLI is configured for. AgentMux does not proxy it and does
   not read the keys — which also means it cannot report cost or enforce a budget.
-- **Targets must be Unix-like.** SSH, a POSIX shell and `tmux` are required on
-  every host. Windows is supported as the workstation, not as a target.
+- **Targets are Unix-like.** A POSIX shell and `tmux` are required on every host,
+  and SSH on every remote one. This computer qualifies directly on Linux and
+  macOS, and through WSL on Windows: Windows itself has no `tmux`, so nothing
+  started there could survive the window closing, which is the guarantee the rest
+  of this rests on.
 - **It does not decide what agents do.** Objectives, prompts and repository
   conventions remain the operator's; the orchestrator investigates and proposes,
   and needs approval to act.
@@ -145,7 +154,8 @@ Stated plainly, because they decide whether this is the right tool:
 ## Requirements
 
 Remote hosts need `tmux` and an SSH account; AgentMux can install `tmux` where it
-is missing. Local orchestration and memory search additionally require
+is missing. Managing this computer needs the same `tmux`, and on Windows a WSL
+distribution to provide it. Local orchestration and memory search additionally require
 [Ollama](https://ollama.com) with a chat model and an embedding model; without it
 the rest of the application is fully functional.
 
@@ -179,8 +189,9 @@ downloading with `curl -L -O <url>` avoids it.
 
 ## Getting started
 
-1. **Add a host.** Address, user, and one of ssh-agent, key or password. Jump
-   hosts are supported. The host key is pinned on first connection.
+1. **Add a host.** Either a remote machine — address, user, and one of ssh-agent,
+   key or password, with jump hosts supported and the host key pinned on first
+   connection — or this computer, which asks for nothing but a name.
 2. **Add a project and a workspace** — a working directory on that host. Or skip
    the forms: browse the host's files, find the directory and add it as a
    project there, since its name, path and host are already known.
@@ -199,9 +210,10 @@ downloading with `curl -L -O <url>` avoids it.
 
 ## Architecture
 
-One SSH connection per host, multiplexed: terminals, commands and file transfers
-are channels on the same connection, so ten terminals against one host is one
-authentication. Idle connections close after ten minutes unless something holds
+One SSH connection per remote host, multiplexed: terminals, commands and file
+transfers are channels on the same connection, so ten terminals against one host
+is one authentication. A local host skips all of it and starts processes directly,
+which is why it needs no sshd and no credentials. Idle connections close after ten minutes unless something holds
 them.
 
 Agents run in a login shell inside `tmux` rather than as the session's own

@@ -483,7 +483,7 @@ func (a *AgentService) connectedServersWithAgents() []string {
 			continue
 		}
 		seen[ws.ServerID] = true
-		if a.core.Pool.IsConnected(ws.ServerID) {
+		if a.core.IsReachable(ws.ServerID) {
 			out = append(out, ws.ServerID)
 		}
 	}

@@ -56,7 +56,9 @@ export function ServerDetail({ server }: { server: Server }) {
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-ink-100">{server.name}</h3>
             <p className="truncate font-mono text-[11px] text-ink-400">
-              {server.username}@{server.host}:{server.port}
+              {server.kind === 'local'
+                ? 'this computer'
+                : `${server.username}@${server.host}:${server.port}`}
             </p>
           </div>
           <Button size="sm" onClick={() => openDialog({ kind: 'server', server })}>
@@ -65,10 +67,18 @@ export function ServerDetail({ server }: { server: Server }) {
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Badge tone={connected ? 'ok' : 'neutral'}>
-            {connected ? 'connected' : 'disconnected'}
-          </Badge>
-          <Badge tone="accent">{server.authType}</Badge>
+          {server.kind === 'local' ? (
+            // A local host is either usable or the platform cannot host anything;
+            // "connected" would be describing a connection that does not exist.
+            <Badge tone={connected ? 'ok' : 'warn'}>{connected ? 'ready' : 'unavailable'}</Badge>
+          ) : (
+            <>
+              <Badge tone={connected ? 'ok' : 'neutral'}>
+                {connected ? 'connected' : 'disconnected'}
+              </Badge>
+              <Badge tone="accent">{server.authType}</Badge>
+            </>
+          )}
           {server.jumpServerId && <Badge tone="warn">via jump host</Badge>}
           {server.tags.map((t) => (
             <Badge key={t}>{t}</Badge>

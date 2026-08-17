@@ -21,7 +21,7 @@ func (m *MetricsService) ServiceName() string { return "MetricsService" }
 
 // Sample reads one set of vitals from a server.
 func (m *MetricsService) Sample(serverID string) metrics.Sample {
-	return metrics.Collect(m.core.Pool, serverID, time.Now().Unix())
+	return metrics.Collect(m.core.Run, serverID, time.Now().Unix())
 }
 
 // SampleMany reads several servers concurrently, for an overview across a fleet.
@@ -35,7 +35,7 @@ func (m *MetricsService) SampleMany(serverIDs []string) []metrics.Sample {
 		go func(i int, id string) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			out[i] = metrics.Collect(m.core.Pool, id, now)
+			out[i] = metrics.Collect(m.core.Run, id, now)
 			done <- i
 		}(i, id)
 	}

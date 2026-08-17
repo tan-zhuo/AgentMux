@@ -28,7 +28,7 @@ func (t *ToolkitService) Catalog() []agentkit.Tool { return agentkit.All() }
 
 // Detect reports what is already installed on a server.
 func (t *ToolkitService) Detect(serverID string) agentkit.Report {
-	return agentkit.Detect(t.core.Pool, serverID)
+	return agentkit.Detect(t.core.Run, serverID)
 }
 
 // AgentChoice is one runnable agent CLI found on a server.
@@ -43,7 +43,7 @@ type AgentChoice struct {
 // The quick-launch picker needs only this, so it avoids paying for the full
 // report every time someone opens the menu.
 func (t *ToolkitService) InstalledAgents(serverID string) []AgentChoice {
-	rep := agentkit.Detect(t.core.Pool, serverID)
+	rep := agentkit.Detect(t.core.Run, serverID)
 	out := []AgentChoice{}
 	for _, a := range rep.Agents {
 		if !a.Installed {
@@ -177,7 +177,7 @@ func (t *ToolkitService) Verify(serverID, toolID string) (agentkit.Presence, err
 			`p=$(command -v %s 2>/dev/null) && printf '%%s\n%%s\n' "$p" "$(%s %s 2>/dev/null | head -1)"`,
 			sshx.ShellQuote(tool.Binary), tool.Binary, tool.VersionArgs)),
 	)
-	res, err := t.core.Pool.Exec(serverID, cmd)
+	res, err := t.core.Run.Exec(serverID, cmd)
 	if err != nil {
 		return agentkit.Presence{Binary: tool.Binary}, err
 	}

@@ -27,24 +27,40 @@ type Project struct {
 	CreatedAt   int64   `json:"createdAt"`
 }
 
-// Server is a reachable SSH host. Secrets never leave the backend: the frontend
-// only learns whether a secret is set, via HasPassword / HasPassphrase.
+// ServerKind is how AgentMux reaches a host.
+type ServerKind string
+
+const (
+	// KindSSH is a machine reached over SSH — every host until local ones existed.
+	KindSSH ServerKind = "ssh"
+	// KindLocal is the computer AgentMux is running on, reached by starting
+	// processes directly. It has no address, no credentials and no host key,
+	// which is exactly why it is a different kind rather than a loopback SSH row.
+	KindLocal ServerKind = "local"
+)
+
+// Server is a host AgentMux can work on: a machine reached over SSH, or the
+// computer it is running on. Secrets never leave the backend — the frontend only
+// learns whether one is set, via HasPassword / HasPassphrase.
 type Server struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	Host          string   `json:"host"`
-	Port          int      `json:"port"`
-	Username      string   `json:"username"`
-	AuthType      AuthType `json:"authType"`
-	KeyPath       string   `json:"keyPath"`
-	HasPassword   bool     `json:"hasPassword"`
-	HasPassphrase bool     `json:"hasPassphrase"`
-	JumpServerID  *string  `json:"jumpServerId"`
-	Tags          []string `json:"tags"`
-	Favorite      bool     `json:"favorite"`
-	HostKey       string   `json:"hostKey"`
-	CreatedAt     int64    `json:"createdAt"`
-	LastOKAt      *int64   `json:"lastOkAt"`
+	ID string `json:"id"`
+	// Kind decides the transport: SSH for anything with an address, local for
+	// this computer.
+	Kind          ServerKind `json:"kind"`
+	Name          string     `json:"name"`
+	Host          string     `json:"host"`
+	Port          int        `json:"port"`
+	Username      string     `json:"username"`
+	AuthType      AuthType   `json:"authType"`
+	KeyPath       string     `json:"keyPath"`
+	HasPassword   bool       `json:"hasPassword"`
+	HasPassphrase bool       `json:"hasPassphrase"`
+	JumpServerID  *string    `json:"jumpServerId"`
+	Tags          []string   `json:"tags"`
+	Favorite      bool       `json:"favorite"`
+	HostKey       string     `json:"hostKey"`
+	CreatedAt     int64      `json:"createdAt"`
+	LastOKAt      *int64     `json:"lastOkAt"`
 	// TrustLevel decides how much the orchestrator may do here without asking.
 	TrustLevel TrustLevel `json:"trustLevel"`
 }
@@ -72,7 +88,10 @@ const (
 // tri-state convention: nil leaves the stored secret untouched, "" clears it,
 // anything else replaces it.
 type ServerInput struct {
-	ID           string     `json:"id"`
+	ID string `json:"id"`
+	// Kind defaults to SSH when empty, so every caller written before local
+	// hosts existed still means what it meant.
+	Kind         ServerKind `json:"kind"`
 	Name         string     `json:"name"`
 	Host         string     `json:"host"`
 	Port         int        `json:"port"`

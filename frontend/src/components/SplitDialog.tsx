@@ -133,7 +133,10 @@ export function SplitDialog() {
         key: `shell:${s.id}`,
         group: 'Shell on a host',
         label: s.name,
-        hint: `${s.username}@${s.host}${s.port === 22 ? '' : `:${s.port}`}`,
+        hint:
+          s.kind === 'local'
+            ? 'this computer'
+            : `${s.username}@${s.host}${s.port === 22 ? '' : `:${s.port}`}`,
         icon: Server,
         lead: <ConnDot connected={!!connections[s.id]?.connected} />,
         run: () =>

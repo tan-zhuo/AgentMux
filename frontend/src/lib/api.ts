@@ -4,6 +4,7 @@ import type {
   ConnStatus,
   Diagnostics,
   Folder,
+  LocalHost,
   Probe,
   Project,
   Receipt,
@@ -70,6 +71,10 @@ export const servers = {
   list: () => call<Server[]>('ServerService', 'List'),
   get: (id: string) => call<Server>('ServerService', 'Get', id),
   save: (input: ServerInput) => call<Server>('ServerService', 'Save', input),
+  /** Whether this computer can be added as a host, and whether it already is. */
+  localSupport: () => call<LocalHost>('ServerService', 'LocalSupport'),
+  /** Adds this computer as a host. Idempotent: there is only one of it. */
+  addLocal: (name: string) => call<Server>('ServerService', 'AddLocal', name),
   remove: (id: string) => call<void>('ServerService', 'Delete', id),
   test: (id: string) => call<Probe>('ServerService', 'Test', id),
   connect: (id: string) => call<void>('ServerService', 'Connect', id),

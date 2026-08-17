@@ -18,8 +18,13 @@ export interface Project {
   createdAt: number
 }
 
+/** How AgentMux reaches a host: over SSH, or by starting processes on this
+ *  computer. */
+export type ServerKind = 'ssh' | 'local'
+
 export interface Server {
   id: string
+  kind: ServerKind
   name: string
   host: string
   port: number
@@ -39,6 +44,8 @@ export interface Server {
 
 export interface ServerInput {
   id: string
+  /** Omitted means 'ssh', which is what every host was before local ones. */
+  kind?: ServerKind
   name: string
   host: string
   port: number
@@ -354,6 +361,15 @@ export interface Probe {
   hasTmux: boolean
   tmuxVersion: string
   error: string
+}
+
+/** Whether this computer can be managed as a host, asked before offering it. */
+export interface LocalHost {
+  supported: boolean
+  reason: string
+  name: string
+  /** Set when this computer is already in the tree. */
+  existingId: string
 }
 
 export interface ConnState {

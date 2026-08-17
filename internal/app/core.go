@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"agentmux/internal/llm"
+	"agentmux/internal/localx"
 	"agentmux/internal/memory"
 	"agentmux/internal/orch"
 	"agentmux/internal/sftpx"
@@ -35,6 +36,13 @@ type Core struct {
 	Skills *skill.Manager
 	Orch   *orch.Engine
 
+	// The machine AgentMux is running on, managed as a host in its own right.
+	// Local  runs its commands, LocalFiles reads and writes its filesystem, and
+	// Run is what everything above uses so it never has to know which is which.
+	Local      *localx.Runner
+	LocalFiles *localx.Files
+	Run        Runner
+
 	// llmMu guards the client, which is rebuilt whenever the user points
 	// AgentMux at a different Ollama.
 	llmMu sync.RWMutex
@@ -58,8 +66,15 @@ func NewCore() (*Core, error) {
 	c.Pool = sshx.NewPool(c, idleTTL, func(s sshx.ConnState) {
 		c.Emit("server:state", s)
 	})
-	c.Tmux = tmuxx.New(c.Pool)
+	c.Local = localx.NewRunner()
+	c.LocalFiles = localx.NewFiles(c.Local)
+	c.Run = hostRunner{core: c}
+	// tmux, agent detection and host metrics all reach a host through Run, so a
+	// local host gets the same treatment as a remote one without any of them
+	// carrying a special case.
+	c.Tmux = tmuxx.New(c.Run)
 	c.Shells = sshx.NewShellManager(c.Pool, c.Emit)
+	c.Shells.UseLocal(c.IsLocal, localx.NewTerminals(c.Local))
 	c.Files = sftpx.New(c.Pool, c.Emit)
 
 	// Nothing here reaches out to Ollama. Building the client is local work, and
@@ -86,6 +101,40 @@ func NewCore() (*Core, error) {
 	})
 	c.startPatrol()
 	return c, nil
+}
+
+// Runner executes one command on a host. Both transports satisfy it, and
+// everything that runs commands takes it rather than either of them.
+type Runner interface {
+	Exec(serverID, cmd string) (sshx.ExecResult, error)
+}
+
+// hostRunner routes a command to the transport that owns the host.
+type hostRunner struct{ core *Core }
+
+// Exec runs the command where the host actually is.
+func (r hostRunner) Exec(serverID, cmd string) (sshx.ExecResult, error) {
+	if r.core.IsLocal(serverID) {
+		return r.core.Local.Exec(serverID, cmd)
+	}
+	return r.core.Pool.Exec(serverID, cmd)
+}
+
+// IsLocal reports whether a host is this computer. It reads one column, and is
+// asked before every command, terminal and file operation.
+func (c *Core) IsLocal(serverID string) bool {
+	return c.Store.ServerKindOf(serverID) == store.KindLocal
+}
+
+// IsReachable reports whether work can be done on a host right now.
+//
+// For a remote host that means a live pooled connection — the test the poller and
+// the fleet view have always used, so that a hundred configured servers do not
+// mean a hundred sockets. This computer is always reachable: there is nothing to
+// connect, which would otherwise make it the one host whose agents never got
+// polled.
+func (c *Core) IsReachable(serverID string) bool {
+	return c.IsLocal(serverID) || c.Pool.IsConnected(serverID)
 }
 
 // Settings keys for the local model runtime.
@@ -163,6 +212,13 @@ func (c *Core) Resolve(serverID string) (sshx.Target, error) {
 	s, err := c.Store.GetServer(serverID)
 	if err != nil {
 		return sshx.Target{}, err
+	}
+	// The one guard that keeps the pool honest: a local host has no address, so
+	// every SSH path that could be reached with one — a pooled connection, a
+	// transfer, a probe — fails here with a sentence instead of dialling "".
+	if s.Kind == store.KindLocal {
+		return sshx.Target{}, fmt.Errorf(
+			"%s is this computer, which is not reached over SSH", s.Name)
 	}
 	password, passphrase, err := c.Store.Secrets(serverID)
 	if err != nil {

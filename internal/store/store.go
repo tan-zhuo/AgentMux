@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS projects (
 
 CREATE TABLE IF NOT EXISTS servers (
   id                TEXT PRIMARY KEY,
+  kind              TEXT NOT NULL DEFAULT 'ssh',
   name              TEXT NOT NULL,
   host              TEXT NOT NULL,
   port              INTEGER NOT NULL DEFAULT 22,
@@ -298,6 +299,9 @@ func migrate(db *sql.DB) {
 		// configured before this column existed cannot have consented to
 		// anything.
 		`ALTER TABLE servers ADD COLUMN trust_level TEXT NOT NULL DEFAULT 'normal'`,
+		// How the host is reached. Everything written before local hosts existed
+		// was reached over SSH, which is what the default says.
+		`ALTER TABLE servers ADD COLUMN kind TEXT NOT NULL DEFAULT 'ssh'`,
 	} {
 		_, _ = db.Exec(stmt)
 	}

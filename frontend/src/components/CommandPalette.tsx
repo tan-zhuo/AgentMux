@@ -4,6 +4,7 @@ import {
   Bot,
   Expand,
   FolderTree,
+  Laptop,
   Minimize2,
   Palette,
   Play,
@@ -59,7 +60,8 @@ export function CommandPalette() {
     const out: Command[] = [
       {
         id: 'new-server',
-        label: 'Add server',
+        label: 'Add host',
+        hint: 'a machine over SSH, or this computer',
         icon: Plus,
         run: () => openDialog({ kind: 'server' }),
       },
@@ -77,6 +79,13 @@ export function CommandPalette() {
       },
       { id: 'new-agent', label: 'New agent', icon: Plus, run: () => openDialog({ kind: 'agent' }) },
       {
+        id: 'add-local-host',
+        label: 'Add this computer as a host',
+        hint: 'agents in a local tmux session',
+        icon: Laptop,
+        run: () => openDialog({ kind: 'server' }),
+      },
+      {
         id: 'split-pane',
         label: 'Add a pane',
         hint: '⌘\\ — a host, a workspace, an agent or an open tab',
@@ -84,7 +93,7 @@ export function CommandPalette() {
         run: () => {
           const s = useAppStore.getState()
           if (s.paneIds.length >= MAX_PANES) {
-            s.toast('info', 'Four panes is the limit — close one before adding another')
+            s.toast('info', `${MAX_PANES} panes is the limit — close one before adding another`)
           } else {
             openDialog({ kind: 'split' })
           }
@@ -175,7 +184,7 @@ export function CommandPalette() {
       out.push({
         id: `shell:${s.id}`,
         label: `Shell on ${s.name}`,
-        hint: `${s.username}@${s.host}`,
+        hint: s.kind === 'local' ? 'this computer' : `${s.username}@${s.host}`,
         icon: Server,
         run: () => {
           openTab({
