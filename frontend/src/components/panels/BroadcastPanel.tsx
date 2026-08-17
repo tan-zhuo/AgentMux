@@ -84,8 +84,8 @@ export function BroadcastPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-300">
           <Radio size={11} /> Broadcast
         </span>
         {/* The count is a label, not a control. Giving it a pill made it a
@@ -115,7 +115,7 @@ export function BroadcastPanel() {
         </div>
       </div>
 
-      <div className="max-h-44 min-h-0 overflow-y-auto border-b border-ink-800">
+      <div className="max-h-44 min-h-0 overflow-y-auto border-b hairline">
         {targets.length === 0 ? (
           <div className="px-3 py-3 text-[11px] leading-relaxed text-ink-500">
             <p>Nothing selected yet. You can pick either:</p>
@@ -164,7 +164,7 @@ export function BroadcastPanel() {
         )}
       </div>
 
-      <div className="shrink-0 border-b border-ink-800 px-3 py-2">
+      <div className="shrink-0 border-b hairline px-3 py-2">
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
@@ -206,7 +206,7 @@ export function BroadcastPanel() {
           <Empty title="No receipts yet" hint="Every delivery is confirmed individually." />
         ) : (
           <>
-            <p className="px-3 py-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+            <p className="px-3 py-1.5 text-[11px] font-semibold text-ink-300">
               Receipts — {okCount}/{receipts.length} delivered
             </p>
             {receipts.map((r, i) => (

@@ -92,8 +92,8 @@ export function LaunchHere({
       </Button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-1 w-80 overflow-hidden rounded-lg border border-ink-700 bg-ink-850 shadow-2xl">
-          <div className="flex items-start justify-between gap-2 border-b border-ink-750 px-3 py-2">
+        <div className="absolute right-0 z-40 mt-1 w-80 overflow-hidden rounded-lg border hairline bg-ink-850 shadow-2xl">
+          <div className="flex items-start justify-between gap-2 border-b hairline px-3 py-2">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-ink-100">Run an agent in {folder}</p>
               <p className="mt-0.5 truncate font-mono text-[10.5px] text-ink-500">{dir}</p>
@@ -133,7 +133,7 @@ export function LaunchHere({
             ))}
           </div>
 
-          <div className="border-t border-ink-750 px-3 py-2">
+          <div className="border-t hairline px-3 py-2">
             <label className="mb-1 block text-[10.5px] text-ink-500">Or run something else</label>
             <div className="flex gap-1.5">
               <input

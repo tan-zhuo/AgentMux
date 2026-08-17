@@ -163,8 +163,8 @@ function Tile({
   children?: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-2">
-      <p className="text-[10px] tracking-wide text-ink-500 uppercase">{label}</p>
+    <div className="rounded-lg border hairline bg-ink-850 px-2.5 py-2">
+      <p className="text-[10px] font-medium text-ink-500">{label}</p>
       <p className="mt-0.5 text-lg leading-none font-semibold text-ink-100">{value}</p>
       {sub && <p className="mt-1 text-[10.5px] text-ink-500">{sub}</p>}
       {children}
@@ -239,8 +239,8 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-300">
           <Activity size={11} /> Host metrics
         </span>
         <div className="flex gap-1">
@@ -259,7 +259,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
       </div>
 
       {error && (
-        <p className="border-b border-ink-800 px-3 py-2 text-[11px] leading-relaxed text-danger">{error}</p>
+        <p className="border-b hairline px-3 py-2 text-[11px] leading-relaxed text-danger">{error}</p>
       )}
 
       {!sample && !error ? (
@@ -298,9 +298,9 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
             {/* Per-core utilisation. Height carries the value; a single hue
                 keeps it from double-encoding what the bars already show. */}
             {sample.perCore.length > 1 && (
-              <div className="mt-2 rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-2">
+              <div className="mt-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] tracking-wide text-ink-500 uppercase">
+                  <span className="text-[10px] font-medium text-ink-500">
                     Per core ({sample.perCore.length})
                   </span>
                   <span className="text-[10.5px] tabular-nums text-ink-500">
@@ -309,7 +309,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
                 </div>
                 {/* A hairline baseline so an idle machine reads as bars at zero
                     rather than a row of floating dashes. */}
-                <div className="mt-2 flex h-8 items-end gap-[2px] border-b border-ink-700">
+                <div className="mt-2 flex h-8 items-end gap-[2px] border-b hairline">
                   {sample.perCore.map((v, i) => (
                     <span
                       key={i}
@@ -343,7 +343,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {/* Facts that are one number each, so they belong in a row rather
                 than in tiles of their own. */}
-            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-2 text-[11px]">
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg border hairline bg-ink-850 px-2.5 py-2 text-[11px]">
               <Fact k="Run / block" v={`${sample.procsRunning} / ${sample.procsBlocked}`} />
               <Fact k="Context sw" v={`${Math.round(sample.contextRate).toLocaleString()}/s`} />
               <Fact k="Connections" v={`${sample.connections} established`} />
@@ -359,9 +359,9 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
             </dl>
 
             {sample.swapTotalBytes > 0 && (
-              <div className="mt-2 rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-2">
+              <div className="mt-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] tracking-wide text-ink-500 uppercase">Swap</span>
+                  <span className="text-[10px] font-medium text-ink-500">Swap</span>
                   <span className="text-[11px] tabular-nums text-ink-300">
                     {bytes(sample.swapUsedBytes)} / {bytes(sample.swapTotalBytes)}
                   </span>
@@ -374,7 +374,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             <Section title={`Disks (${sample.disks.length})`} />
             {sample.disks.map((d) => (
-              <div key={d.mount} className="mb-2 rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-2">
+              <div key={d.mount} className="mb-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate font-mono text-[11px] text-ink-200">{d.mount}</span>
                   <span className="shrink-0 text-[11px] tabular-nums text-ink-300">
@@ -443,7 +443,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
               <>
                 <Section title={`GPUs (${sample.gpus.length})`} />
                 {sample.gpus.map((g) => (
-                  <div key={g.index} className="mb-2 rounded-lg border border-ink-800 bg-ink-850 px-2.5 py-2">
+                  <div key={g.index} className="mb-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="min-w-0 truncate text-[11px] text-ink-200">
                         {g.index}: {g.name}
@@ -496,7 +496,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
 function Section({ title }: { title: string }) {
   return (
-    <p className="mt-3 mb-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+    <p className="mt-3 mb-1.5 text-[11px] font-semibold text-ink-300">
       {title}
     </p>
   )

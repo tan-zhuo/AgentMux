@@ -231,8 +231,8 @@ export function Sidebar() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col border-r border-ink-800 bg-ink-900">
-      <div className="flex items-center gap-2 border-b border-ink-800 px-2.5 py-2">
+    <div className="flex h-full w-full flex-col border-r hairline bg-ink-850">
+      <div className="flex items-center gap-2 border-b hairline px-2.5 py-2">
         <Search size={13} className="shrink-0 text-ink-500" />
         <input
           value={search}
@@ -265,7 +265,7 @@ export function Sidebar() {
                 <div
                   key={row.key}
                   style={style}
-                  className="flex items-center justify-between px-2.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase"
+                  className="flex items-center justify-between px-2.5 text-[11px] font-semibold text-ink-300"
                 >
                   <span className="flex items-center gap-1.5">
                     {row.label === 'Projects' ? <FolderTree size={11} /> : <ServerIcon size={11} />}
@@ -839,7 +839,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1.5 border-t border-ink-800 px-2.5 py-2">
+      <div className="flex shrink-0 gap-1.5 border-t hairline px-2.5 py-2">
         <Button size="sm" onClick={() => openDialog({ kind: 'server' })} className="flex-1">
           <Plus size={11} /> Server
         </Button>
@@ -889,8 +889,10 @@ function TreeRow({
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       className={clsx(
-        'group flex cursor-default items-center gap-1.5 pr-1.5 text-xs',
-        selected ? 'bg-accent/12 text-ink-100' : 'text-ink-200 hover:bg-ink-850',
+        // An inset rounded pill, the way a macOS sidebar shows selection —
+        // not a full-bleed band, which reads as a highlighted table row.
+        'group mx-1.5 flex cursor-default items-center gap-1.5 rounded-control pr-1.5 text-xs',
+        selected ? 'bg-accent text-white' : 'text-ink-200 hover:bg-ink-800',
       )}
     >
       <div style={{ width: depth * 14 + 6 }} className="shrink-0" />

@@ -41,8 +41,8 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="text-[11px] font-semibold text-ink-300">
           tmux sessions {sessions.length > 0 && `(${sessions.length})`}
         </span>
         <div className="flex gap-1">
@@ -56,7 +56,7 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
       </div>
 
       {creating && (
-        <div className="flex gap-1.5 border-b border-ink-800 px-3 py-2">
+        <div className="flex gap-1.5 border-b hairline px-3 py-2">
           <input
             autoFocus
             value={newName}
@@ -75,7 +75,7 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
       )}
 
       {view?.error && (
-        <p className="border-b border-ink-800 px-3 py-2 text-[11px] text-danger">{view.error}</p>
+        <p className="border-b hairline px-3 py-2 text-[11px] text-danger">{view.error}</p>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -88,7 +88,7 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
         {sessions.map((s) => {
           const sessionPanes = panes.filter((p) => p.sessionName === s.name)
           return (
-            <div key={s.name} className="border-b border-ink-850 px-3 py-2">
+            <div key={s.name} className="border-b hairline px-3 py-2">
               <div className="flex items-center gap-1.5">
                 {/* Sessions are broadcast targets in their own right. Most work
                     starts as a session with no agent record behind it. */}

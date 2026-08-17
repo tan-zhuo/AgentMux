@@ -18,9 +18,22 @@ type Chrome struct {
 
 // chromeByTheme mirrors the `window` and border colours of the themes in
 // frontend/src/lib/themes.ts. Adding a theme means adding a row here too;
-// an unknown id falls back to Midnight rather than failing to start.
+// an unknown id falls back to macOS Dark rather than failing to start.
 func chromeByTheme(id string) Chrome {
 	switch id {
+	case "macos-light":
+		return Chrome{
+			Background:     application.NewRGB(0xf2, 0xf2, 0xf7),
+			Border:         application.NewRGBPtr(0xd1, 0xd1, 0xd6),
+			BorderInactive: application.NewRGBPtr(0xe0, 0xe0, 0xe5),
+			Light:          true,
+		}
+	case "midnight":
+		return Chrome{
+			Background:     application.NewRGB(0x0b, 0x0d, 0x12),
+			Border:         application.NewRGBPtr(0x23, 0x29, 0x36),
+			BorderInactive: application.NewRGBPtr(0x15, 0x19, 0x22),
+		}
 	case "graphite":
 		return Chrome{
 			Background:     application.NewRGB(0x10, 0x10, 0x10),
@@ -52,16 +65,16 @@ func chromeByTheme(id string) Chrome {
 			BorderInactive: application.NewRGBPtr(0xe4, 0xe7, 0xec),
 			Light:          true,
 		}
-	default: // midnight
+	default: // macos-dark
 		return Chrome{
-			Background:     application.NewRGB(0x0b, 0x0d, 0x12),
-			Border:         application.NewRGBPtr(0x23, 0x29, 0x36),
-			BorderInactive: application.NewRGBPtr(0x15, 0x19, 0x22),
+			Background:     application.NewRGB(0x1c, 0x1c, 0x1e),
+			Border:         application.NewRGBPtr(0x48, 0x48, 0x4a),
+			BorderInactive: application.NewRGBPtr(0x2c, 0x2c, 0x2e),
 		}
 	}
 }
 
 // WindowChrome returns the native styling for the user's saved theme.
 func (c *Core) WindowChrome() Chrome {
-	return chromeByTheme(c.Store.GetSetting("theme", "midnight"))
+	return chromeByTheme(c.Store.GetSetting("theme", "macos-dark"))
 }

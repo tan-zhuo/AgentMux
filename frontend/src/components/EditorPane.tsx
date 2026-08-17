@@ -251,7 +251,7 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
 
   return (
     <div className="flex h-full w-full flex-col bg-ink-950">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-ink-800 bg-ink-900 px-2.5">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b hairline bg-ink-900 px-2.5">
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-300" title={path}>
           {path}
           {dirty && <span className="ml-1.5 text-warn">●</span>}

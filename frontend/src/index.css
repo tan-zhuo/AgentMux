@@ -23,7 +23,22 @@
   --color-idle: #8b93a7;
 
   --font-mono:
-    'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    'SF Mono', 'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+
+  /* Corner radii follow Apple's three scales: controls, cards, and the sheets
+     that sit above everything. Naming them stops each component from inventing
+     its own, which is what makes a set of surfaces look like one system. */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-sheet: 14px;
+  --radius-capsule: 999px;
+
+  /* Elevation. Apple's shadows are large, soft and nearly black; a tight dark
+     shadow reads as a border, which is a different thing entirely. */
+  --shadow-sheet: 0 24px 64px rgb(0 0 0 / 0.44), 0 2px 8px rgb(0 0 0 / 0.28);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.28);
+  --shadow-knob: 0 3px 8px rgb(0 0 0 / 0.18), 0 1px 1px rgb(0 0 0 / 0.14);
 }
 
 /* These are element defaults, so they belong in the base layer. Left unlayered
@@ -45,9 +60,20 @@
   body {
     background: var(--color-ink-900);
     color: var(--color-ink-100);
+    /* SF on Apple hardware, and the platform's own system face everywhere else.
+       Naming SF first rather than bundling it is deliberate: the font is not
+       redistributable, and a downloaded copy would render slightly differently
+       from the system's anyway. */
     font-family:
-      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI Variable Text',
+      'Segoe UI', system-ui, Roboto, 'Helvetica Neue', sans-serif;
     font-size: 13px;
+    line-height: 1.45;
+    /* macOS renders text with these on; without them the same stack looks
+       heavier and wider than a native window beside it. */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern', 'liga';
     overflow: hidden;
     user-select: none;
   }
@@ -57,20 +83,29 @@
     user-select: text;
   }
 
-  /* Scrollbars that do not shout. */
+  /* macOS overlay scrollbars: a translucent capsule inset from the edge, with
+     nothing behind it. The inset comes from a transparent border with
+     background-clip, which is the only way to pad a scrollbar thumb. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-ink-600) transparent;
+    scrollbar-color: color-mix(in srgb, var(--color-ink-500) 55%, transparent) transparent;
   }
   *::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
+    width: 11px;
+    height: 11px;
   }
   *::-webkit-scrollbar-thumb {
-    background: var(--color-ink-600);
-    border-radius: 5px;
+    background: color-mix(in srgb, var(--color-ink-500) 45%, transparent);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--radius-capsule);
   }
-  *::-webkit-scrollbar-track {
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-ink-400) 70%, transparent);
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
     background: transparent;
   }
 
@@ -99,4 +134,29 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Vibrancy. Apple's materials are a blur plus a saturation lift, not a flat
+   translucent fill — the saturation is what makes colour show through as
+   colour rather than as grey. Only surfaces that sit above content get it;
+   applied to everything it costs compositing for no perceptible gain. */
+@utility material {
+  background: color-mix(in srgb, var(--color-ink-850) 78%, transparent);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+}
+
+/* The hairline separator. macOS draws these at well under full contrast; a
+   solid 1px line at token colour reads as a drawn box rather than a seam. */
+@utility hairline {
+  border-color: color-mix(in srgb, var(--color-ink-700) 62%, transparent);
+}
+
+/* The focus ring: a soft halo in the accent colour rather than a hard outline.
+   Keyboard focus has to be unmistakable, so it is wide and coloured; it is not
+   a border, so it does not shift layout. */
+@utility focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--color-accent) 32%, transparent);
+  border-color: var(--color-accent);
 }

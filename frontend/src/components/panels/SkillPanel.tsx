@@ -1,4 +1,3 @@
-import clsx from 'clsx'
 import {
   AlertTriangle,
   Archive,
@@ -21,7 +20,7 @@ import type { Skill, SkillMatch, SkillStats, SkillStatus } from '../../lib/types
 import { useAppStore } from '../../store/useAppStore'
 import { confirmAction } from '../../store/useConfirm'
 import { useDialogs } from '../../store/useDialogs'
-import { Badge, Button, Empty, inputClass, textareaClass } from '../ui'
+import { Badge, Button, Empty, Segmented, inputClass, textareaClass } from '../ui'
 
 const statusTone: Record<SkillStatus, 'ok' | 'accent' | 'neutral' | 'warn' | 'danger'> = {
   active: 'ok',
@@ -99,8 +98,8 @@ export function SkillPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="text-[11px] font-semibold text-ink-300">
           Skills {stats ? `(${stats.total})` : ''}
         </span>
         <div className="flex gap-1">
@@ -135,22 +134,25 @@ export function SkillPanel() {
         </div>
       </div>
 
-      <div className="flex items-stretch gap-px border-b border-ink-800">
-        {(['active', 'draft', 'other'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={clsx(
-              'flex h-7 flex-1 items-center justify-center gap-1.5 text-[11px] font-medium',
-              tab === t
-                ? 'border-b-2 border-accent bg-ink-850 text-ink-100'
-                : 'text-ink-400 hover:bg-ink-850 hover:text-ink-200',
-            )}
-          >
-            {t === 'other' ? 'Retired' : t[0].toUpperCase() + t.slice(1)}
-            {t === 'draft' && !!stats?.draft && <Badge tone="accent">{stats.draft}</Badge>}
-          </button>
-        ))}
+      <div className="border-b hairline px-3 py-2">
+        <Segmented<Tab>
+          className="w-full"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'active', label: 'Active' },
+            {
+              value: 'draft',
+              label: (
+                <>
+                  Draft
+                  {!!stats?.draft && <Badge tone="accent">{stats.draft}</Badge>}
+                </>
+              ),
+            },
+            { value: 'other', label: 'Retired' },
+          ]}
+        />
       </div>
 
       {testing ? (
@@ -161,7 +163,7 @@ export function SkillPanel() {
           setMatches={setMatches}
         />
       ) : (
-        <div className="border-b border-ink-800 px-3 py-2">
+        <div className="border-b hairline px-3 py-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -175,7 +177,7 @@ export function SkillPanel() {
           can be acted on. On the draft queue it would just be noise about
           something else. */}
       {tab === 'active' && stats && stats.pending > 0 && (
-        <div className="flex items-start gap-2 border-b border-ink-800 bg-warn/5 px-3 py-2">
+        <div className="flex items-start gap-2 border-b hairline bg-warn/5 px-3 py-2">
           <AlertTriangle size={12} className="mt-0.5 shrink-0 text-warn" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] leading-relaxed text-ink-200">
@@ -236,7 +238,7 @@ function SkillRow({
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="border-b border-ink-850 px-3 py-2">
+    <div className="border-b hairline px-3 py-2">
       <div className="flex items-center gap-1.5">
         <button
           onClick={() => setOpen((v) => !v)}
@@ -396,7 +398,7 @@ function TestBench({
   }
 
   return (
-    <div className="border-b border-ink-800 px-3 py-2">
+    <div className="border-b hairline px-3 py-2">
       <textarea
         value={scenario}
         onChange={(e) => setScenario(e.target.value)}
@@ -423,7 +425,7 @@ function TestBench({
             </p>
           )}
           {matches.map((m) => (
-            <div key={m.skill.id} className="rounded-md border border-ink-750 bg-ink-850 px-2.5 py-1.5">
+            <div key={m.skill.id} className="rounded-md border hairline bg-ink-850 px-2.5 py-1.5">
               <div className="flex items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-100">
                   {m.skill.name}

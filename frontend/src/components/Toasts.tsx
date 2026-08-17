@@ -9,7 +9,7 @@ const toneStyle: Record<
   ok: { icon: CheckCircle2, border: 'border-ok/35', accent: 'text-ok', label: 'Done' },
   error: { icon: XCircle, border: 'border-danger/40', accent: 'text-danger', label: 'Failed' },
   warn: { icon: AlertTriangle, border: 'border-warn/40', accent: 'text-warn', label: 'Warning' },
-  info: { icon: Info, border: 'border-ink-700', accent: 'text-accent', label: 'Note' },
+  info: { icon: Info, border: 'hairline', accent: 'text-accent', label: 'Note' },
 }
 
 /**
@@ -41,7 +41,7 @@ export function Toasts() {
             <div className="flex items-start gap-2.5 px-3 py-2.5">
               <Icon size={14} className={clsx('mt-px shrink-0', style.accent)} />
               <div className="min-w-0 flex-1">
-                <p className={clsx('text-[10px] font-semibold tracking-widest uppercase', style.accent)}>
+                <p className={clsx('text-[11px] font-semibold', style.accent)}>
                   {style.label}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed break-words text-ink-200">{t.text}</p>

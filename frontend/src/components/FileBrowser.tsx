@@ -242,7 +242,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   return (
     <div className="flex h-full w-full flex-col bg-ink-950">
       {/* Path + actions */}
-      <div className="flex items-center gap-1.5 border-b border-ink-800 bg-ink-900 px-2.5 py-1.5">
+      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5">
         <Button
           size="sm"
           variant="subtle"
@@ -286,7 +286,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       </div>
 
       {newDir !== null && (
-        <div className="flex gap-1.5 border-b border-ink-800 bg-ink-900 px-2.5 py-2">
+        <div className="flex gap-1.5 border-b hairline bg-ink-900 px-2.5 py-2">
           <input
             autoFocus
             className={inputClass}
@@ -321,7 +321,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       )}
 
       {launchDir && (
-        <div className="flex items-center gap-2 border-b border-ink-800 bg-ink-900 px-2.5 py-2">
+        <div className="flex items-center gap-2 border-b hairline bg-ink-900 px-2.5 py-2">
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-400">
             {launchDir}
           </span>
@@ -333,7 +333,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       )}
 
       {error && (
-        <p className="border-b border-ink-800 px-3 py-2 text-[11px] leading-relaxed text-danger">{error}</p>
+        <p className="border-b hairline px-3 py-2 text-[11px] leading-relaxed text-danger">{error}</p>
       )}
 
       {/* Listing */}
@@ -534,9 +534,9 @@ export function FileBrowser({ tab }: { tab: Tab }) {
 
       {/* Transfers */}
       {transfers.length > 0 && (
-        <div className="max-h-40 shrink-0 overflow-y-auto border-t border-ink-800 bg-ink-900">
+        <div className="max-h-40 shrink-0 overflow-y-auto border-t hairline bg-ink-900">
           <div className="flex items-center justify-between px-3 py-1.5">
-            <span className="text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+            <span className="text-[11px] font-semibold text-ink-300">
               Transfers {active.length > 0 && `(${active.length} running)`}
             </span>
             <Button
@@ -599,7 +599,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         </div>
       )}
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-ink-800 bg-ink-900 px-3 py-1 text-[10.5px] text-ink-600">
+      <div className="flex shrink-0 items-center gap-2 border-t hairline bg-ink-900 px-3 py-1 text-[10.5px] text-ink-600">
         <CornerUpLeft size={10} />
         Double-click a folder to open it. Drops and directory transfers are not supported yet.
       </div>

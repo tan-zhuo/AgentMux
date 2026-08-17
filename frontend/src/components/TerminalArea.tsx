@@ -169,7 +169,7 @@ export function TerminalArea() {
     <div className="flex min-w-0 flex-1 flex-col bg-ink-950">
       <div
         ref={stripRef}
-        className="relative flex h-9 shrink-0 items-stretch gap-px overflow-x-auto border-b border-ink-800 bg-ink-900"
+        className="relative flex h-9 shrink-0 items-stretch gap-px overflow-x-auto border-b hairline bg-ink-900"
       >
         {tabs.map((tab, index) => {
           const Icon = kindIcon[tab.kind]
@@ -229,7 +229,7 @@ export function TerminalArea() {
                 ])
               }
               className={clsx(
-                'group relative flex min-w-0 shrink-0 cursor-default touch-none items-center gap-1.5 border-r border-ink-800 px-3 text-xs select-none',
+                'group relative flex min-w-0 shrink-0 cursor-default touch-none items-center gap-1.5 border-r hairline px-3 text-xs select-none',
                 active
                   ? 'bg-ink-950 text-ink-100'
                   : 'bg-ink-900 text-ink-400 hover:bg-ink-850 hover:text-ink-200',

@@ -128,8 +128,8 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-300">
           <Sparkles size={11} /> Agent toolkit
         </span>
         <div className="flex gap-1">
@@ -143,13 +143,13 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
       </div>
 
       {report?.os && (
-        <p className="border-b border-ink-850 px-3 py-1.5 font-mono text-[10.5px] text-ink-500">
+        <p className="border-b hairline px-3 py-1.5 font-mono text-[10.5px] text-ink-500">
           {report.os} · {report.shell}
         </p>
       )}
 
       {tmuxMissing && (
-        <p className="flex items-start gap-1.5 border-b border-ink-800 bg-warn/8 px-3 py-2 text-[11px] leading-relaxed text-warn">
+        <p className="flex items-start gap-1.5 border-b hairline bg-warn/8 px-3 py-2 text-[11px] leading-relaxed text-warn">
           <ShieldAlert size={12} className="mt-0.5 shrink-0" />
           tmux is missing. AgentMux keeps every agent alive inside tmux, so install it first —
           without it nothing survives a dropped connection.
@@ -157,7 +157,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
       )}
 
       {customOpen && (
-        <div className="border-b border-ink-800 px-3 py-2">
+        <div className="border-b hairline px-3 py-2">
           <textarea
             rows={3}
             value={custom}
@@ -209,7 +209,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
 
 function Section({ title }: { title: string }) {
   return (
-    <p className="sticky top-0 z-10 bg-ink-900 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+    <p className="sticky top-0 z-10 bg-ink-900 px-3 py-1.5 text-[11px] font-semibold text-ink-300">
       {title}
     </p>
   )
@@ -233,7 +233,7 @@ function ToolRow({
   const primary = methods[0]
 
   return (
-    <div className="border-b border-ink-850 px-3 py-2">
+    <div className="border-b hairline px-3 py-2">
       <div className="flex items-start gap-2">
         {status.installed ? (
           <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-ok" />

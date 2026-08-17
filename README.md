@@ -254,11 +254,26 @@ The Linux build needs GTK3 and WebKitGTK 4.1 present at run time
 desktops already have them; `install.sh` says so plainly if they are missing
 instead of leaving you with a binary that exits without a word.
 
-Each one ships a `.sha256` beside it. The builds are not code-signed, which
-costs money and tells you nothing you cannot check yourself, so the first launch
-needs one extra step: on macOS right-click the app and choose Open, on Windows
-click "More info" then "Run anyway". Settings shows the version the binary was
+Each one ships a `.sha256` beside it. Settings shows the version the binary was
 built from, so you can always tell what you are running.
+
+**The builds are not notarized**, which costs an Apple developer account and a
+Microsoft certificate, so the first launch takes one extra step.
+
+On **Windows**: click "More info", then "Run anyway".
+
+On **macOS**, what to do depends on the version, because macOS 15 removed the
+Control-click shortcut that used to be the answer:
+
+| Your macOS | What works |
+|---|---|
+| 15 Sequoia or newer | Open it, let it be blocked, then System Settings → Privacy & Security → scroll to Security → **Open Anyway** → authenticate → Open |
+| 14 Sonoma or older | Control-click the app → **Open** → Open |
+| any version | `xattr -dr com.apple.quarantine /Applications/AgentMux.app` in Terminal, then open it normally |
+
+The quarantine flag those steps clear is attached by the *browser*, not by the
+archive. Downloading with `curl -L -O <url>` instead of clicking a link means
+there is no flag to clear and the app opens on the first try.
 
 ### Where your secrets live
 
@@ -574,10 +589,24 @@ Linux 那份运行时需要 GTK3 和 WebKitGTK 4.1（Debian/Ubuntu 上是
 `libwebkit2gtk-4.1-0`，Fedora 上是 `webkit2gtk4.1`）。大多数桌面本来就装了；
 真的缺了的话，`install.sh` 会直接告诉你，而不是留给你一个一声不吭就退出的二进制。
 
-每个旁边都有对应的 `.sha256`。这些构建没有做代码签名——签名要花钱，而且并不能
-告诉你任何你自己验不了的事——所以第一次打开要多一步：macOS 上右键选"打开"，
-Windows 上点"更多信息"再"仍要运行"。设置面板里能看到这个二进制是从哪个版本编出
-来的，你随时知道自己在跑什么。
+每个旁边都有对应的 `.sha256`。设置面板里能看到这个二进制是从哪个版本编出来的，
+你随时知道自己在跑什么。
+
+**这些构建没有做公证（notarization）**——那需要 Apple 开发者账号和微软的证书——
+所以第一次打开要多一步。
+
+**Windows**：点"更多信息"，再点"仍要运行"。
+
+**macOS** 要看版本，因为 macOS 15 把"右键→打开"这个老办法删掉了：
+
+| 你的 macOS | 怎么开 |
+|---|---|
+| 15 Sequoia 及以上 | 先双击让它被拦下，然后 系统设置 → 隐私与安全性 → 拉到底部"安全性" → **仍要打开** → 输密码 → 再点"打开" |
+| 14 Sonoma 及以下 | 右键（Control 点按）应用 → **打开** → 再点"打开" |
+| 任何版本 | 终端里跑 `xattr -dr com.apple.quarantine /Applications/AgentMux.app`，之后正常双击即可 |
+
+上面这几步清掉的隔离标记，是**浏览器**打上的，不在压缩包里。用
+`curl -L -O <链接>` 下载而不是点链接，就没有标记可清，第一次双击就能开。
 
 ### 你的密钥放在哪
 

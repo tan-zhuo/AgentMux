@@ -15,7 +15,7 @@ import { errText, memory as memoryApi, on } from '../../lib/api'
 import type { Memory, MemoryKind, MemoryStats, ReindexStatus } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
 import { confirmAction } from '../../store/useConfirm'
-import { Badge, Button, Empty, inputClass, textareaClass } from '../ui'
+import { Badge, Button, Empty, Segmented, inputClass, textareaClass } from '../ui'
 
 const kindLabels: Record<MemoryKind, string> = {
   project_fact: 'project',
@@ -110,8 +110,8 @@ export function MemoryPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="text-[11px] font-semibold text-ink-300">
           Memory {stats ? `(${stats.total})` : ''}
         </span>
         <div className="flex gap-1">
@@ -130,7 +130,7 @@ export function MemoryPanel() {
         </div>
       </div>
 
-      <div className="flex gap-1.5 border-b border-ink-800 px-3 py-2">
+      <div className="flex gap-1.5 border-b hairline px-3 py-2">
         <div className="relative min-w-0 flex-1">
           <Search
             size={11}
@@ -147,26 +147,33 @@ export function MemoryPanel() {
             className={`${inputClass} pl-6`}
           />
         </div>
-        <Button
+        {/* Two ways of searching, not a mode flag on one of them. A segmented
+            control says they are alternatives; a highlighted button did not. */}
+        <Segmented<'text' | 'meaning'>
           size="sm"
-          variant={semantic ? 'primary' : 'ghost'}
-          onClick={() => {
-            const next = !semantic
-            setSemantic(next)
-            if (!next) void load()
+          value={semantic ? 'meaning' : 'text'}
+          onChange={(next) => {
+            const on = next === 'meaning'
+            setSemantic(on)
+            if (!on) void load()
           }}
-          title={
-            semantic
-              ? 'Searching by meaning, using the embedding model'
-              : 'Searching for exact text. Click to search by meaning instead.'
-          }
-        >
-          <Sparkles size={11} /> Meaning
-        </Button>
+          options={[
+            { value: 'text', label: 'Text', title: 'Find these exact characters' },
+            {
+              value: 'meaning',
+              label: (
+                <>
+                  <Sparkles size={10} /> Meaning
+                </>
+              ),
+              title: 'Find memories about this, using the embedding model',
+            },
+          ]}
+        />
       </div>
 
       {stats?.needsRebuild && !reindex && (
-        <div className="flex items-start gap-2 border-b border-ink-800 bg-warn/5 px-3 py-2">
+        <div className="flex items-start gap-2 border-b hairline bg-warn/5 px-3 py-2">
           <AlertTriangle size={12} className="mt-0.5 shrink-0 text-warn" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] leading-relaxed text-ink-200">
@@ -194,7 +201,7 @@ export function MemoryPanel() {
       )}
 
       {reindex?.running && (
-        <div className="border-b border-ink-800 px-3 py-2">
+        <div className="border-b hairline px-3 py-2">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 text-[11px] text-ink-300">
               Rebuilding {reindex.done}/{reindex.total}
@@ -248,7 +255,7 @@ function Row({
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="border-b border-ink-850 px-3 py-2">
+    <div className="border-b hairline px-3 py-2">
       <div className="flex items-center gap-1.5">
         <Brain size={11} className="shrink-0 text-ink-600" />
         <button
@@ -318,7 +325,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false)
 
   return (
-    <div className="space-y-1.5 border-b border-ink-800 px-3 py-2">
+    <div className="space-y-1.5 border-b hairline px-3 py-2">
       <div className="flex gap-1.5">
         <select
           value={kind}

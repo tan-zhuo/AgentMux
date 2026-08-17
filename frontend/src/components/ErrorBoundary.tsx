@@ -43,7 +43,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
         </pre>
 
         {stack && (
-          <pre className="mt-2 min-h-0 flex-1 overflow-auto rounded-lg border border-ink-800 bg-ink-850 px-3 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-ink-500">
+          <pre className="mt-2 min-h-0 flex-1 overflow-auto rounded-lg border hairline bg-ink-850 px-3 py-2 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-ink-500">
             {stack.trim()}
           </pre>
         )}
@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           </button>
           <button
             onClick={() => this.setState({ error: null, stack: '' })}
-            className="rounded-md border border-ink-700 bg-ink-800 px-3 py-1.5 text-xs font-medium text-ink-200 hover:bg-ink-750"
+            className="rounded-md border hairline bg-ink-800 px-3 py-1.5 text-xs font-medium text-ink-200 hover:bg-ink-750"
           >
             Try to continue
           </button>

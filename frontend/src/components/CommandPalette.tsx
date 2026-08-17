@@ -214,7 +214,7 @@ export function CommandPalette() {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[60vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 shadow-2xl"
+        className="flex max-h-[60vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border hairline bg-ink-850 shadow-2xl"
       >
         <input
           autoFocus
@@ -242,7 +242,7 @@ export function CommandPalette() {
             }
           }}
           placeholder="Run a command, attach an agent, open a shell"
-          className="border-b border-ink-750 bg-transparent px-4 py-3 text-sm text-ink-100 outline-none placeholder:text-ink-500"
+          className="border-b hairline bg-transparent px-4 py-3 text-sm text-ink-100 outline-none placeholder:text-ink-500"
         />
         <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1">
           {filtered.map((c, i) => {

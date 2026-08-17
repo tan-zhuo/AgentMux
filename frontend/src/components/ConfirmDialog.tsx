@@ -86,7 +86,7 @@ export function ConfirmDialog() {
         aria-modal="true"
         aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-ink-700 bg-ink-850 shadow-2xl"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border hairline bg-ink-850 shadow-2xl"
       >
         <div className="flex gap-3 px-4 pt-4">
           <span
@@ -117,7 +117,7 @@ export function ConfirmDialog() {
             )}
 
             {request.reassurance && (
-              <p className="mt-2.5 rounded-md border border-ink-750 bg-ink-800 px-2.5 py-1.5 text-[11px] leading-relaxed text-ink-400">
+              <p className="mt-2.5 rounded-md border hairline bg-ink-800 px-2.5 py-1.5 text-[11px] leading-relaxed text-ink-400">
                 {request.reassurance}
               </p>
             )}
@@ -147,7 +147,7 @@ export function ConfirmDialog() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2 border-t border-ink-750 bg-ink-900/60 px-4 py-3">
+        <div className="mt-4 flex items-center justify-end gap-2 border-t hairline bg-ink-900/60 px-4 py-3">
           <Button onClick={() => settle(false)}>{request.cancelLabel ?? 'Cancel'}</Button>
           <Button
             variant={tone === 'info' ? 'primary' : 'danger'}

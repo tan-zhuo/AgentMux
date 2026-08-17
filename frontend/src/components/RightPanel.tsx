@@ -170,13 +170,13 @@ export function RightPanel() {
   ]
 
   return (
-    <div className="flex h-full w-full flex-col border-l border-ink-800 bg-ink-900">
-      <div className="flex h-9 shrink-0 items-stretch border-b border-ink-800">
+    <div className="flex h-full w-full flex-col border-l hairline bg-ink-850">
+      <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1">
         {/* The strip scrolls rather than squeezing: five tabs do not fit a
             narrow panel, and shrinking them to fit makes every label unreadable
             instead of just the ones off-screen. */}
         <div className="relative min-w-0 flex-1">
-          <div ref={stripRef} className="no-scrollbar flex h-full items-stretch gap-px overflow-x-auto">
+          <div ref={stripRef} className="no-scrollbar flex h-full items-stretch gap-0.5 overflow-x-auto">
             {tabs.map((t) => {
               const Icon = t.icon
               const active = panel === t.id
@@ -186,10 +186,14 @@ export function RightPanel() {
                   ref={active ? activeRef : undefined}
                   onClick={() => setPanel(t.id)}
                   className={clsx(
-                    'flex h-full shrink-0 items-center gap-1.5 px-3 text-[11px] font-medium whitespace-nowrap',
+                    // A raised pill rather than an underline. Underlined tabs
+                    // are a web convention; on Apple's platforms selection in a
+                    // strip like this is shown by lifting the chosen one.
+                    'my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
+                    'text-[11px] font-medium whitespace-nowrap transition-colors duration-100',
                     active
-                      ? 'border-b-2 border-accent bg-ink-850 text-ink-100'
-                      : 'text-ink-400 hover:bg-ink-850 hover:text-ink-200',
+                      ? 'bg-ink-750 text-ink-100 shadow-sm'
+                      : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
                   )}
                 >
                   <Icon size={12} />
@@ -211,7 +215,7 @@ export function RightPanel() {
         <button
           onClick={toggleRight}
           title="Collapse panel"
-          className="shrink-0 border-l border-ink-850 px-2 text-ink-500 hover:text-ink-100"
+          className="shrink-0 border-l hairline px-2 text-ink-500 hover:text-ink-100"
         >
           <PanelRightClose size={14} />
         </button>
@@ -258,7 +262,7 @@ function DetailRouter() {
     const wsAgents = snapshot.agents.filter((a) => a.workspaceId === ws.id)
     return (
       <div className="flex h-full flex-col">
-        <div className="border-b border-ink-800 px-3 py-3">
+        <div className="border-b hairline px-3 py-3">
           <h3 className="truncate text-sm font-semibold text-ink-100">{ws.name}</h3>
           <p className="truncate font-mono text-[11px] text-ink-400">{ws.remotePath}</p>
           <p className="mt-1 text-[11px] text-ink-500">on {server?.name ?? 'missing server'}</p>
@@ -295,7 +299,7 @@ function DetailRouter() {
           )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <p className="px-3 py-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+          <p className="px-3 py-1.5 text-[11px] font-semibold text-ink-300">
             Agents ({wsAgents.length})
           </p>
           {wsAgents.map((a) => (
@@ -323,7 +327,7 @@ function DetailRouter() {
     const wss = snapshot.workspaces.filter((w) => w.projectId === project.id)
     return (
       <div className="flex h-full flex-col">
-        <div className="border-b border-ink-800 px-3 py-3">
+        <div className="border-b hairline px-3 py-3">
           <h3 className="truncate text-sm font-semibold text-ink-100">{project.name}</h3>
           {project.description && (
             <p className="mt-1 text-[11px] leading-relaxed text-ink-400">{project.description}</p>
@@ -337,7 +341,7 @@ function DetailRouter() {
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <p className="px-3 py-1.5 text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+          <p className="px-3 py-1.5 text-[11px] font-semibold text-ink-300">
             Workspaces ({wss.length})
           </p>
           {wss.map((w) => {

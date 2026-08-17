@@ -23,7 +23,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useTheme } from '../store/useTheme'
 import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
-import { Button, Field, Modal, inputClass, textareaClass } from './ui'
+import { Button, Field, Modal, Segmented, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
   const dialog = useDialogs((s) => s.dialog)
@@ -192,40 +192,27 @@ function ServerDialog() {
           label="Orchestrator trust"
           hint="How much the orchestrator may do here on its own. Destructive actions are confirmed everywhere, whatever this says."
         >
-          <div className="flex gap-1.5">
-            {(
-              [
-                ['trusted', 'Trusted', 'Recoverable actions run without asking'],
-                ['normal', 'Ask first', 'Anything that changes something is confirmed'],
-                ['production', 'Production', 'Everything but reading is confirmed'],
-              ] as Array<[TrustLevel, string, string]>
-            ).map(([value, label, hint]) => (
-              <Button
-                key={value}
-                size="sm"
-                title={hint}
-                variant={form.trustLevel === value ? 'primary' : 'ghost'}
-                onClick={() => set('trustLevel', value)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+          <Segmented<TrustLevel>
+            value={form.trustLevel ?? 'normal'}
+            onChange={(v) => set('trustLevel', v)}
+            options={[
+              { value: 'trusted', label: 'Trusted', title: 'Recoverable actions run without asking' },
+              { value: 'normal', label: 'Ask first', title: 'Anything that changes something is confirmed' },
+              { value: 'production', label: 'Production', title: 'Everything but reading is confirmed' },
+            ]}
+          />
         </Field>
 
         <Field label="Authentication">
-          <div className="flex gap-1.5">
-            {(['agent', 'key', 'password'] as AuthType[]).map((t) => (
-              <Button
-                key={t}
-                size="sm"
-                variant={form.authType === t ? 'primary' : 'ghost'}
-                onClick={() => set('authType', t)}
-              >
-                {t === 'agent' ? 'ssh-agent' : t}
-              </Button>
-            ))}
-          </div>
+          <Segmented<AuthType>
+            value={form.authType}
+            onChange={(v) => set('authType', v)}
+            options={[
+              { value: 'agent', label: 'ssh-agent' },
+              { value: 'key', label: 'Key' },
+              { value: 'password', label: 'Password' },
+            ]}
+          />
         </Field>
 
         {form.authType === 'key' && (
@@ -294,7 +281,7 @@ function ServerDialog() {
         </Field>
 
         {existing?.hostKey && (
-          <p className="rounded border border-ink-700 bg-ink-800 px-2 py-1.5 text-[11px] text-ink-400">
+          <p className="rounded border hairline bg-ink-800 px-2 py-1.5 text-[11px] text-ink-400">
             Host key pinned on first connection. Clear it from the server detail panel if you
             rotated the server's key.
           </p>
@@ -615,7 +602,7 @@ function SettingsDialog() {
 
   return (
     <Modal title="Settings" onClose={close} wide footer={<Button onClick={close}>Close</Button>}>
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-ink-300 uppercase">Theme</p>
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">Theme</p>
       <div className="mb-5 grid grid-cols-2 gap-2">
         {themes.map((t) => {
           const selected = t.id === themeId
@@ -628,7 +615,7 @@ function SettingsDialog() {
                 'flex flex-col gap-2 rounded-lg border p-2.5 text-left transition-colors',
                 selected
                   ? 'border-accent bg-accent/10'
-                  : 'border-ink-700 bg-ink-800 hover:border-ink-600',
+                  : 'hairline bg-ink-800 hover:border-ink-600',
               )}
             >
               <span className="flex items-center gap-2">
@@ -669,7 +656,7 @@ function SettingsDialog() {
 
       <LocalModelSettings />
 
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-ink-300 uppercase">
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">
         Diagnostics
       </p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
@@ -739,7 +726,7 @@ function LocalModelSettings() {
 
   return (
     <>
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-ink-300 uppercase">
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">
         Local model
       </p>
       <div className="mb-2 space-y-2">
@@ -832,7 +819,7 @@ function LocalModelSettings() {
         </div>
 
         {status?.hint && (
-          <p className="rounded-md border border-ink-750 bg-ink-800 px-2.5 py-2 font-mono text-[11px] text-ink-300">
+          <p className="rounded-md border hairline bg-ink-800 px-2.5 py-2 font-mono text-[11px] text-ink-300">
             {status.hint}
           </p>
         )}

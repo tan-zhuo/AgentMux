@@ -6,7 +6,6 @@ import {
   CircleSlash,
   Clock,
   Play,
-  Power,
   Square,
   X,
 } from 'lucide-react'
@@ -14,7 +13,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { errText, on, orch as orchApi } from '../../lib/api'
 import type { Approval, OrchStatus, Run, Step } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
-import { Badge, Button, Empty, inputClass, textareaClass } from '../ui'
+import { Badge, Button, Empty, Switch, inputClass, textareaClass } from '../ui'
 
 const runTone: Record<string, 'ok' | 'warn' | 'danger' | 'accent' | 'neutral'> = {
   running: 'accent',
@@ -106,8 +105,8 @@ export function OrchestratorPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-2">
-        <span className="text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+      <div className="flex items-center justify-between border-b hairline px-3 py-2">
+        <span className="text-[11px] font-semibold text-ink-300">
           Orchestrator
         </span>
         <div className="flex items-center gap-1.5">
@@ -116,19 +115,20 @@ export function OrchestratorPanel() {
               <Square size={11} /> Stop
             </Button>
           )}
-          <Button
-            size="sm"
-            variant={status?.enabled ? 'primary' : 'ghost'}
+          {/* A switch, because it takes effect the moment it moves. There is
+              nothing here to submit afterwards. */}
+          <Switch
+            checked={!!status?.enabled}
             title={
               status?.enabled
                 ? 'On. It acts only when you ask, and only with permission.'
                 : 'Off. Nothing runs until you turn this on.'
             }
-            onClick={async () => {
+            onChange={async (next) => {
               if (!status) return
               try {
                 const cfg = await orchApi.saveConfig({
-                  enabled: !status.enabled,
+                  enabled: next,
                   patrolMinutes: status.patrolMinutes,
                 })
                 toast('ok', cfg.enabled ? 'Orchestrator on' : 'Orchestrator off')
@@ -137,14 +137,12 @@ export function OrchestratorPanel() {
                 toast('error', errText(e))
               }
             }}
-          >
-            <Power size={11} /> {status?.enabled ? 'On' : 'Off'}
-          </Button>
+          />
         </div>
       </div>
 
       {status && !status.enabled && (
-        <div className="border-b border-ink-800 px-3 py-2">
+        <div className="border-b hairline px-3 py-2">
           <p className="text-[11px] leading-relaxed text-ink-400">
             The orchestrator is off. Turned on, it can look at your fleet and — with your
             permission on each step — act on it. It is off by default because a thing that acts on
@@ -154,14 +152,14 @@ export function OrchestratorPanel() {
       )}
 
       {pending.length > 0 && (
-        <div className="border-b border-ink-800">
+        <div className="border-b hairline">
           {pending.map((a) => (
             <ApprovalCard key={a.id} approval={a} onDone={refresh} />
           ))}
         </div>
       )}
 
-      <div className="border-b border-ink-800 px-3 py-2">
+      <div className="border-b hairline px-3 py-2">
         <textarea
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
@@ -261,7 +259,7 @@ function ApprovalCard({ approval, onDone }: { approval: Approval; onDone: () => 
   }
 
   return (
-    <div className="border-b border-ink-850 bg-warn/5 px-3 py-2.5">
+    <div className="border-b hairline bg-warn/5 px-3 py-2.5">
       <div className="flex items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-100">
           {approval.tool}
@@ -310,7 +308,7 @@ function ApprovalCard({ approval, onDone }: { approval: Approval; onDone: () => 
 
 function RunView({ run, steps }: { run: Run; steps: Step[] }) {
   return (
-    <div className="border-b border-ink-800 px-3 py-2">
+    <div className="border-b hairline px-3 py-2">
       <div className="flex items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-100">
           {run.goal}
@@ -368,7 +366,7 @@ function PastRun({ run }: { run: Run }) {
   const [steps, setSteps] = useState<Step[]>([])
 
   return (
-    <div className="border-b border-ink-850 px-3 py-2">
+    <div className="border-b hairline px-3 py-2">
       <button
         onClick={async () => {
           const next = !open

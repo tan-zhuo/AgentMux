@@ -115,7 +115,7 @@ export function ContextMenu() {
       onPointerDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
       style={{ left: pos.left, top: pos.top }}
-      className="fixed z-90 min-w-52 overflow-hidden rounded-lg border border-ink-700 bg-ink-850 py-1 shadow-2xl"
+      className="fixed z-90 min-w-52 overflow-hidden rounded-lg border hairline bg-ink-850 py-1 shadow-2xl"
     >
       {items.map((item, i) =>
         !item.label ? (

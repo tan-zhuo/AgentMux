@@ -82,7 +82,7 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-ink-800 px-3 py-3">
+      <div className="border-b hairline px-3 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="flex items-center gap-1.5 truncate text-sm font-semibold text-ink-100">
@@ -194,8 +194,8 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center justify-between border-b border-ink-800 px-3 py-1.5">
-          <span className="text-[10px] font-semibold tracking-widest text-ink-500 uppercase">
+        <div className="flex items-center justify-between border-b hairline px-3 py-1.5">
+          <span className="text-[11px] font-semibold text-ink-300">
             Pane output
           </span>
           <Button size="sm" variant="subtle" onClick={loadLogs} disabled={loadingLogs}>
@@ -211,7 +211,7 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
       </div>
 
       {chat.length > 0 && (
-        <div className="max-h-40 shrink-0 overflow-y-auto border-t border-ink-800 px-3 py-2">
+        <div className="max-h-40 shrink-0 overflow-y-auto border-t hairline px-3 py-2">
           {chat.map((c) => (
             <p
               key={c.id}
@@ -227,7 +227,7 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
         </div>
       )}
 
-      <div className="shrink-0 border-t border-ink-800 px-3 py-2">
+      <div className="shrink-0 border-t hairline px-3 py-2">
         <div className="flex gap-1.5">
           <input
             value={message}

@@ -51,7 +51,7 @@ export function ServerDetail({ server }: { server: Server }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-ink-800 px-3 py-3">
+      <div className="border-b hairline px-3 py-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-ink-100">{server.name}</h3>
