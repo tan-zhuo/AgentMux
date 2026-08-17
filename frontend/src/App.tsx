@@ -90,6 +90,29 @@ export default function App() {
         e.preventDefault()
         useAppStore.getState().toggleSidebar()
       }
+      // Split and unsplit, on the key every terminal app uses for it. The
+      // terminal has keyboard focus almost all the time, so this has to be
+      // caught here rather than inside a pane. `code` as well as `key`, because
+      // shifted backslash is a different character on most layouts.
+      if ((e.metaKey || e.ctrlKey) && (e.key === '\\' || e.key === '|' || e.code === 'Backslash')) {
+        e.preventDefault()
+        const store = useAppStore.getState()
+        if (e.shiftKey) {
+          if (store.activeTabId) store.closePane(store.activeTabId)
+        } else {
+          store.requestSplit()
+        }
+      }
+      // Move between panes without reaching for the mouse, which is the whole
+      // point of watching two agents at once.
+      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.startsWith('Arrow')) {
+        const forward = e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        const back = e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+        if (forward || back) {
+          e.preventDefault()
+          useAppStore.getState().focusPane(forward ? 1 : -1)
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

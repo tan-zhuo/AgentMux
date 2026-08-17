@@ -23,6 +23,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useTheme } from '../store/useTheme'
 import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
+import { SplitDialog } from './SplitDialog'
 import { Button, Field, Modal, Segmented, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
@@ -43,6 +44,8 @@ export function Dialogs() {
       return <SkillDialog />
     case 'skillHistory':
       return <SkillHistoryDialog />
+    case 'split':
+      return <SplitDialog />
   }
 }
 

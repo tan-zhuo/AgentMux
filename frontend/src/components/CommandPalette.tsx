@@ -3,18 +3,21 @@ import {
   Activity,
   Bot,
   FolderTree,
+  Minimize2,
   Palette,
   Play,
   Plus,
   Radio,
+  Rows2,
   Server,
   Sparkles,
+  SplitSquareHorizontal,
   TerminalSquare,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText } from '../lib/api'
 import { themes } from '../lib/themes'
-import { refreshServerAgents, useAppStore } from '../store/useAppStore'
+import { MAX_PANES, refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useTheme } from '../store/useTheme'
 
@@ -72,6 +75,39 @@ export function CommandPalette() {
         run: () => openDialog({ kind: 'workspace' }),
       },
       { id: 'new-agent', label: 'New agent', icon: Plus, run: () => openDialog({ kind: 'agent' }) },
+      {
+        id: 'split-pane',
+        label: 'Add a pane',
+        hint: '⌘\\ — a host, a workspace, an agent or an open tab',
+        icon: SplitSquareHorizontal,
+        run: () => {
+          const s = useAppStore.getState()
+          if (s.paneIds.length >= MAX_PANES) {
+            s.toast('info', 'Four panes is the limit — close one before adding another')
+          } else {
+            openDialog({ kind: 'split' })
+          }
+        },
+      },
+      {
+        id: 'close-pane',
+        label: 'Close this pane',
+        hint: '⇧⌘\\',
+        icon: Minimize2,
+        run: () => {
+          const s = useAppStore.getState()
+          if (s.activeTabId) s.closePane(s.activeTabId)
+        },
+      },
+      {
+        id: 'flip-split',
+        label: 'Flip the split between rows and columns',
+        icon: Rows2,
+        run: () => {
+          const s = useAppStore.getState()
+          s.setSplitAxis(s.splitAxis === 'cols' ? 'rows' : 'cols')
+        },
+      },
       {
         id: 'broadcast',
         label: 'Open broadcast panel',

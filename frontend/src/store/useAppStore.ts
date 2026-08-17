@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
 import { confirmAction } from './useConfirm'
+import { useDialogs } from './useDialogs'
 import type {
   Agent,
   BroadcastTarget,
@@ -51,6 +52,14 @@ export interface Toast {
   text: string
 }
 
+/** How a two-or-three-way split is laid out. Four panes are always a 2×2 grid,
+ *  where an axis would mean nothing. */
+export type SplitAxis = 'cols' | 'rows'
+
+/** The most panes worth having. Past four, each one is too small to read a
+ *  terminal in, and the tab strip is the better tool. */
+export const MAX_PANES = 4
+
 export type RightPanel =
   | 'detail'
   | 'broadcast'
@@ -90,6 +99,52 @@ export function targetKey(t: BroadcastTarget): string {
 
 let tabSeq = 0
 const nextTabId = () => `tab-${Date.now().toString(36)}-${tabSeq++}`
+
+/**
+ * Show `id` in the focused pane and focus it.
+ *
+ * Every path that changes the focused tab goes through this — clicking the
+ * strip, opening a tab, restoring a layout — because the alternative is four
+ * copies of the same three lines, and the one that gets missed leaves a pane
+ * showing a tab that no longer exists.
+ */
+function focusIntoPane(paneIds: string[], activeTabId: string | null, id: string): string[] {
+  if (paneIds.includes(id)) return paneIds
+  const at = paneIds.indexOf(activeTabId ?? '')
+  if (at === -1) return [id]
+  const next = [...paneIds]
+  next[at] = id
+  return next
+}
+
+/** Put `id` in a pane of its own, alongside the panes already on screen.
+ *  Returns the list unchanged when the tab is already visible or the grid is
+ *  full, so every caller can hand its result straight to `set`. */
+function addPane(paneIds: string[], id: string): string[] {
+  if (paneIds.includes(id) || paneIds.length >= MAX_PANES) return paneIds
+  return [...paneIds, id]
+}
+
+/** The pane count is remembered, not the tabs in them: on the next start the
+ *  same shape comes back, filled by whatever reattaches. */
+function savePaneCount(n: number) {
+  // Never zero: a window with no tabs still opens with one pane next time.
+  void tree.setSetting('paneCount', String(Math.max(1, n))).catch(() => {})
+}
+
+/** Drop panes whose tab is gone, and make sure the focused tab is on screen. */
+function reconcilePanes(
+  tabs: Tab[],
+  paneIds: string[],
+  activeTabId: string | null,
+): { paneIds: string[]; activeTabId: string | null } {
+  const live = new Set(tabs.map((t) => t.id))
+  const panes = paneIds.filter((id) => live.has(id))
+  const active =
+    activeTabId && live.has(activeTabId) ? activeTabId : (panes[0] ?? tabs.at(-1)?.id ?? null)
+  if (!active) return { paneIds: [], activeTabId: null }
+  return { paneIds: panes.includes(active) ? panes : [active], activeTabId: active }
+}
 
 /**
  * Compares the agent fields the UI actually renders. `lastSeen` is excluded on
@@ -132,6 +187,10 @@ interface AppState {
   detached: boolean
 
   selection: Selection
+  /** Tabs currently on screen, in pane order. Always contains activeTabId,
+   *  which is the pane holding keyboard focus. One entry means no split. */
+  paneIds: string[]
+  splitAxis: SplitAxis
   rightPanel: RightPanel
   sidebarOpen: boolean
   rightOpen: boolean
@@ -150,6 +209,18 @@ interface AppState {
   applyConnState: (s: ConnState) => void
 
   select: (s: Selection) => void
+  /** Split into the next tab that is not on screen. False when there is no
+   *  such tab, or the grid is already full. */
+  splitPane: () => boolean
+  /** What ⌘\ and the split control do: split instantly when there is an
+   *  obvious tab for the new pane, and otherwise ask what to put in it. */
+  requestSplit: () => void
+  /** Show an already-open tab in a pane of its own and focus it. */
+  splitWith: (tabId: string) => void
+  closePane: (tabId: string) => void
+  /** Move keyboard focus to the next (+1) or previous (-1) pane. */
+  focusPane: (delta: number) => void
+  setSplitAxis: (axis: SplitAxis) => void
   setRightPanel: (p: RightPanel) => void
   toggleSidebar: () => void
   toggleRight: () => void
@@ -164,7 +235,10 @@ interface AppState {
   setBroadcastTargets: (targets: BroadcastTarget[]) => void
   isBroadcastTarget: (target: BroadcastTarget) => boolean
 
-  openTab: (spec: Omit<Tab, 'id' | 'status'> & { id?: string }) => string
+  openTab: (
+    spec: Omit<Tab, 'id' | 'status'> & { id?: string },
+    opts?: { newPane?: boolean },
+  ) => string
   setTabState: (id: string, patch: Partial<Tab>) => void
   moveTab: (from: number, to: number) => void
   detachTab: (id: string, x: number, y: number, width: number, height: number) => Promise<void>
@@ -189,6 +263,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   detached: false,
 
   selection: { kind: 'none' },
+  paneIds: [],
+  splitAxis: 'cols',
   rightPanel: 'detail',
   sidebarOpen: true,
   rightOpen: true,
@@ -337,7 +413,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     return get().broadcastTargets.some((t) => targetKey(t) === key)
   },
 
-  openTab(spec) {
+  openTab(spec, opts) {
+    // `newPane` is how the split picker opens things: the tab arrives beside
+    // what is already on screen instead of replacing it. Silently ignored once
+    // the grid is full, because the tab is still worth opening.
+    const newPane = !!opts?.newPane && get().paneIds.length < MAX_PANES
     // Re-focus an equivalent tab instead of stacking duplicates.
     const existing = get().tabs.find(
       (t) =>
@@ -351,13 +431,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         t.status !== 'closed',
     )
     if (existing && spec.kind !== 'shell') {
-      set({ activeTabId: existing.id })
+      set((s) => ({
+        activeTabId: existing.id,
+        paneIds: newPane
+          ? addPane(s.paneIds, existing.id)
+          : focusIntoPane(s.paneIds, s.activeTabId, existing.id),
+      }))
+      if (newPane) savePaneCount(get().paneIds.length)
       return existing.id
     }
 
     const id = spec.id ?? nextTabId()
     const tab: Tab = { ...spec, id, status: 'pending' }
-    set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }))
+    set((s) => ({
+      tabs: [...s.tabs, tab],
+      activeTabId: id,
+      paneIds: newPane ? addPane(s.paneIds, id) : focusIntoPane(s.paneIds, s.activeTabId, id),
+    }))
+    if (newPane) savePaneCount(get().paneIds.length)
     void get().persistTabs()
     return id
   },
@@ -407,12 +498,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     // The tab now lives in the other window. Drop it here without closing the
     // shell, which the new window has taken over.
+    const panesBefore = get().paneIds.length
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id !== id)
-      let activeTabId = s.activeTabId
-      if (activeTabId === id) activeTabId = tabs.length ? tabs[tabs.length - 1].id : null
-      return { tabs, activeTabId }
+      const active = s.activeTabId === id ? null : s.activeTabId
+      return { tabs, ...reconcilePanes(tabs, s.paneIds, active) }
     })
+    // Closing the tab a pane was showing collapses the split, and the collapsed
+    // layout is the one worth coming back to.
+    if (get().paneIds.length !== panesBefore) savePaneCount(get().paneIds.length)
     void get().persistTabs()
   },
 
@@ -436,17 +530,87 @@ export const useAppStore = create<AppState>((set, get) => ({
         /* already gone */
       }
     }
+    const panesBefore = get().paneIds.length
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id !== id)
-      let activeTabId = s.activeTabId
-      if (activeTabId === id) activeTabId = tabs.length ? tabs[tabs.length - 1].id : null
-      return { tabs, activeTabId }
+      const active = s.activeTabId === id ? null : s.activeTabId
+      return { tabs, ...reconcilePanes(tabs, s.paneIds, active) }
     })
+    // Closing the tab a pane was showing collapses the split, and the collapsed
+    // layout is the one worth coming back to.
+    if (get().paneIds.length !== panesBefore) savePaneCount(get().paneIds.length)
     void get().persistTabs()
   },
 
   setActiveTab(activeTabId) {
-    set({ activeTabId })
+    // Choosing a tab that is already on screen focuses its pane. Choosing any
+    // other one replaces what the focused pane is showing — which is what makes
+    // a split usable with one tab strip rather than one per pane.
+    set((s) => ({
+      activeTabId,
+      paneIds: activeTabId ? focusIntoPane(s.paneIds, s.activeTabId, activeTabId) : [],
+    }))
+  },
+
+  splitPane() {
+    const s = get()
+    if (s.paneIds.length >= MAX_PANES) return false
+    // A pane shows a tab, and there is one shell per tab, so a split cannot
+    // conjure a second view of the same terminal. The next tab not already on
+    // screen is the one that wants showing.
+    const next = s.tabs.find((t) => !s.paneIds.includes(t.id))
+    if (!next) return false
+    get().splitWith(next.id)
+    return true
+  },
+
+  requestSplit() {
+    if (get().paneIds.length >= MAX_PANES) {
+      get().toast('info', 'Four panes is the limit — close one before adding another')
+      return
+    }
+    // Nothing spare to show means the pane needs a session started for it, and
+    // that is a question rather than a default: which host, which directory.
+    if (!get().splitPane()) useDialogs.getState().open({ kind: 'split' })
+  },
+
+  splitWith(tabId) {
+    set((s) => {
+      const paneIds = addPane(s.paneIds, tabId)
+      // A full grid cannot take another pane, and focusing a tab that is not on
+      // screen would leave the keyboard talking to something invisible. Show it
+      // in the focused pane instead.
+      if (!paneIds.includes(tabId)) {
+        return { paneIds: focusIntoPane(s.paneIds, s.activeTabId, tabId), activeTabId: tabId }
+      }
+      return { paneIds, activeTabId: tabId }
+    })
+    savePaneCount(get().paneIds.length)
+  },
+
+  closePane(tabId) {
+    set((s) => {
+      if (s.paneIds.length <= 1) return {}
+      const paneIds = s.paneIds.filter((id) => id !== tabId)
+      // Closing a pane hides a tab; it does not close it. The shell stays
+      // attached and the tab stays in the strip.
+      const activeTabId = s.activeTabId === tabId ? paneIds[0] : s.activeTabId
+      return { paneIds, activeTabId }
+    })
+    savePaneCount(get().paneIds.length)
+  },
+
+  focusPane(delta) {
+    const s = get()
+    if (s.paneIds.length < 2) return
+    const at = s.paneIds.indexOf(s.activeTabId ?? '')
+    const next = s.paneIds[(at + delta + s.paneIds.length) % s.paneIds.length]
+    if (next) set({ activeTabId: next })
+  },
+
+  setSplitAxis(splitAxis) {
+    void tree.setSetting('splitAxis', splitAxis).catch(() => {})
+    set({ splitAxis })
   },
 
   async persistTabs() {
@@ -484,6 +648,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           t.kind === 'tmux' || t.kind === 'agent' || t.kind === 'files' || t.kind === 'editor',
       )
       if (!restorable.length) return
+
+      const [axis, count] = await Promise.all([
+        tree.getSetting('splitAxis', 'cols'),
+        tree.getSetting('paneCount', '1'),
+      ])
+      const panes = Math.min(Math.max(Number(count) || 1, 1), MAX_PANES)
+
       set({
         tabs: restorable.map((t) => ({
           id: t.id,
@@ -497,6 +668,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           status: 'pending' as TabStatus,
         })),
         activeTabId: restorable[0].id,
+        // The split comes back with the same shape, filled by whatever
+        // reattached. Restoring which tab was in which pane would be restoring
+        // a snapshot of attention, which nobody misses.
+        paneIds: restorable.slice(0, panes).map((t) => t.id),
+        splitAxis: axis === 'rows' ? 'rows' : 'cols',
       })
     } catch {
       /* nothing to restore */

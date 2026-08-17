@@ -9,6 +9,8 @@ export type Dialog =
   | { kind: 'settings' }
   | { kind: 'skill'; skill?: Skill }
   | { kind: 'skillHistory'; skill: Skill }
+  /** Asks what to put in a new terminal pane. */
+  | { kind: 'split' }
   | null
 
 interface DialogState {
