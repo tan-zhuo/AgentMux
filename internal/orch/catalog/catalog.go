@@ -1,14 +1,15 @@
-// Package orch holds the orchestrator's tool surface.
+// Package catalog names the orchestrator's tool surface: what tools exist,
+// what they do, and how dangerous they are.
 //
-// This file is only the catalogue: what tools exist, what they do and how
-// dangerous they are. Nothing here can execute anything — the registry that
-// binds these names to real calls, and the gate that decides whether a call
-// happens at all, arrive with the orchestrator loop itself.
+// Nothing here can execute anything. The registry that binds these names to
+// real calls, and the gate that decides whether a call happens at all, live in
+// the orchestrator itself.
 //
-// The catalogue exists ahead of that because skills reference tools by name and
-// a skill naming a tool that does not exist has to be rejected when it is
-// written, not discovered at the moment it would have been followed.
-package orch
+// It is a package of its own because two things need the same vocabulary and
+// must not depend on each other: the engine, which offers these tools to a
+// model, and skill validation, which has to reject a skill naming a tool that
+// does not exist at the moment it is written rather than when it is followed.
+package catalog
 
 // Risk is how much damage a tool can do.
 //
@@ -36,9 +37,9 @@ type ToolMeta struct {
 	Risk        Risk   `json:"risk"`
 }
 
-// catalog is the whole tool surface. A name absent from this list cannot be
+// tools is the whole tool surface. A name absent from this list cannot be
 // called, recommended by a skill, or offered to a model.
-var catalog = []ToolMeta{
+var tools = []ToolMeta{
 	// --- read ---------------------------------------------------------------
 	{"agents.list", "List every configured agent with its current status.", RiskRead},
 	{"agents.logs", "Read the last N lines an agent printed in its tmux pane.", RiskRead},
@@ -70,16 +71,16 @@ var catalog = []ToolMeta{
 	{"toolkit.install", "Install an agent CLI or runtime on a server.", RiskDestructive},
 }
 
-// Catalog returns every known tool.
-func Catalog() []ToolMeta {
-	out := make([]ToolMeta, len(catalog))
-	copy(out, catalog)
+// All returns every known tool.
+func All() []ToolMeta {
+	out := make([]ToolMeta, len(tools))
+	copy(out, tools)
 	return out
 }
 
 // Lookup finds a tool by name.
 func Lookup(name string) (ToolMeta, bool) {
-	for _, t := range catalog {
+	for _, t := range tools {
 		if t.Name == name {
 			return t, true
 		}

@@ -163,6 +163,58 @@ CREATE TABLE IF NOT EXISTS skill_versions (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_skill_versions ON skill_versions(skill_id, version DESC);
+
+CREATE TABLE IF NOT EXISTS orch_runs (
+  id          TEXT PRIMARY KEY,
+  goal        TEXT NOT NULL,
+  trigger     TEXT NOT NULL DEFAULT 'human',
+  project_id  TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  status      TEXT NOT NULL DEFAULT 'running',
+  model       TEXT NOT NULL DEFAULT '',
+  skill_ids   TEXT NOT NULL DEFAULT '[]',
+  started_at  INTEGER NOT NULL,
+  ended_at    INTEGER,
+  summary     TEXT NOT NULL DEFAULT '',
+  error       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_orch_runs_started ON orch_runs(started_at DESC);
+
+CREATE TABLE IF NOT EXISTS orch_steps (
+  id             TEXT PRIMARY KEY,
+  run_id         TEXT NOT NULL REFERENCES orch_runs(id) ON DELETE CASCADE,
+  seq            INTEGER NOT NULL,
+  phase          TEXT NOT NULL,
+  tool           TEXT NOT NULL DEFAULT '',
+  args           TEXT NOT NULL DEFAULT '{}',
+  result         TEXT NOT NULL DEFAULT '',
+  reasoning      TEXT NOT NULL DEFAULT '',
+  skill_id       TEXT NOT NULL DEFAULT '',
+  memory_ids     TEXT NOT NULL DEFAULT '[]',
+  injection_flag INTEGER NOT NULL DEFAULT 0,
+  risk           TEXT NOT NULL DEFAULT 'read',
+  outcome        TEXT NOT NULL DEFAULT '',
+  duration_ms    INTEGER NOT NULL DEFAULT 0,
+  created_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_orch_steps_run ON orch_steps(run_id, seq);
+
+CREATE TABLE IF NOT EXISTS approvals (
+  id         TEXT PRIMARY KEY,
+  run_id     TEXT NOT NULL REFERENCES orch_runs(id) ON DELETE CASCADE,
+  tool       TEXT NOT NULL,
+  args       TEXT NOT NULL DEFAULT '{}',
+  risk       TEXT NOT NULL DEFAULT 'act',
+  rationale  TEXT NOT NULL DEFAULT '',
+  target     TEXT NOT NULL DEFAULT '',
+  skill_id   TEXT NOT NULL DEFAULT '',
+  injection_flag INTEGER NOT NULL DEFAULT 0,
+  status     TEXT NOT NULL DEFAULT 'pending',
+  decided_at INTEGER,
+  note       TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals(status, created_at);
 `
 
 // Store is the encrypted local database. Every method is safe for concurrent
@@ -241,6 +293,11 @@ func migrate(db *sql.DB) {
 	for _, stmt := range []string{
 		`ALTER TABLE agents ADD COLUMN tmux_pane_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE terminal_tabs ADD COLUMN command TEXT NOT NULL DEFAULT ''`,
+		// How much the orchestrator is allowed to do on a server without
+		// asking. Existing servers default to 'normal', which asks: a machine
+		// configured before this column existed cannot have consented to
+		// anything.
+		`ALTER TABLE servers ADD COLUMN trust_level TEXT NOT NULL DEFAULT 'normal'`,
 	} {
 		_, _ = db.Exec(stmt)
 	}

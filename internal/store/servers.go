@@ -16,7 +16,7 @@ var ErrNotFound = errors.New("not found")
 const serverCols = `id, name, host, port, username, auth_type, key_path,
 	secret_password IS NOT NULL AND length(secret_password) > 0,
 	secret_passphrase IS NOT NULL AND length(secret_passphrase) > 0,
-	jump_server_id, tags, favorite, host_key, created_at, last_ok_at`
+	jump_server_id, tags, favorite, host_key, created_at, last_ok_at, trust_level`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var (
@@ -29,7 +29,7 @@ func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 		hasPhras int
 	)
 	err := sc.Scan(&s.ID, &s.Name, &s.Host, &s.Port, &s.Username, &s.AuthType, &s.KeyPath,
-		&hasPass, &hasPhras, &jump, &tagsRaw, &fav, &s.HostKey, &s.CreatedAt, &lastOK)
+		&hasPass, &hasPhras, &jump, &tagsRaw, &fav, &s.HostKey, &s.CreatedAt, &lastOK, &s.TrustLevel)
 	if err != nil {
 		return Server{}, err
 	}
@@ -97,6 +97,15 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 	if in.Tags == nil {
 		in.Tags = []string{}
 	}
+	switch in.TrustLevel {
+	case "":
+		// Anything unspecified asks before acting. A server has to be told to
+		// trust the orchestrator; it never happens by omission.
+		in.TrustLevel = TrustNormal
+	case TrustTrusted, TrustNormal, TrustProduction:
+	default:
+		return Server{}, fmt.Errorf("%q is not a trust level", in.TrustLevel)
+	}
 	if in.JumpServerID != nil && *in.JumpServerID == in.ID && in.ID != "" {
 		return Server{}, errors.New("a server cannot be its own jump host")
 	}
@@ -121,10 +130,11 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 		}
 		_, err = s.db.Exec(`INSERT INTO servers
 			(id, name, host, port, username, auth_type, key_path, secret_password, secret_passphrase,
-			 jump_server_id, tags, favorite, host_key, created_at)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'',?)`,
+			 jump_server_id, tags, favorite, host_key, created_at, trust_level)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'',?,?)`,
 			in.ID, in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
-			pw, pp, nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, time.Now().Unix())
+			pw, pp, nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, time.Now().Unix(),
+			string(in.TrustLevel))
 		if err != nil {
 			return Server{}, err
 		}
@@ -134,10 +144,10 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 	// Update. Secrets are only touched when the caller sent a non-nil pointer.
 	_, err := s.db.Exec(`UPDATE servers SET
 			name = ?, host = ?, port = ?, username = ?, auth_type = ?, key_path = ?,
-			jump_server_id = ?, tags = ?, favorite = ?
+			jump_server_id = ?, tags = ?, favorite = ?, trust_level = ?
 		WHERE id = ?`,
 		in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
-		nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, in.ID)
+		nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, string(in.TrustLevel), in.ID)
 	if err != nil {
 		return Server{}, err
 	}

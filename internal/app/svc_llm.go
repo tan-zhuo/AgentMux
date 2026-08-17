@@ -21,16 +21,16 @@ func NewLLMService(c *Core) *LLMService { return &LLMService{core: c} }
 // ServiceName identifies the service in Wails logs.
 func (l *LLMService) ServiceName() string { return "LLMService" }
 
-// Config is the user-facing runtime configuration.
-type Config struct {
+// LLMConfig is the user-facing runtime configuration.
+type LLMConfig struct {
 	BaseURL    string `json:"baseUrl"`
 	ChatModel  string `json:"chatModel"`
 	EmbedModel string `json:"embedModel"`
 }
 
 // Config returns the current settings, with defaults filled in.
-func (l *LLMService) Config() Config {
-	return Config{
+func (l *LLMService) Config() LLMConfig {
+	return LLMConfig{
 		BaseURL:    l.core.Store.GetSetting(SettingLLMBaseURL, llm.DefaultBaseURL),
 		ChatModel:  l.core.ChatModel(),
 		EmbedModel: l.core.EmbedModel(),
@@ -43,7 +43,7 @@ func (l *LLMService) Config() Config {
 // two models describe different spaces, and comparing across them returns
 // confident nonsense rather than an error. So the cache is dropped here and the
 // UI is told the library needs rebuilding.
-func (l *LLMService) SaveConfig(cfg Config) (llm.Status, error) {
+func (l *LLMService) SaveConfig(cfg LLMConfig) (llm.Status, error) {
 	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
 	cfg.ChatModel = strings.TrimSpace(cfg.ChatModel)
 	cfg.EmbedModel = strings.TrimSpace(cfg.EmbedModel)

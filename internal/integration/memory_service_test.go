@@ -34,7 +34,7 @@ func TestMemorySurvivesWithoutAModelRuntime(t *testing.T) {
 
 	// Point at a port nothing listens on, so the result does not depend on
 	// whether the developer running the tests happens to have Ollama up.
-	if _, err := llmSvc.SaveConfig(app.Config{
+	if _, err := llmSvc.SaveConfig(app.LLMConfig{
 		BaseURL: "http://127.0.0.1:1", ChatModel: "qwen3:8b", EmbedModel: "bge-m3",
 	}); err != nil {
 		t.Fatalf("save config: %v", err)

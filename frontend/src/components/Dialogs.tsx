@@ -16,6 +16,7 @@ import type {
   LLMStatus,
   Project,
   ServerInput,
+  TrustLevel,
   Workspace,
 } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
@@ -86,6 +87,7 @@ function ServerDialog() {
     jumpServerId: existing?.jumpServerId ?? null,
     tags: existing?.tags ?? [],
     favorite: existing?.favorite ?? false,
+    trustLevel: existing?.trustLevel ?? 'normal',
   })
   const [tagText, setTagText] = useState((existing?.tags ?? []).join(', '))
   const [testing, setTesting] = useState(false)
@@ -185,6 +187,31 @@ function ServerDialog() {
             />
           </Field>
         </div>
+
+        <Field
+          label="Orchestrator trust"
+          hint="How much the orchestrator may do here on its own. Destructive actions are confirmed everywhere, whatever this says."
+        >
+          <div className="flex gap-1.5">
+            {(
+              [
+                ['trusted', 'Trusted', 'Recoverable actions run without asking'],
+                ['normal', 'Ask first', 'Anything that changes something is confirmed'],
+                ['production', 'Production', 'Everything but reading is confirmed'],
+              ] as Array<[TrustLevel, string, string]>
+            ).map(([value, label, hint]) => (
+              <Button
+                key={value}
+                size="sm"
+                title={hint}
+                variant={form.trustLevel === value ? 'primary' : 'ghost'}
+                onClick={() => set('trustLevel', value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </Field>
 
         <Field label="Authentication">
           <div className="flex gap-1.5">

@@ -34,6 +34,7 @@ export interface Server {
   hostKey: string
   createdAt: number
   lastOkAt: number | null
+  trustLevel: TrustLevel
 }
 
 export interface ServerInput {
@@ -50,6 +51,7 @@ export interface ServerInput {
   jumpServerId: string | null
   tags: string[]
   favorite: boolean
+  trustLevel: TrustLevel
 }
 
 export interface Workspace {
@@ -644,4 +646,73 @@ export interface ToolMeta {
   name: string
   description: string
   risk: Risk
+}
+
+// --- orchestrator -----------------------------------------------------------
+
+export type TrustLevel = 'trusted' | 'normal' | 'production'
+export type RunStatus = 'running' | 'waiting_approval' | 'succeeded' | 'failed' | 'cancelled'
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
+
+export interface Run {
+  id: string
+  goal: string
+  trigger: string
+  projectId: string
+  status: RunStatus
+  model: string
+  skillIds: string[]
+  startedAt: number
+  endedAt: number | null
+  summary: string
+  error: string
+}
+
+export interface Step {
+  id: string
+  runId: string
+  seq: number
+  phase: string
+  tool: string
+  args: string
+  result: string
+  reasoning: string
+  skillId: string
+  memoryIds: string[]
+  injectionFlag: boolean
+  risk: string
+  outcome: string
+  durationMs: number
+  createdAt: number
+}
+
+export interface Approval {
+  id: string
+  runId: string
+  tool: string
+  args: string
+  risk: string
+  rationale: string
+  target: string
+  skillId: string
+  injectionFlag: boolean
+  status: ApprovalStatus
+  decidedAt: number | null
+  note: string
+  createdAt: number
+  expiresAt: number
+}
+
+export interface OrchConfig {
+  enabled: boolean
+  patrolMinutes: number
+}
+
+export interface OrchStatus {
+  enabled: boolean
+  running: boolean
+  runId: string
+  patrolMinutes: number
+  pending: Approval[]
+  tools: ToolMeta[]
 }

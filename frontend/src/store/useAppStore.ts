@@ -59,6 +59,7 @@ export type RightPanel =
   | 'metrics'
   | 'memory'
   | 'skills'
+  | 'orchestrator'
 
 const emptySnapshot: Snapshot = {
   folders: [],
@@ -210,7 +211,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         tree.getSetting('rightWidth', String(RIGHT_DEFAULT)),
       ])
       const known: RightPanel[] = [
-        'detail', 'broadcast', 'tmux', 'toolkit', 'metrics', 'memory', 'skills',
+        'detail', 'broadcast', 'tmux', 'toolkit', 'metrics', 'memory', 'skills', 'orchestrator',
       ]
       set({
         snapshot,

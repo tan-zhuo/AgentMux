@@ -145,6 +145,25 @@ embedded at all until a person approves them, so an unreviewed skill cannot
 shape a plan — that is enforced by the vector being absent, not by a filter
 somebody could forget.
 
+**It can do the work, if you let it.** Give the orchestrator a goal — "find out
+why the payment agent is stuck" — and it looks at the fleet, recalls what it
+knows, follows any skill that applies, and works through it one tool call at a
+time. Every step appears as it happens, with the reason it gave.
+
+Anything that changes a server stops and asks first. The card shows the tool,
+the arguments, the machine, and its own sentence explaining why now; you allow
+or refuse, and a refusal is something it carries on from rather than dies on.
+Destructive actions — killing a session, deleting a file, broadcasting to
+everyone — are confirmed on every server, including the ones you marked trusted,
+because trust buys recoverable actions and nothing else.
+
+It can also patrol on a timer, and a patrol is deliberately not the same thing:
+it may only read. It can tell you an agent has been stuck for an hour; it cannot
+restart it. Unattended, holding SSH tools, reading text a remote machine wrote is
+the combination worth taking apart, and that is the piece to remove.
+
+The whole thing is off until you turn it on.
+
 **Six themes.** Midnight, Graphite, Nord, Solarized Dark, Gruvbox Dark and a
 proper light theme. `Ctrl+K` and start typing.
 
@@ -458,6 +477,21 @@ embedding 模型，什么都不会发出去。密钥在入库前就被抹掉—�
 按那个工具自己的风险档决定的。Orchestrator 提出的技能以草案进来，在有人批准之前
 **根本不会被 embedding**，所以未经审核的技能无法影响规划——这是靠"向量压根不存在"
 保证的，不是靠某个可能被忘掉的过滤条件。
+
+**它可以动手干活——如果你允许。** 给 orchestrator 一个目标，比如"查清楚 payment
+agent 为什么卡住"，它会看一眼整个集群、翻出记得的东西、套上适用的技能，然后一次一个
+工具调用地推进。每一步都实时出现在面板上，连同它给出的理由。
+
+任何会改动服务器的动作都会先停下来问你。卡片上有工具名、参数、目标机器，以及它自己
+写的那句"为什么是现在"；你放行或者拒绝，而拒绝之后它是接着想别的办法，不是就此崩掉。
+破坏性动作——杀 session、删文件、群发——在**每一台**服务器上都要确认，包括你标成信任的
+那些：信任买到的是可恢复的动作，仅此而已。
+
+它也可以定时巡检，而巡检刻意不是同一回事：**只能读**。它可以告诉你某个 agent 卡了
+一小时，但不能去重启它。无人值守 + 握着 SSH 工具 + 读远端机器写的文本，这三件事凑齐
+才是危险的，而巡检要拆掉的就是中间那件。
+
+整套东西默认关着，要你自己打开。
 
 **六套主题。** Midnight、Graphite、Nord、Solarized Dark、Gruvbox Dark，外加一套
 正经的亮色主题。按 `Ctrl+K` 直接输名字。

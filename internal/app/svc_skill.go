@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"agentmux/internal/orch"
+	"agentmux/internal/orch/catalog"
 	"agentmux/internal/skill"
 	"agentmux/internal/store"
 )
@@ -110,4 +110,4 @@ func (s *SkillService) ImportJSON(data string) (skill.ImportResult, error) {
 
 // Tools lists the tools a skill may recommend, so the editor can offer them
 // instead of letting someone invent a name that will be rejected on save.
-func (s *SkillService) Tools() []orch.ToolMeta { return orch.Catalog() }
+func (s *SkillService) Tools() []catalog.ToolMeta { return catalog.All() }

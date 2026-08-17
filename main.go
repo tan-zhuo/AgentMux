@@ -53,6 +53,7 @@ func main() {
 			application.NewService(app.NewLLMService(core)),
 			application.NewService(app.NewMemoryService(core)),
 			application.NewService(app.NewSkillService(core)),
+			application.NewService(app.NewOrchService(core)),
 			application.NewService(agentSvc),
 		},
 		Assets: application.AssetOptions{

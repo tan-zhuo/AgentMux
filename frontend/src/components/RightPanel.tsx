@@ -9,15 +9,17 @@ import {
   Sparkles,
   TerminalSquare,
   Wand2,
+  Workflow,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { skills as skillApi } from '../lib/api'
+import { on, orch as orchApi, skills as skillApi } from '../lib/api'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { AgentDetail } from './panels/AgentDetail'
 import { BroadcastPanel } from './panels/BroadcastPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
 import { MetricsPanel } from './panels/MetricsPanel'
+import { OrchestratorPanel } from './panels/OrchestratorPanel'
 import { ServerDetail } from './panels/ServerDetail'
 import { SkillPanel } from './panels/SkillPanel'
 import { TmuxPanel } from './panels/TmuxPanel'
@@ -74,6 +76,7 @@ export function RightPanel() {
   const activeRef = useRef<HTMLButtonElement | null>(null)
   const [overflow, setOverflow] = useState({ left: false, right: false })
   const [drafts, setDrafts] = useState(0)
+  const [pending, setPending] = useState(0)
 
   // A review queue nobody can see is a review queue nobody works through, so
   // the count rides on the tab. Re-read on every panel change rather than on a
@@ -89,6 +92,26 @@ export function RightPanel() {
       alive = false
     }
   }, [panel])
+
+  // An approval nobody notices is a run that stalls for half an hour and then
+  // lapses, so the count is on the tab and it is pushed, not polled: the
+  // request happens while you are looking at something else.
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      void orchApi
+        .pending()
+        .then((list) => alive && setPending(list?.length ?? 0))
+        .catch(() => {})
+    load()
+    const offApproval = on('orch:approval', load)
+    const offRun = on('orch:run', load)
+    return () => {
+      alive = false
+      offApproval()
+      offRun()
+    }
+  }, [])
 
   const syncOverflow = useCallback(() => {
     const el = stripRef.current
@@ -143,6 +166,7 @@ export function RightPanel() {
     { id: 'toolkit', label: 'Install', icon: Sparkles },
     { id: 'memory', label: 'Memory', icon: Brain },
     { id: 'skills', label: 'Skills', icon: Wand2, badge: drafts },
+    { id: 'orchestrator', label: 'Run', icon: Workflow, badge: pending },
   ]
 
   return (
@@ -201,6 +225,7 @@ export function RightPanel() {
         {/* Memory is not server-scoped: what is remembered spans the fleet. */}
         {panel === 'memory' && <MemoryPanel />}
         {panel === 'skills' && <SkillPanel />}
+        {panel === 'orchestrator' && <OrchestratorPanel />}
         {panel === 'detail' && <DetailRouter />}
       </div>
     </div>

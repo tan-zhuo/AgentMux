@@ -45,24 +45,46 @@ type Server struct {
 	HostKey       string   `json:"hostKey"`
 	CreatedAt     int64    `json:"createdAt"`
 	LastOKAt      *int64   `json:"lastOkAt"`
+	// TrustLevel decides how much the orchestrator may do here without asking.
+	TrustLevel TrustLevel `json:"trustLevel"`
 }
+
+// TrustLevel is how far the orchestrator is trusted on one server.
+//
+// The distinction is per server rather than per tool because that is how people
+// actually think about it: sending a message to an agent on a scratch box and
+// sending one to an agent in production are different acts, even though they
+// are the same tool.
+type TrustLevel string
+
+const (
+	// TrustTrusted runs recoverable actions without asking. Destructive ones
+	// still ask, everywhere.
+	TrustTrusted TrustLevel = "trusted"
+	// TrustNormal asks before changing anything. The default, including for
+	// every server configured before this existed.
+	TrustNormal TrustLevel = "normal"
+	// TrustProduction asks before anything that is not a plain read.
+	TrustProduction TrustLevel = "production"
+)
 
 // ServerInput is the frontend-facing write shape. The secret pointers use the
 // tri-state convention: nil leaves the stored secret untouched, "" clears it,
 // anything else replaces it.
 type ServerInput struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Host         string   `json:"host"`
-	Port         int      `json:"port"`
-	Username     string   `json:"username"`
-	AuthType     AuthType `json:"authType"`
-	KeyPath      string   `json:"keyPath"`
-	Password     *string  `json:"password"`
-	Passphrase   *string  `json:"passphrase"`
-	JumpServerID *string  `json:"jumpServerId"`
-	Tags         []string `json:"tags"`
-	Favorite     bool     `json:"favorite"`
+	ID           string     `json:"id"`
+	Name         string     `json:"name"`
+	Host         string     `json:"host"`
+	Port         int        `json:"port"`
+	Username     string     `json:"username"`
+	AuthType     AuthType   `json:"authType"`
+	KeyPath      string     `json:"keyPath"`
+	Password     *string    `json:"password"`
+	Passphrase   *string    `json:"passphrase"`
+	JumpServerID *string    `json:"jumpServerId"`
+	Tags         []string   `json:"tags"`
+	Favorite     bool       `json:"favorite"`
+	TrustLevel   TrustLevel `json:"trustLevel"`
 }
 
 // Workspace binds a project to an absolute path on one server.

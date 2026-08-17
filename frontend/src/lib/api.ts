@@ -47,6 +47,11 @@ import type {
   SkillStats,
   SkillVersion,
   ToolMeta,
+  Approval,
+  OrchConfig,
+  OrchStatus,
+  Run,
+  Step,
 } from './types'
 
 // Wails binds methods as "<go package path>.<Type>.<Method>".
@@ -230,6 +235,19 @@ export const skills = {
   exportMarkdown: (ids: string[]) => call<string>('SkillService', 'ExportMarkdown', ids),
   importJson: (data: string) => call<ImportResult>('SkillService', 'ImportJSON', data),
   tools: () => call<ToolMeta[]>('SkillService', 'Tools'),
+}
+
+export const orch = {
+  config: () => call<OrchConfig>('OrchService', 'Config'),
+  saveConfig: (cfg: OrchConfig) => call<OrchConfig>('OrchService', 'SaveConfig', cfg),
+  status: () => call<OrchStatus>('OrchService', 'Status'),
+  start: (goal: string, projectId: string) => call<Run>('OrchService', 'Start', goal, projectId),
+  stop: () => call<void>('OrchService', 'Stop'),
+  decide: (id: string, approved: boolean, note: string) =>
+    call<void>('OrchService', 'Decide', id, approved, note),
+  runs: (limit: number) => call<Run[]>('OrchService', 'Runs', limit),
+  steps: (runId: string) => call<Step[]>('OrchService', 'Steps', runId),
+  pending: () => call<Approval[]>('OrchService', 'Pending'),
 }
 
 /** Turns a backend error into something worth showing a user. */

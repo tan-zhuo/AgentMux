@@ -11,6 +11,7 @@ import (
 
 	"agentmux/internal/llm"
 	"agentmux/internal/memory"
+	"agentmux/internal/orch"
 	"agentmux/internal/sftpx"
 	"agentmux/internal/skill"
 	"agentmux/internal/sshx"
@@ -32,6 +33,7 @@ type Core struct {
 	Files  *sftpx.Client
 	Memory *memory.Index
 	Skills *skill.Manager
+	Orch   *orch.Engine
 
 	// llmMu guards the client, which is rebuilt whenever the user points
 	// AgentMux at a different Ollama.
@@ -66,6 +68,23 @@ func NewCore() (*Core, error) {
 	c.llm = llm.New(st.GetSetting(SettingLLMBaseURL, ""))
 	c.Memory = memory.NewIndex(st, c.llm, func() string { return c.EmbedModel() })
 	c.Skills = skill.NewManager(st, c.llm, func() string { return c.EmbedModel() })
+
+	// A run only exists inside a running process, so anything the database
+	// still calls "running" died with the last one.
+	_ = st.RecoverRunningRuns()
+
+	registry, err := c.buildRegistry()
+	if err != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("tools: %w", err)
+	}
+	c.Orch = orch.New(orch.Options{
+		Store: st, LLM: c.llm, Memory: c.Memory, Skills: c.Skills,
+		Registry: registry, Observer: fleetObserver{core: c},
+		Model: func() string { return c.ChatModel() },
+		Emit:  c.Emit,
+	})
+	c.startPatrol()
 	return c, nil
 }
 

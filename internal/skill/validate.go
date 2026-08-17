@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"agentmux/internal/orch"
+	"agentmux/internal/orch/catalog"
 	"agentmux/internal/store"
 )
 
@@ -127,7 +127,7 @@ func normaliseSteps(in []store.SkillStep) ([]store.SkillStep, error) {
 			// A skill that recommends a tool nobody implements would fail at
 			// the moment someone followed it. Rejecting it here means the
 			// author — human or model — finds out while they are writing.
-			if !orch.Known(t) {
+			if !catalog.Known(t) {
 				return nil, fmt.Errorf("%q is not a tool AgentMux has", t)
 			}
 			tools = append(tools, t)
