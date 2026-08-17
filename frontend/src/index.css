@@ -84,6 +84,25 @@
     user-select: text;
   }
 
+  /* Windows draws the text I-beam as a hairline glyph whose contrast comes from
+     white inner edges, so over the pale surfaces of a light theme it all but
+     disappears — and it disappears exactly where it is needed, over an editor, a
+     terminal or a field. This is the same shape with an outline of its own, so it
+     survives any background it is over. Dark themes keep the system cursor,
+     which is already legible there.
+
+     It cannot help with Windows' own "hide pointer while typing", which hides
+     whatever cursor is set until the mouse moves again. */
+  [data-mode='light'] input,
+  [data-mode='light'] textarea,
+  [data-mode='light'] .monaco-mouse-cursor-text,
+  [data-mode='light'] .xterm:not(.enable-mouse-events) {
+    cursor:
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='24'><g fill='none' stroke-linecap='round'><path d='M4 2h4M6 2v20M4 22h4' stroke='%23ffffff' stroke-width='3.75'/><path d='M4 2h4M6 2v20M4 22h4' stroke='%23000000' stroke-width='1.4'/></g></svg>")
+        6 12,
+      text;
+  }
+
   /* macOS overlay scrollbars: a translucent capsule inset from the edge, with
      nothing behind it. The inset comes from a transparent border with
      background-clip, which is the only way to pad a scrollbar thumb. */

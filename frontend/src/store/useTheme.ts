@@ -17,6 +17,10 @@ export function applyTheme(theme: Theme) {
   // Drives native scrollbars, form controls and the webview's own default paint.
   root.style.colorScheme = theme.mode
   root.dataset.theme = theme.id
+  // Light and dark differ in more than tokens — a cursor that is legible over a
+  // dark terminal is not legible over a pale one — so the mode is addressable
+  // from CSS on its own, rather than every rule listing the light theme ids.
+  root.dataset.mode = theme.mode
 
   // Paint the native window frame to match, so resizing does not flash the old
   // colour behind the webview.
