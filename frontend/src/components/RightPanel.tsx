@@ -1,10 +1,20 @@
 import clsx from 'clsx'
-import { Activity, Bot, PanelRightClose, Plus, Radio, Sparkles, TerminalSquare } from 'lucide-react'
+import {
+  Activity,
+  Bot,
+  Brain,
+  PanelRightClose,
+  Plus,
+  Radio,
+  Sparkles,
+  TerminalSquare,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { AgentDetail } from './panels/AgentDetail'
 import { BroadcastPanel } from './panels/BroadcastPanel'
+import { MemoryPanel } from './panels/MemoryPanel'
 import { MetricsPanel } from './panels/MetricsPanel'
 import { ServerDetail } from './panels/ServerDetail'
 import { TmuxPanel } from './panels/TmuxPanel'
@@ -112,6 +122,7 @@ export function RightPanel() {
     { id: 'metrics', label: 'Metrics', icon: Activity },
     { id: 'tmux', label: 'tmux', icon: TerminalSquare },
     { id: 'toolkit', label: 'Install', icon: Sparkles },
+    { id: 'memory', label: 'Memory', icon: Brain },
   ]
 
   return (
@@ -167,6 +178,8 @@ export function RightPanel() {
         {panel === 'metrics' && <ForServer render={(id) => <MetricsPanel serverId={id} />} />}
         {panel === 'tmux' && <ForServer render={(id) => <TmuxPanel serverId={id} />} />}
         {panel === 'toolkit' && <ForServer render={(id) => <ToolkitPanel serverId={id} />} />}
+        {/* Memory is not server-scoped: what is remembered spans the fleet. */}
+        {panel === 'memory' && <MemoryPanel />}
         {panel === 'detail' && <DetailRouter />}
       </div>
     </div>

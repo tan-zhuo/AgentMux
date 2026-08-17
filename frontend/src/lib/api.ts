@@ -30,6 +30,15 @@ import type {
   AgentChoice,
   QuickLaunch,
   BroadcastTarget,
+  Memory,
+  MemoryFilter,
+  MemoryHit,
+  MemoryQuery,
+  MemoryStats,
+  PutResult,
+  LLMConfig,
+  LLMModel,
+  LLMStatus,
 } from './types'
 
 // Wails binds methods as "<go package path>.<Type>.<Method>".
@@ -177,6 +186,24 @@ export const agents = {
     call<QuickLaunch>('AgentService', 'LaunchInDir', serverId, dir, command),
   refresh: (serverId: string) => call<Agent[]>('AgentService', 'Refresh', serverId),
   refreshAll: () => call<Agent[]>('AgentService', 'RefreshAll'),
+}
+
+export const llm = {
+  config: () => call<LLMConfig>('LLMService', 'Config'),
+  saveConfig: (cfg: LLMConfig) => call<LLMStatus>('LLMService', 'SaveConfig', cfg),
+  status: () => call<LLMStatus>('LLMService', 'Status'),
+  models: () => call<LLMModel[]>('LLMService', 'Models'),
+}
+
+export const memory = {
+  list: (filter: MemoryFilter) => call<Memory[]>('MemoryService', 'List', filter),
+  count: (filter: MemoryFilter) => call<number>('MemoryService', 'Count', filter),
+  search: (query: MemoryQuery) => call<MemoryHit[]>('MemoryService', 'Search', query),
+  add: (m: Partial<Memory>) => call<PutResult>('MemoryService', 'Add', m),
+  remove: (id: string) => call<void>('MemoryService', 'Delete', id),
+  stats: () => call<MemoryStats>('MemoryService', 'Stats'),
+  reindex: () => call<void>('MemoryService', 'Reindex'),
+  cancelReindex: () => call<void>('MemoryService', 'CancelReindex'),
 }
 
 /** Turns a backend error into something worth showing a user. */

@@ -1,6 +1,6 @@
 # 本地 Orchestrator + 记忆 + Skill：实现蓝图
 
-> 状态：待确认（确认后才动代码）
+> 状态：已确认，Phase 1 实施中。五个开放问题的结论见 §12
 > 日期：2026-08-17
 > 上游：《AgentMux v2.1 — 本地 AI Orchestrator + 向量记忆 + Skill 系统》v0.3
 
@@ -241,6 +241,13 @@ CREATE TABLE IF NOT EXISTS approvals (
 CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals(status, created_at);
 ```
 
+现有表只加一列，走 `migrate()`（§12.3 的落点，Phase 3 才用得上）：
+
+```sql
+ALTER TABLE servers ADD COLUMN trust_level TEXT NOT NULL DEFAULT 'normal';
+-- trusted | normal | production
+```
+
 Go 侧类型放 `internal/store/models_orch.go`，字段 JSON tag 用小驼峰，和现有 `models.go`
 一致（`workspaceId`、`createdAt` 这种）。
 
@@ -418,6 +425,21 @@ stateDiagram-v2
 （改连接凭据与信任根）、任何触碰 `store.Secrets` 的路径、`FileService.Download`/`Upload`
 （把远程数据搬进本地文件系统，或反向）。
 
+### 6.1 两个维度决定一次调用要不要审批
+
+风险档只是其中一维。最终判定是 `(触发来源, 服务器信任级别, 风险档)` 三者的函数：
+
+| 触发来源 | trusted 服务器 | normal | production |
+|---|---|---|---|
+| **人下达目标**（human） | read/act 自动，destructive 审批 | read 自动，act/destructive 审批 | read 自动，其余全审批 |
+| **定时巡检**（schedule） | 仅 read，其余一律拒绝 | 仅 read | 仅 read |
+
+定时巡检那一行是硬编码的，不可在设置里放开——它是 §12.2 那条决策的实现。巡检发现问题
+时不动手，只产出一条待办和诊断，等人回来。
+
+`trust_level` 落在 `servers` 表上（§3 末尾那条 ALTER），默认 `normal`：新加的服务器
+不会因为忘了配置而变成免审批的。
+
 ---
 
 ## 7. 系统提示词模板
@@ -581,9 +603,25 @@ type Tool struct {
 }
 
 type Registry struct { /* 名字 -> Tool，注册时即固定 Risk，运行时不可改 */ }
+
+// Trigger 是这次运行由什么发起的。它连同服务器的 trust_level 一起决定
+// 一个工具调用是自动执行、进审批队列，还是直接拒绝（§6.1）。
+type Trigger string
+
+const (
+    TriggerHuman    Trigger = "human"     // 人下达目标
+    TriggerSchedule Trigger = "schedule"  // 定时巡检：只读，不可放开
+)
+
+// Gate 是唯一的判定入口。没有第二条路径可以执行工具。
+func (r *Registry) Gate(tool string, trig Trigger, trust store.TrustLevel) Decision
 ```
 
-`Registry` 的 `Risk` 一旦注册不可变更，是 §1.3 那条原则在代码里的落点。
+两条不变量，都是靠代码结构而不是靠自觉来保证的：
+
+- `Registry` 的 `Risk` 一旦注册不可变更——§1.3 那条原则的落点。
+- `Gate` 是执行工具的唯一入口，`Invoke` 不导出给主循环直接调用。`TriggerSchedule`
+  在 `Gate` 里对任何非 read 工具无条件返回拒绝，设置项读都不读。
 
 ---
 
@@ -630,9 +668,12 @@ observe 阶段直接读 `Store.ListAgents()` 的最新结果，并订阅 `agents
 ### Phase 1 — 记忆与模型通路
 
 - `internal/llm`：Ollama chat + embeddings + 模型列表；设置页配置 base_url / 对话模型 /
-  embedding 模型；连不上时给出明确诊断（不是转圈）。
+  embedding 模型（默认 `bge-m3`，§12.4）；连不上时给出明确诊断（不是转圈）。
 - `internal/memory`：schema、脱敏、向量化、暴力检索、重建任务。
 - UI：记忆浏览面板（列表、搜索、删除、手工添加）。
+
+Phase 1 不碰 `trust_level`、不碰审批、不碰 Orchestrator 开关——那三样都要等到有东西
+会动手的时候才有意义。
 
 **验收**：手工写入 200 条记忆，语义检索能召回；换 embedding 模型后 UI 提示重建，重建后
 检索恢复；Ollama 未启动时应用照常可用，只是编排功能显示不可用。
@@ -666,15 +707,43 @@ observe 阶段直接读 `Store.ListAgents()` 的最新结果，并订阅 `agents
 
 ---
 
-## 12. 待你拍板的问题
+## 12. 已定的决策
 
-1. **Orchestrator 的默认姿态**：装完之后默认关闭（用户主动开启），还是默认开启但所有
-   act 档工具都要审批？我倾向前者——一个会自己动手的东西，默认不动手。
-2. **act 档的放开粒度**：按工具放开（`agents.send` 免审批但 `files.write` 仍审批），
-   还是按服务器放开（测试机免审批、生产机全审批）？前者实现简单，后者更贴近真实心智。
-3. **定时触发**：Orchestrator 只在人下达目标时运行，还是也允许"每 10 分钟自己看一眼有没有
-   卡住的 agent"？后者是 v0.3 说的"后台持续运行服务"，但也是无人值守下出事的主要入口。
-4. **默认 embedding 模型**：`nomic-embed-text`（768 维，快、体积小）还是 `bge-m3`
-   （1024 维，中文更好）？中文语境下我倾向后者，代价是模型体积和 30% 的检索耗时。
-5. **Skill 的导出格式**：JSON（无损、好机器读）还是 Markdown + frontmatter（人好读、
-   好在 git 里 review）？v0.3 说两者都要，实现上建议以 JSON 为准、Markdown 作为单向导出。
+2026-08-17 确认，五条全部按推荐执行。
+
+### 12.1 Orchestrator 默认关闭
+
+装完之后 Orchestrator 是关的，由用户主动开启。
+
+理由不是保守：审批疲劳是真实的失效模式。一个功能如果靠"人会认真看每一张审批卡"来
+保证安全，它在第二周就不安全了。默认关意味着开启它的人是主动想要它动手的人，那个人
+才会认真看审批。默认开则把安全完全押在审批质量上，而审批质量随时间单调下降。
+
+### 12.2 定时巡检只读
+
+Orchestrator 可以定时自己跑（保住 v0.3"后台持续运行服务"的定位），但定时触发时工具集
+降级到只读——它能自己发现"这台机器上的 agent 卡了 40 分钟"并产出诊断与待办，动手要等人。
+
+拆开的是这个组合：无人值守 + 有 SSH 工具 + 不可信输入。三者同时成立才是危险的，去掉
+任何一个都不是。实现见 §6.1 与 §8 的 `Trigger`。
+
+### 12.3 按服务器放开，不按工具
+
+`servers` 表加一列 `trust_level`（`trusted` / `normal` / `production`），默认 `normal`。
+
+按工具放开表达不出真实的心智：`agents.send` 往测试机发和往生产机发是完全不同的两件事，
+而按工具的模型里它们是同一件。判定矩阵见 §6.1。这一列在 Phase 3 才真正生效，Phase 1
+不做 UI。
+
+### 12.4 默认 embedding 模型 bge-m3
+
+1024 维。被向量化的东西——项目知识、用户偏好、Skill 触发条件——大概率是中文写的，检索
+质量差一点表现出来就是"它总想不起来相关的事"，这是最伤体验的失效方式。代价是 ~1.2GB
+模型体积和 10.1ms vs 7.5ms 的检索耗时，都不重要。
+
+模型在设置里可换，`nomic-embed-text` 是体积敏感时的备选。换模型触发 §2.2 的重建流程。
+
+### 12.5 Skill 以 JSON 为准，Markdown 只出不进
+
+只有一条导入路径要测和维护。Markdown 导出的用途要在 UI 上写清楚：它是给人 review、
+放进 git 的，不是交换格式；改内容请在应用里改或改 JSON。

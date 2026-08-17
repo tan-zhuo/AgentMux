@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"agentmux/internal/llm"
+	"agentmux/internal/memory"
 	"agentmux/internal/sftpx"
 	"agentmux/internal/sshx"
 	"agentmux/internal/store"
@@ -27,6 +29,12 @@ type Core struct {
 	Tmux   *tmuxx.Client
 	Shells *sshx.ShellManager
 	Files  *sftpx.Client
+	Memory *memory.Index
+
+	// llmMu guards the client, which is rebuilt whenever the user points
+	// AgentMux at a different Ollama.
+	llmMu sync.RWMutex
+	llm   *llm.Client
 
 	emitMu sync.RWMutex
 	emitFn func(name string, data any)
@@ -49,7 +57,52 @@ func NewCore() (*Core, error) {
 	c.Tmux = tmuxx.New(c.Pool)
 	c.Shells = sshx.NewShellManager(c.Pool, c.Emit)
 	c.Files = sftpx.New(c.Pool, c.Emit)
+
+	// Nothing here reaches out to Ollama. Building the client is local work, and
+	// the memory library has to be usable — browsable, writable — on a machine
+	// where no model runtime is installed at all.
+	c.llm = llm.New(st.GetSetting(SettingLLMBaseURL, ""))
+	c.Memory = memory.NewIndex(st, c.llm, func() string { return c.EmbedModel() })
 	return c, nil
+}
+
+// Settings keys for the local model runtime.
+const (
+	SettingLLMBaseURL    = "llm.baseUrl"
+	SettingLLMChatModel  = "llm.chatModel"
+	SettingLLMEmbedModel = "llm.embedModel"
+)
+
+// LLM returns the current client.
+func (c *Core) LLM() *llm.Client {
+	c.llmMu.RLock()
+	defer c.llmMu.RUnlock()
+	return c.llm
+}
+
+// EmbedModel is the configured embedding model.
+func (c *Core) EmbedModel() string {
+	return c.Store.GetSetting(SettingLLMEmbedModel, llm.DefaultEmbedModel)
+}
+
+// ChatModel is the configured planning model.
+func (c *Core) ChatModel() string {
+	return c.Store.GetSetting(SettingLLMChatModel, llm.DefaultChatModel)
+}
+
+// SetLLMBaseURL points AgentMux at a different Ollama and rebuilds the client.
+func (c *Core) SetLLMBaseURL(baseURL string) error {
+	if err := c.Store.SetSetting(SettingLLMBaseURL, baseURL); err != nil {
+		return err
+	}
+	client := llm.New(baseURL)
+
+	c.llmMu.Lock()
+	c.llm = client
+	c.llmMu.Unlock()
+
+	c.Memory.SetEmbedder(client)
+	return nil
 }
 
 // SetEmitter installs the Wails event emitter once the application exists.

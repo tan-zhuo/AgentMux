@@ -437,3 +437,112 @@ export interface Receipt {
   error: string
   at: number
 }
+
+// --- local model runtime and memory -----------------------------------------
+
+export type MemoryKind =
+  | 'project_fact'
+  | 'agent_event'
+  | 'user_pref'
+  | 'session_ctx'
+  | 'system_log'
+
+export type MemoryScope = 'global' | 'project' | 'agent'
+
+export interface Memory {
+  id: string
+  kind: MemoryKind
+  scope: MemoryScope
+  projectId: string
+  agentId: string
+  serverId: string
+  title: string
+  body: string
+  redacted: boolean
+  source: string
+  importance: number
+  embeddingModel: string
+  dim: number
+  hasVector: boolean
+  createdAt: number
+  lastUsedAt: number | null
+  useCount: number
+}
+
+export interface MemoryFilter {
+  kinds?: string[]
+  scope?: string
+  projectId?: string
+  agentId?: string
+  text?: string
+  limit?: number
+  offset?: number
+}
+
+export interface MemoryQuery {
+  text: string
+  scope?: string
+  projectId?: string
+  agentId?: string
+  kinds?: string[]
+  topK?: number
+  minScore?: number
+}
+
+export interface MemoryHit {
+  memory: Memory
+  score: number
+}
+
+export interface PutResult {
+  memory: Memory
+  /** Set when the memory was stored but could not be embedded. */
+  embedError: string
+}
+
+export interface VectorSpace {
+  model: string
+  dim: number
+  count: number
+}
+
+export interface MemoryStats {
+  total: number
+  embedded: number
+  pending: number
+  model: string
+  spaces: VectorSpace[]
+  needsRebuild: boolean
+}
+
+export interface ReindexStatus {
+  running: boolean
+  done: number
+  total: number
+  error: string
+}
+
+export interface LLMModel {
+  name: string
+  size: number
+  modifiedAt: string
+}
+
+export interface LLMConfig {
+  baseUrl: string
+  chatModel: string
+  embedModel: string
+}
+
+export interface LLMStatus {
+  baseUrl: string
+  reachable: boolean
+  version: string
+  models: LLMModel[]
+  chatModel: string
+  embedModel: string
+  chatModelReady: boolean
+  embedModelReady: boolean
+  error: string
+  hint: string
+}

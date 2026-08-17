@@ -96,6 +96,31 @@ CREATE TABLE IF NOT EXISTS settings (
   k TEXT PRIMARY KEY,
   v TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memories (
+  id              TEXT PRIMARY KEY,
+  kind            TEXT NOT NULL,
+  scope           TEXT NOT NULL DEFAULT 'global',
+  project_id      TEXT REFERENCES projects(id) ON DELETE CASCADE,
+  agent_id        TEXT REFERENCES agents(id)   ON DELETE SET NULL,
+  server_id       TEXT REFERENCES servers(id)  ON DELETE SET NULL,
+  title           TEXT NOT NULL DEFAULT '',
+  body            TEXT NOT NULL,
+  redacted        INTEGER NOT NULL DEFAULT 0,
+  source          TEXT NOT NULL DEFAULT '',
+  importance      REAL NOT NULL DEFAULT 0.5,
+  -- float32 little-endian, L2-normalised. NULL until the embedder has run,
+  -- which is what makes a memory written while Ollama is down still a memory.
+  embedding       BLOB,
+  embedding_model TEXT NOT NULL DEFAULT '',
+  dim             INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  last_used_at    INTEGER,
+  use_count       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_memories_scope    ON memories(scope, project_id);
+CREATE INDEX IF NOT EXISTS idx_memories_kind     ON memories(kind);
+CREATE INDEX IF NOT EXISTS idx_memories_vecspace ON memories(embedding_model, dim);
 `
 
 // Store is the encrypted local database. Every method is safe for concurrent

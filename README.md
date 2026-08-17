@@ -116,6 +116,21 @@ OpenCode, Aider, Cursor CLI, plus the runtimes they need. One click installs
 the right one, and the install itself runs inside tmux, so a dropped connection
 cannot leave you with half a package tree.
 
+**It remembers, and shows you what it remembers.** The Memory panel holds facts
+about a project, preferences you have stated and what agents did, searchable
+either by exact text or by meaning. Meaning comes from a local embedding model
+through Ollama; nothing is sent anywhere. Secrets are stripped on the way in —
+a token in a log line becomes `[REDACTED:secret]` before it is stored, because
+the real risk is not a stolen database file, it is the same credential being
+handed back to a model on every retrieval that matches.
+
+Everything about it degrades honestly. With no model runtime installed the panel
+still works: memories are stored and listed, marked as not yet searchable, and a
+rebuild picks them up when Ollama appears. Changing the embedding model
+invalidates every stored vector — numbers from two models are not comparable —
+so the panel says so and offers to rebuild rather than quietly returning worse
+results.
+
 **Six themes.** Midnight, Graphite, Nord, Solarized Dark, Gruvbox Dark and a
 proper light theme. `Ctrl+K` and start typing.
 
@@ -408,6 +423,17 @@ iowait/steal 拆开、每个核心单独显示、内存与缓存、负载、swap
 ——Claude Code、Codex、Gemini CLI、OpenCode、Aider、Cursor CLI，以及它们依赖的
 运行时。一键装上，而且安装过程本身跑在 tmux 里，所以掉线不会留给你半个装了一半
 的包树。
+
+**它会记住，而且让你看见它记住了什么。** 记忆面板存项目的事实、你说过的偏好、
+agent 干过的事，既能按原文找，也能按意思找。按意思找靠的是通过 Ollama 跑的本地
+embedding 模型，什么都不会发出去。密钥在入库前就被抹掉——日志里的 token 会变成
+`[REDACTED:secret]` 再落盘，因为真正的风险不是数据库文件被偷，而是同一个凭据在
+之后每一次命中检索时被重新递给模型。
+
+它在各种缺失下都退化得诚实。没装模型运行时也照样能用：记忆照存照列，只是标成
+"还搜不到"，等 Ollama 起来了重建一次就补上。换了 embedding 模型会让所有已存向量
+作废——两个模型的数字之间没有可比性——所以面板会明说并提供重建，而不是闷声给你
+更差的结果。
 
 **六套主题。** Midnight、Graphite、Nord、Solarized Dark、Gruvbox Dark，外加一套
 正经的亮色主题。按 `Ctrl+K` 直接输名字。

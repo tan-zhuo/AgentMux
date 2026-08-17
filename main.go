@@ -50,6 +50,8 @@ func main() {
 			application.NewService(app.NewFileService(core)),
 			application.NewService(app.NewMetricsService(core)),
 			application.NewService(app.NewWindowService(core)),
+			application.NewService(app.NewLLMService(core)),
+			application.NewService(app.NewMemoryService(core)),
 			application.NewService(agentSvc),
 		},
 		Assets: application.AssetOptions{

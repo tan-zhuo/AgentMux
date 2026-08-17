@@ -1,9 +1,23 @@
 import clsx from 'clsx'
 import { Check } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
+import {
+  agents as agentApi,
+  errText,
+  llm as llmApi,
+  servers as serverApi,
+  tree as treeApi,
+} from '../lib/api'
 import { themes } from '../lib/themes'
-import type { Agent, AuthType, Project, ServerInput, Workspace } from '../lib/types'
+import type {
+  Agent,
+  AuthType,
+  LLMConfig,
+  LLMStatus,
+  Project,
+  ServerInput,
+  Workspace,
+} from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useTheme } from '../store/useTheme'
@@ -621,6 +635,8 @@ function SettingsDialog() {
         })}
       </div>
 
+      <LocalModelSettings />
+
       <p className="mb-2 text-[11px] font-medium tracking-wide text-ink-300 uppercase">
         Diagnostics
       </p>
@@ -642,5 +658,157 @@ function SettingsDialog() {
         connection.
       </p>
     </Modal>
+  )
+}
+
+/**
+ * The local model runtime.
+ *
+ * AgentMux does not manage Ollama — it does not start it or pull models. What
+ * it owes the user is an honest account of what is there, because "connected,
+ * but the model you named is not installed" is the usual way this is broken and
+ * it is invisible from anywhere else in the app.
+ */
+function LocalModelSettings() {
+  const toast = useAppStore((s) => s.toast)
+  const [cfg, setCfg] = useState<LLMConfig | null>(null)
+  const [status, setStatus] = useState<LLMStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const c = await llmApi.config()
+        if (!alive) return
+        setCfg(c)
+        const s = await llmApi.status()
+        if (alive) setStatus(s)
+      } catch (e) {
+        if (alive) toast('error', errText(e))
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [toast])
+
+  if (!cfg) return null
+
+  const set = <K extends keyof LLMConfig>(k: K, v: LLMConfig[K]) =>
+    setCfg((c) => (c ? { ...c, [k]: v } : c))
+
+  // Only embedding models are offered for the embedding slot, by name: picking
+  // a chat model there produces vectors that are technically valid and useless.
+  const embedCandidates = (status?.models ?? []).filter((m) =>
+    /embed|bge|nomic|gte|minilm/i.test(m.name),
+  )
+  const chatCandidates = (status?.models ?? []).filter((m) => !embedCandidates.includes(m))
+
+  return (
+    <>
+      <p className="mb-2 text-[11px] font-medium tracking-wide text-ink-300 uppercase">
+        Local model
+      </p>
+      <div className="mb-2 space-y-2">
+        <Field label="Ollama address" hint="Where the local runtime listens.">
+          <input
+            value={cfg.baseUrl}
+            onChange={(e) => set('baseUrl', e.target.value)}
+            placeholder="http://127.0.0.1:11434"
+            className={inputClass}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Planning model">
+            <input
+              list="agentmux-chat-models"
+              value={cfg.chatModel}
+              onChange={(e) => set('chatModel', e.target.value)}
+              className={inputClass}
+            />
+            <datalist id="agentmux-chat-models">
+              {chatCandidates.map((m) => (
+                <option key={m.name} value={m.name} />
+              ))}
+            </datalist>
+          </Field>
+          <Field label="Embedding model" hint="Changing this needs the memory index rebuilt.">
+            <input
+              list="agentmux-embed-models"
+              value={cfg.embedModel}
+              onChange={(e) => set('embedModel', e.target.value)}
+              className={inputClass}
+            />
+            <datalist id="agentmux-embed-models">
+              {embedCandidates.map((m) => (
+                <option key={m.name} value={m.name} />
+              ))}
+            </datalist>
+          </Field>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                setStatus(await llmApi.saveConfig(cfg))
+                toast('ok', 'Saved')
+              } catch (e) {
+                toast('error', errText(e))
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Save and test
+          </Button>
+          {status && (
+            <span
+              className={clsx(
+                'text-[11px]',
+                status.reachable ? 'text-ok' : 'text-danger',
+              )}
+            >
+              {status.reachable ? `Ollama ${status.version}` : 'Not reachable'}
+            </span>
+          )}
+          {status?.reachable && (
+            <span className="flex gap-1.5">
+              <span
+                className={clsx(
+                  'text-[11px]',
+                  status.chatModelReady ? 'text-ink-500' : 'text-warn',
+                )}
+              >
+                planning {status.chatModelReady ? 'ok' : 'missing'}
+              </span>
+              <span
+                className={clsx(
+                  'text-[11px]',
+                  status.embedModelReady ? 'text-ink-500' : 'text-warn',
+                )}
+              >
+                · embedding {status.embedModelReady ? 'ok' : 'missing'}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {status?.hint && (
+          <p className="rounded-md border border-ink-750 bg-ink-800 px-2.5 py-2 font-mono text-[11px] text-ink-300">
+            {status.hint}
+          </p>
+        )}
+      </div>
+      <p className="mb-5 text-[11px] leading-relaxed text-ink-400">
+        Everything here runs on this machine. AgentMux never sends your memories, your servers or
+        their output to a hosted model.
+      </p>
+    </>
   )
 }
