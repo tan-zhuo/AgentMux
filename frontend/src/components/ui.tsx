@@ -198,10 +198,10 @@ export function Segmented<T extends string>({
               size === 'sm' ? 'text-[11px]' : 'text-xs',
               // The selected segment is a raised card inside the track, which
               // is how Apple shows selection without colour — leaving colour
-              // free to mean something else.
-              selected
-                ? 'bg-ink-600 text-ink-100 shadow-sm'
-                : 'text-ink-400 hover:text-ink-200',
+              // free to mean something else. "Raised" is its own token because
+              // it is lighter than the track in dark mode and white in light,
+              // and no step of the ink ramp is both.
+              selected ? 'bg-raised text-ink-100 shadow-sm' : 'text-ink-400 hover:text-ink-200',
             )}
           >
             {o.label}

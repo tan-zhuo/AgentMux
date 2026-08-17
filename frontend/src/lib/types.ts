@@ -714,5 +714,4 @@ export interface OrchStatus {
   runId: string
   patrolMinutes: number
   pending: Approval[]
-  tools: ToolMeta[]
 }

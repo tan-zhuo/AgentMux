@@ -281,7 +281,7 @@ function ServerDialog() {
         </Field>
 
         {existing?.hostKey && (
-          <p className="rounded border hairline bg-ink-800 px-2 py-1.5 text-[11px] text-ink-400">
+          <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] text-ink-400">
             Host key pinned on first connection. Clear it from the server detail panel if you
             rotated the server's key.
           </p>
@@ -612,7 +612,7 @@ function SettingsDialog() {
               type="button"
               onClick={() => setTheme(t.id)}
               className={clsx(
-                'flex flex-col gap-2 rounded-lg border p-2.5 text-left transition-colors',
+                'flex flex-col gap-2 rounded-card border p-2.5 text-left transition-colors',
                 selected
                   ? 'border-accent bg-accent/10'
                   : 'hairline bg-ink-800 hover:border-ink-600',
@@ -626,7 +626,7 @@ function SettingsDialog() {
               <span className="text-[10.5px] leading-snug text-ink-500">{t.blurb}</span>
               {/* A miniature of the real layout reads better than loose swatches. */}
               <span
-                className="flex h-9 overflow-hidden rounded border"
+                className="flex h-9 overflow-hidden rounded-control border"
                 style={{ borderColor: t.colors['ink-700'], background: t.colors['ink-900'] }}
               >
                 <span
@@ -639,12 +639,12 @@ function SettingsDialog() {
                 <span className="h-full flex-1" style={{ background: t.terminal.background }} />
                 <span className="flex h-full w-8 flex-col justify-center gap-1 px-1.5">
                   <span
-                    className="block h-1 rounded-full"
+                    className="block h-1 rounded-capsule"
                     style={{ background: t.colors.accent }}
                   />
-                  <span className="block h-1 rounded-full" style={{ background: t.colors.ok }} />
+                  <span className="block h-1 rounded-capsule" style={{ background: t.colors.ok }} />
                   <span
-                    className="block h-1 rounded-full"
+                    className="block h-1 rounded-capsule"
                     style={{ background: t.colors.danger }}
                   />
                 </span>
@@ -819,7 +819,7 @@ function LocalModelSettings() {
         </div>
 
         {status?.hint && (
-          <p className="rounded-md border hairline bg-ink-800 px-2.5 py-2 font-mono text-[11px] text-ink-300">
+          <p className="rounded-control border hairline bg-ink-800 px-2.5 py-2 font-mono text-[11px] text-ink-300">
             {status.hint}
           </p>
         )}

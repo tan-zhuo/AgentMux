@@ -285,6 +285,15 @@ type ChatRequest struct {
 	// Temperature is a pointer so that "not set" and "0" are different things;
 	// 0 is a value the planner genuinely wants.
 	Temperature *float64
+	// NumCtx is the context window to load the model with.
+	//
+	// Ollama defaults this to a few thousand tokens unless a model's own
+	// Modelfile says otherwise, and it silently drops whatever does not fit.
+	// A planning prompt carrying the tool definitions, the fleet state and a
+	// couple of skills goes past that easily — and the part that falls off the
+	// front is the system prompt, which is where the rules are. Nothing about
+	// the failure looks like truncation; the model simply stops obeying.
+	NumCtx int
 }
 
 // ChatResponse is what came back.
@@ -311,8 +320,15 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 	if len(req.Format) > 0 {
 		body["format"] = req.Format
 	}
+	options := map[string]any{}
 	if req.Temperature != nil {
-		body["options"] = map[string]any{"temperature": *req.Temperature}
+		options["temperature"] = *req.Temperature
+	}
+	if req.NumCtx > 0 {
+		options["num_ctx"] = req.NumCtx
+	}
+	if len(options) > 0 {
+		body["options"] = options
 	}
 
 	var res ChatResponse

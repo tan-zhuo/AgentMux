@@ -125,7 +125,7 @@ function Sparkline({
           vectorEffect="non-scaling-stroke" />
       </svg>
       {hover !== null && (
-        <span className="pointer-events-none absolute -top-1 right-0 rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-200 tabular-nums">
+        <span className="pointer-events-none absolute -top-1 right-0 rounded-control bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-200 tabular-nums">
           {values[hover].toFixed(0)}%
         </span>
       )}
@@ -140,11 +140,11 @@ function Meter({ pct, tone }: { pct: number; tone?: 'ok' | 'warn' | 'danger' }) 
   const color = severityVar[sev]
   return (
     <div
-      className="h-1.5 w-full overflow-hidden rounded-full"
+      className="h-1.5 w-full overflow-hidden rounded-capsule"
       style={{ background: `color-mix(in oklab, ${color} 18%, transparent)` }}
     >
       <div
-        className="h-full rounded-full transition-[width] duration-500"
+        className="h-full rounded-capsule transition-[width] duration-500"
         style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
       />
     </div>
@@ -163,7 +163,7 @@ function Tile({
   children?: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border hairline bg-ink-850 px-2.5 py-2">
+    <div className="rounded-card border hairline bg-ink-850 px-2.5 py-2">
       <p className="text-[10px] font-medium text-ink-500">{label}</p>
       <p className="mt-0.5 text-lg leading-none font-semibold text-ink-100">{value}</p>
       {sub && <p className="mt-1 text-[10.5px] text-ink-500">{sub}</p>}
@@ -298,7 +298,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
             {/* Per-core utilisation. Height carries the value; a single hue
                 keeps it from double-encoding what the bars already show. */}
             {sample.perCore.length > 1 && (
-              <div className="mt-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
+              <div className="mt-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-medium text-ink-500">
                     Per core ({sample.perCore.length})
@@ -343,7 +343,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {/* Facts that are one number each, so they belong in a row rather
                 than in tiles of their own. */}
-            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg border hairline bg-ink-850 px-2.5 py-2 text-[11px]">
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-card border hairline bg-ink-850 px-2.5 py-2 text-[11px]">
               <Fact k="Run / block" v={`${sample.procsRunning} / ${sample.procsBlocked}`} />
               <Fact k="Context sw" v={`${Math.round(sample.contextRate).toLocaleString()}/s`} />
               <Fact k="Connections" v={`${sample.connections} established`} />
@@ -359,7 +359,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
             </dl>
 
             {sample.swapTotalBytes > 0 && (
-              <div className="mt-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
+              <div className="mt-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-medium text-ink-500">Swap</span>
                   <span className="text-[11px] tabular-nums text-ink-300">
@@ -374,7 +374,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             <Section title={`Disks (${sample.disks.length})`} />
             {sample.disks.map((d) => (
-              <div key={d.mount} className="mb-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
+              <div key={d.mount} className="mb-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate font-mono text-[11px] text-ink-200">{d.mount}</span>
                   <span className="shrink-0 text-[11px] tabular-nums text-ink-300">
@@ -443,7 +443,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
               <>
                 <Section title={`GPUs (${sample.gpus.length})`} />
                 {sample.gpus.map((g) => (
-                  <div key={g.index} className="mb-2 rounded-lg border hairline bg-ink-850 px-2.5 py-2">
+                  <div key={g.index} className="mb-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="min-w-0 truncate text-[11px] text-ink-200">
                         {g.index}: {g.name}

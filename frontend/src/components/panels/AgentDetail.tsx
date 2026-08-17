@@ -128,7 +128,7 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
           $ {agent.command}
         </p>
         {agent.progressText && (
-          <p className="mt-1 truncate rounded bg-ink-850 px-2 py-1 font-mono text-[11px] text-ink-300">
+          <p className="mt-1 truncate rounded-control bg-ink-850 px-2 py-1 font-mono text-[11px] text-ink-300">
             {agent.progressText}
           </p>
         )}

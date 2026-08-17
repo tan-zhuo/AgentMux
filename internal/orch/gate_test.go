@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"agentmux/internal/orch"
 	"agentmux/internal/orch/catalog"
@@ -169,5 +170,36 @@ func TestInjectionDetection(t *testing.T) {
 		if ok, phrase := orch.SuspectsInjection(s); ok {
 			t.Errorf("flagged ordinary output %q on %q", s, phrase)
 		}
+	}
+}
+
+// TestTruncateDoesNotSplitCharacters is the regression test for output that
+// arrives in Chinese — which, for this user's fleet, is most of it. Cutting a
+// byte slice in half lands inside a multi-byte character and produces
+// replacement characters in the log and in the model's context.
+func TestTruncateDoesNotSplitCharacters(t *testing.T) {
+	long := strings.Repeat("构建失败：磁盘空间不足，请清理日志。", 400)
+
+	out := orch.TruncateForTest(long, 100)
+	if !utf8.ValidString(out) {
+		t.Fatal("truncation produced invalid UTF-8")
+	}
+	if strings.ContainsRune(out, '�') {
+		t.Error("truncation produced replacement characters")
+	}
+	if utf8.RuneCountInString(out) > 200 {
+		t.Errorf("truncated to %d runes, which is not a limit of 100 plus a marker",
+			utf8.RuneCountInString(out))
+	}
+	// The head and the tail both survive: the head says what this is, the tail
+	// usually holds the failure.
+	if !strings.HasPrefix(out, "构建失败") || !strings.HasSuffix(out, "清理日志。") {
+		t.Errorf("the ends should survive intact: %q", out)
+	}
+
+	// Text under the limit is returned untouched, whatever it is made of.
+	short := "一切正常"
+	if got := orch.TruncateForTest(short, 100); got != short {
+		t.Errorf("short text was altered: %q", got)
 	}
 }

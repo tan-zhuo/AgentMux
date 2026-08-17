@@ -44,7 +44,7 @@ function TrafficLight({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="no-drag-region relative block h-3 w-3 rounded-full transition-colors duration-150"
+      className="no-drag-region relative block h-3 w-3 rounded-capsule transition-colors duration-150"
       style={{
         // The lit colours are macOS's and stay fixed across themes — that is
         // what makes them recognisable. Only the unfocused grey follows the theme.
@@ -223,7 +223,7 @@ function TitleBarButton({
       title={title}
       onClick={onClick}
       className={clsx(
-        'no-drag-region rounded-md p-1.5 transition-colors',
+        'no-drag-region rounded-control p-1.5 transition-colors',
         active
           ? 'text-ink-200 hover:bg-ink-800'
           : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',

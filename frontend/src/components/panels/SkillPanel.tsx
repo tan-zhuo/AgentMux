@@ -425,7 +425,7 @@ function TestBench({
             </p>
           )}
           {matches.map((m) => (
-            <div key={m.skill.id} className="rounded-md border hairline bg-ink-850 px-2.5 py-1.5">
+            <div key={m.skill.id} className="rounded-control border hairline bg-ink-850 px-2.5 py-1.5">
               <div className="flex items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-100">
                   {m.skill.name}

@@ -115,7 +115,7 @@ export function ContextMenu() {
       onPointerDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
       style={{ left: pos.left, top: pos.top }}
-      className="fixed z-90 min-w-52 overflow-hidden rounded-lg border hairline bg-ink-850 py-1 shadow-2xl"
+      className="material fixed z-90 min-w-52 overflow-hidden rounded-card p-1 shadow-sheet"
     >
       {items.map((item, i) =>
         !item.label ? (
@@ -132,10 +132,15 @@ export function ContextMenu() {
               void item.onSelect?.()
             }}
             className={clsx(
-              'flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs',
+              'flex w-full items-center gap-2.5 rounded-control px-2.5 py-1 text-left text-xs',
               item.disabled && 'cursor-not-allowed text-ink-600',
-              !item.disabled && cursor === i && (item.danger ? 'bg-danger/15' : 'bg-accent/15'),
-              !item.disabled && (item.danger ? 'text-danger' : 'text-ink-200'),
+              // The hovered item fills with the accent and takes white text,
+              // the way a highlighted menu item does on macOS. A tinted
+              // background with coloured text reads as a state, not a cursor.
+              !item.disabled &&
+                cursor === i &&
+                (item.danger ? 'bg-danger text-white' : 'bg-accent text-white'),
+              !item.disabled && cursor !== i && (item.danger ? 'text-danger' : 'text-ink-200'),
             )}
           >
             {item.icon ? (
@@ -144,7 +149,16 @@ export function ContextMenu() {
               <span className="w-[13px] shrink-0" />
             )}
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            {item.hint && <span className="shrink-0 text-[10.5px] text-ink-600">{item.hint}</span>}
+            {item.hint && (
+              <span
+                className={clsx(
+                  'shrink-0 text-[10.5px]',
+                  cursor === i && !item.disabled ? 'text-white/70' : 'text-ink-600',
+                )}
+              >
+                {item.hint}
+              </span>
+            )}
           </button>
         ),
       )}

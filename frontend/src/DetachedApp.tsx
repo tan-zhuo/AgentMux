@@ -159,7 +159,7 @@ function TrafficLight({
       type="button"
       aria-label={kind}
       onClick={onClick}
-      className="no-drag-region block h-3 w-3 rounded-full transition-colors"
+      className="no-drag-region block h-3 w-3 rounded-capsule transition-colors"
       style={{
         backgroundColor: focused ? c.fill : 'var(--color-ink-600)',
         boxShadow: focused ? `inset 0 0 0 0.5px ${c.ring}` : 'none',

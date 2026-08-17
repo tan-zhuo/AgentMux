@@ -56,6 +56,11 @@ export interface ThemeColors {
   'ink-300': string
   'ink-200': string
   'ink-100': string
+  /** A control that sits above its own track: the selected segment, the active
+   *  tab pill. The ink ramp cannot express this, because it runs in opposite
+   *  directions in the two modes — in dark this is lighter than the track, in
+   *  light it is white, and both are "raised". */
+  raised: string
   accent: string
   'accent-dim': string
   ok: string
@@ -97,6 +102,7 @@ export const themes: Theme[] = [
       'ink-300': '#aeaeb2',
       'ink-200': '#d1d1d6',
       'ink-100': '#ffffff',
+      raised: '#545458',
       accent: '#0a84ff',
       'accent-dim': '#0a6cd4',
       ok: '#30d158',
@@ -148,6 +154,7 @@ export const themes: Theme[] = [
       'ink-300': '#48484a',
       'ink-200': '#2c2c2e',
       'ink-100': '#000000',
+      raised: '#ffffff',
       accent: '#007aff',
       'accent-dim': '#9dc9ff',
       ok: '#248a3d',
@@ -199,6 +206,7 @@ export const themes: Theme[] = [
       'ink-300': '#939eb3',
       'ink-200': '#c2cad8',
       'ink-100': '#e6eaf2',
+      raised: '#333b4c',
       accent: '#4c8dff',
       'accent-dim': '#2f5fb3',
       ok: '#3ddc97',
@@ -250,6 +258,7 @@ export const themes: Theme[] = [
       'ink-300': '#9c9c9c',
       'ink-200': '#c8c8c8',
       'ink-100': '#ededed',
+      raised: '#3d3d3d',
       accent: '#a78bfa',
       'accent-dim': '#6d54c4',
       ok: '#6cc164',
@@ -301,6 +310,7 @@ export const themes: Theme[] = [
       'ink-300': '#aab4c2',
       'ink-200': '#d8dee9',
       'ink-100': '#eceff4',
+      raised: '#5b6678',
       accent: '#88c0d0',
       'accent-dim': '#5e81ac',
       ok: '#a3be8c',
@@ -352,6 +362,7 @@ export const themes: Theme[] = [
       'ink-300': '#839496',
       'ink-200': '#93a1a1',
       'ink-100': '#eee8d5',
+      raised: '#2b6070',
       accent: '#268bd2',
       'accent-dim': '#1a5f90',
       ok: '#859900',
@@ -403,6 +414,7 @@ export const themes: Theme[] = [
       'ink-300': '#a89984',
       'ink-200': '#bdae93',
       'ink-100': '#ebdbb2',
+      raised: '#665c54',
       accent: '#83a598',
       'accent-dim': '#458588',
       ok: '#b8bb26',
@@ -454,6 +466,7 @@ export const themes: Theme[] = [
       'ink-300': '#4d5561',
       'ink-200': '#2b323c',
       'ink-100': '#11151b',
+      raised: '#ffffff',
       accent: '#2563eb',
       'accent-dim': '#93b4fb',
       ok: '#16a34a',

@@ -202,7 +202,7 @@ export function SkillDialog() {
           </div>
           <div className="space-y-2">
             {steps.map((s, i) => (
-              <div key={i} className="rounded-md border hairline bg-ink-800 p-2">
+              <div key={i} className="rounded-control border hairline bg-ink-800 p-2">
                 <div className="flex items-center gap-1.5">
                   <GripVertical size={12} className="shrink-0 text-ink-600" />
                   <span className="shrink-0 text-[11px] text-ink-500">{i + 1}</span>
@@ -235,7 +235,7 @@ export function SkillDialog() {
                           })
                         }
                         className={clsx(
-                          'rounded border px-1.5 py-0.5 font-mono text-[10px] transition-colors',
+                          'rounded-control border px-1.5 py-0.5 font-mono text-[10px] transition-colors',
                           on
                             ? 'border-accent bg-accent/15 text-accent'
                             : 'hairline bg-ink-850 text-ink-500 hover:text-ink-300',
@@ -318,7 +318,7 @@ export function SkillHistoryDialog() {
       <div className="space-y-2">
         {versions.length === 0 && <p className="text-[11px] text-ink-500">No history yet.</p>}
         {versions.map((v) => (
-          <div key={v.id} className="rounded-md border hairline bg-ink-800 p-2.5">
+          <div key={v.id} className="rounded-control border hairline bg-ink-800 p-2.5">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-medium text-ink-100">v{v.version}</span>
               <Badge>{v.changedBy}</Badge>

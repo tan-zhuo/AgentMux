@@ -266,7 +266,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
               {i > 0 && <ChevronRight size={11} className="text-ink-600" />}
               <button
                 onClick={() => void load(c.path)}
-                className="rounded px-1 py-0.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                className="rounded-control px-1 py-0.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100"
               >
                 {c.label}
               </button>
@@ -474,7 +474,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                             ev.stopPropagation()
                             setLaunchDir(e.path)
                           }}
-                          className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
+                          className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
                         >
                           <Rocket size={12} />
                         </button>
@@ -486,7 +486,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                             ev.stopPropagation()
                             openEditor(e)
                           }}
-                          className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
+                          className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
                         >
                           <FileCode2 size={12} />
                         </button>
@@ -498,7 +498,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                             ev.stopPropagation()
                             void download(e)
                           }}
-                          className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                          className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
                         >
                           <Download size={12} />
                         </button>
@@ -509,7 +509,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           ev.stopPropagation()
                           setRenaming({ path: e.path, name: e.name })
                         }}
-                        className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                        className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
                       >
                         <Pencil size={12} />
                       </button>
@@ -519,7 +519,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           ev.stopPropagation()
                           void remove(e)
                         }}
-                        className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-danger"
+                        className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-danger"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -581,15 +581,15 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     <button
                       title="Cancel"
                       onClick={() => void filesApi.cancel(t.id)}
-                      className="rounded p-0.5 text-ink-500 hover:text-danger"
+                      className="rounded-control p-0.5 text-ink-500 hover:text-danger"
                     >
                       <X size={11} />
                     </button>
                   )}
                 </div>
                 {t.status === 'running' && (
-                  <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-accent/20">
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
+                  <div className="mt-1 h-1 w-full overflow-hidden rounded-capsule bg-accent/20">
+                    <div className="h-full rounded-capsule bg-accent" style={{ width: `${pct}%` }} />
                   </div>
                 )}
                 {t.error && <p className="mt-0.5 text-[10.5px] text-danger">{t.error}</p>}

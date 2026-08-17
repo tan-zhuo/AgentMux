@@ -210,7 +210,7 @@ export function MemoryPanel() {
               <X size={11} /> Stop
             </Button>
           </div>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-800">
+          <div className="mt-1.5 h-1 overflow-hidden rounded-capsule bg-ink-800">
             <div
               className="h-full bg-accent transition-[width] duration-300"
               style={{
@@ -292,7 +292,7 @@ function Row({
               toast('error', errText(e))
             }
           }}
-          className="rounded p-1 text-ink-400 hover:bg-ink-750 hover:text-danger"
+          className="rounded-control p-1 text-ink-400 hover:bg-ink-750 hover:text-danger"
         >
           <Trash2 size={12} />
         </button>

@@ -116,7 +116,7 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
                       tmuxSession: s.name,
                     })
                   }
-                  className="rounded p-1 text-ink-400 hover:bg-ink-750 hover:text-ink-100"
+                  className="rounded-control p-1 text-ink-400 hover:bg-ink-750 hover:text-ink-100"
                 >
                   <Terminal size={12} />
                 </button>
@@ -140,7 +140,7 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
                       toast('error', errText(e))
                     }
                   }}
-                  className="rounded p-1 text-ink-400 hover:bg-ink-750 hover:text-danger"
+                  className="rounded-control p-1 text-ink-400 hover:bg-ink-750 hover:text-danger"
                 >
                   <Trash2 size={12} />
                 </button>

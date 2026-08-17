@@ -4,12 +4,12 @@ import { useAppStore, type Toast } from '../store/useAppStore'
 
 const toneStyle: Record<
   Toast['tone'],
-  { icon: typeof Info; border: string; accent: string; label: string }
+  { icon: typeof Info; accent: string; label: string }
 > = {
-  ok: { icon: CheckCircle2, border: 'border-ok/35', accent: 'text-ok', label: 'Done' },
-  error: { icon: XCircle, border: 'border-danger/40', accent: 'text-danger', label: 'Failed' },
-  warn: { icon: AlertTriangle, border: 'border-warn/40', accent: 'text-warn', label: 'Warning' },
-  info: { icon: Info, border: 'hairline', accent: 'text-accent', label: 'Note' },
+  ok: { icon: CheckCircle2, accent: 'text-ok', label: 'Done' },
+  error: { icon: XCircle, accent: 'text-danger', label: 'Failed' },
+  warn: { icon: AlertTriangle, accent: 'text-warn', label: 'Warning' },
+  info: { icon: Info, accent: 'text-accent', label: 'Note' },
 }
 
 /**
@@ -34,8 +34,7 @@ export function Toasts() {
             key={t.id}
             role="status"
             className={clsx(
-              'pointer-events-auto overflow-hidden rounded-lg border bg-ink-850/97 shadow-xl backdrop-blur',
-              style.border,
+              'material pointer-events-auto overflow-hidden rounded-card shadow-sheet',
             )}
           >
             <div className="flex items-start gap-2.5 px-3 py-2.5">
@@ -49,7 +48,7 @@ export function Toasts() {
               <button
                 onClick={() => dismiss(t.id)}
                 aria-label="Dismiss"
-                className="-mr-1 shrink-0 rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
+                className="-mr-1 shrink-0 rounded-control p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
               >
                 <X size={12} />
               </button>

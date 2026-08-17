@@ -275,7 +275,7 @@ export function Sidebar() {
                     <button
                       onClick={row.onAdd}
                       title={`Add ${row.label.slice(0, -1).toLowerCase()}`}
-                      className="rounded p-0.5 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
+                      className="rounded-control p-0.5 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
                     >
                       <Plus size={12} />
                     </button>
@@ -892,7 +892,14 @@ function TreeRow({
         // An inset rounded pill, the way a macOS sidebar shows selection —
         // not a full-bleed band, which reads as a highlighted table row.
         'group mx-1.5 flex cursor-default items-center gap-1.5 rounded-control pr-1.5 text-xs',
-        selected ? 'bg-accent text-white' : 'text-ink-200 hover:bg-ink-800',
+        selected
+          ? // Inside the pill everything adopts the selection foreground.
+            // Children carry their own greys, and grey on system blue is
+            // unreadable — the icons and row actions disappeared entirely
+            // until this was here.
+            'bg-accent text-white [&_button]:text-white/80 [&_button:hover]:bg-white/20 ' +
+            '[&_button:hover]:text-white [&_svg]:text-current'
+          : 'text-ink-200 hover:bg-ink-800',
       )}
     >
       <div style={{ width: depth * 14 + 6 }} className="shrink-0" />
@@ -902,7 +909,10 @@ function TreeRow({
             e.stopPropagation()
             onChevron?.()
           }}
-          className="shrink-0 rounded p-0.5 text-ink-500 hover:text-ink-100"
+          className={clsx(
+            'shrink-0 rounded-control p-0.5',
+            selected ? 'text-white/80 hover:text-white' : 'text-ink-500 hover:text-ink-100',
+          )}
         >
           {chevron === 'down' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
@@ -916,7 +926,7 @@ function TreeRow({
         <span
           className={clsx(
             'min-w-0 flex-1 truncate text-[11px]',
-            metaDim ? 'text-ink-500' : 'text-ink-400',
+            selected ? 'text-white/70' : metaDim ? 'text-ink-500' : 'text-ink-400',
           )}
         >
           {meta}
@@ -947,7 +957,7 @@ function RowBtn({
         onClick()
       }}
       className={clsx(
-        'rounded p-1 text-ink-400 hover:bg-ink-750',
+        'rounded-control p-1 text-ink-400 hover:bg-ink-750',
         danger ? 'hover:text-danger' : 'hover:text-ink-100',
       )}
     >

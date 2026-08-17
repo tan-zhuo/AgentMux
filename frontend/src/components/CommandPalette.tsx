@@ -214,7 +214,7 @@ export function CommandPalette() {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[60vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border hairline bg-ink-850 shadow-2xl"
+        className="material flex max-h-[60vh] w-full max-w-xl flex-col overflow-hidden rounded-sheet shadow-sheet"
       >
         <input
           autoFocus
@@ -256,14 +256,22 @@ export function CommandPalette() {
                   void c.run()
                 }}
                 className={clsx(
-                  'flex w-full items-center gap-2.5 px-4 py-1.5 text-left text-xs',
-                  i === cursor ? 'bg-accent/15 text-ink-100' : 'text-ink-300',
+                  // Spotlight fills the row under the cursor rather than
+                  // tinting it, which is what makes the selection legible at a
+                  // glance while the list is scrolling under the keyboard.
+                  'mx-2 flex items-center gap-2.5 rounded-control px-2.5 py-1.5 text-left text-xs',
+                  i === cursor ? 'bg-accent text-white' : 'text-ink-300',
                 )}
               >
                 <Icon size={13} className="shrink-0 opacity-60" />
                 <span className="shrink-0">{c.label}</span>
                 {c.hint && (
-                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-600">
+                  <span
+                    className={clsx(
+                      'min-w-0 flex-1 truncate font-mono text-[11px]',
+                      i === cursor ? 'text-white/70' : 'text-ink-600',
+                    )}
+                  >
                     {c.hint}
                   </span>
                 )}

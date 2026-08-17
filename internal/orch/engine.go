@@ -40,6 +40,11 @@ const (
 	RepeatLimit = 3
 	// MaxResultChars keeps one enormous log from crowding out the context.
 	MaxResultChars = 4000
+	// ContextWindow is asked for explicitly rather than taken from whatever the
+	// model was loaded with. Twenty steps of tool results at MaxResultChars
+	// each, on top of the tool definitions and the fleet state, is the size
+	// this loop actually needs; the usual default is a fraction of it.
+	ContextWindow = 16384
 )
 
 // Chatter is the part of the LLM client the engine needs.
@@ -266,6 +271,7 @@ func (e *Engine) execute(ctx context.Context, run store.Run, req Request) {
 			Model:    e.model(),
 			Messages: messages,
 			Tools:    toolDefs(e.reg.Definitions(req.Trigger)),
+			NumCtx:   ContextWindow,
 		})
 		if err != nil {
 			e.finish(st, store.RunFailed, "", fmt.Sprintf("the model could not be reached: %v", err))
@@ -574,6 +580,7 @@ func (e *Engine) reflect(ctx context.Context, st *runState, outcome string) {
 		Model:    e.model(),
 		Messages: []llm.Message{{Role: "user", Content: prompt}},
 		Format:   json.RawMessage(skillSchema),
+		NumCtx:   ContextWindow,
 	})
 	if err != nil {
 		return
@@ -708,13 +715,19 @@ func stringify(v any) string {
 }
 
 func truncate(s string, max int) string {
-	if len(s) <= max {
+	// Counted in runes, not bytes. A byte-wise cut lands in the middle of a
+	// multi-byte character sooner or later, and every log this reads may be
+	// Chinese — where that is not "sooner or later" but "immediately".
+	r := []rune(s)
+	if len(r) <= max {
 		return s
 	}
 	// Cut from the middle: the head says what this is and the tail usually
 	// holds the error, while the middle is the part nobody reads.
 	half := max / 2
-	return s[:half] + fmt.Sprintf("\n… [%d characters omitted] …\n", len(s)-max) + s[len(s)-half:]
+	return string(r[:half]) +
+		fmt.Sprintf("\n… [%d characters omitted] …\n", len(r)-max) +
+		string(r[len(r)-half:])
 }
 
 func injectionNote(flagged bool, phrase string) string {

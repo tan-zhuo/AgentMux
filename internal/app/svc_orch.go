@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"agentmux/internal/orch"
-	"agentmux/internal/orch/catalog"
 	"agentmux/internal/store"
 )
 
@@ -68,12 +67,11 @@ func (o *OrchService) SaveConfig(cfg OrchConfig) (OrchConfig, error) {
 
 // Status is what the panel renders at the top.
 type Status struct {
-	Enabled       bool               `json:"enabled"`
-	Running       bool               `json:"running"`
-	RunID         string             `json:"runId"`
-	PatrolMinutes int                `json:"patrolMinutes"`
-	Pending       []store.Approval   `json:"pending"`
-	Tools         []catalog.ToolMeta `json:"tools"`
+	Enabled       bool             `json:"enabled"`
+	Running       bool             `json:"running"`
+	RunID         string           `json:"runId"`
+	PatrolMinutes int              `json:"patrolMinutes"`
+	Pending       []store.Approval `json:"pending"`
 }
 
 // Status reports what the orchestrator is doing.
@@ -86,7 +84,7 @@ func (o *OrchService) Status() (Status, error) {
 	}
 	return Status{
 		Enabled: cfg.Enabled, Running: running, RunID: runID,
-		PatrolMinutes: cfg.PatrolMinutes, Pending: pending, Tools: catalog.All(),
+		PatrolMinutes: cfg.PatrolMinutes, Pending: pending,
 	}, nil
 }
 

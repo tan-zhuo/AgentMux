@@ -86,12 +86,12 @@ export function ConfirmDialog() {
         aria-modal="true"
         aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border hairline bg-ink-850 shadow-2xl"
+        className="material max-h-[85vh] w-full max-w-md overflow-y-auto rounded-sheet shadow-sheet"
       >
         <div className="flex gap-3 px-4 pt-4">
           <span
             className={clsx(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border',
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-card border',
               style.ring,
               style.bg,
               style.text,
@@ -109,7 +109,7 @@ export function ConfirmDialog() {
               <ul className="mt-2.5 space-y-1">
                 {request.points.map((p) => (
                   <li key={p} className="flex gap-2 text-[11px] leading-relaxed text-ink-400">
-                    <span className={clsx('mt-[6px] h-1 w-1 shrink-0 rounded-full bg-current', style.text)} />
+                    <span className={clsx('mt-[6px] h-1 w-1 shrink-0 rounded-capsule bg-current', style.text)} />
                     <span className="min-w-0">{p}</span>
                   </li>
                 ))}
@@ -117,7 +117,7 @@ export function ConfirmDialog() {
             )}
 
             {request.reassurance && (
-              <p className="mt-2.5 rounded-md border hairline bg-ink-800 px-2.5 py-1.5 text-[11px] leading-relaxed text-ink-400">
+              <p className="mt-2.5 rounded-control border hairline bg-ink-800 px-2.5 py-1.5 text-[11px] leading-relaxed text-ink-400">
                 {request.reassurance}
               </p>
             )}

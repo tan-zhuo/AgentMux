@@ -192,7 +192,7 @@ export function RightPanel() {
                     'my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
                     'text-[11px] font-medium whitespace-nowrap transition-colors duration-100',
                     active
-                      ? 'bg-ink-750 text-ink-100 shadow-sm'
+                      ? 'bg-raised text-ink-100 shadow-sm'
                       : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
                   )}
                 >

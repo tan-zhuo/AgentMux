@@ -238,15 +238,15 @@ export function TerminalArea() {
             >
               {/* Insertion marker, shown on the edge the tab would land at. */}
               {dropIndex === index && dragId && !tearing && (
-                <span className="pointer-events-none absolute inset-y-1 -left-px w-0.5 rounded bg-accent" />
+                <span className="pointer-events-none absolute inset-y-1 -left-px w-0.5 rounded-control bg-accent" />
               )}
               <Icon size={12} className="shrink-0 opacity-70" />
               <span className="max-w-[180px] truncate">{tab.title}</span>
               {tab.status === 'opening' && (
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-capsule bg-warn" />
               )}
               {(tab.status === 'closed' || tab.status === 'error') && (
-                <span className="h-1.5 w-1.5 rounded-full bg-ink-600" />
+                <span className="h-1.5 w-1.5 rounded-capsule bg-ink-600" />
               )}
               <button
                 onPointerDown={(e) => e.stopPropagation()}
@@ -254,7 +254,7 @@ export function TerminalArea() {
                   e.stopPropagation()
                   void closeTab(tab.id)
                 }}
-                className="ml-0.5 rounded p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-750 hover:text-ink-100"
+                className="ml-0.5 rounded-control p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-750 hover:text-ink-100"
                 title="Close tab"
               >
                 <X size={11} />
@@ -264,7 +264,7 @@ export function TerminalArea() {
         })}
         {/* Marker for dropping after the last tab. */}
         {dragId && !tearing && dropIndex === tabs.length && (
-          <span className="pointer-events-none relative -ml-px w-0.5 self-stretch rounded bg-accent" />
+          <span className="pointer-events-none relative -ml-px w-0.5 self-stretch rounded-control bg-accent" />
         )}
         {!tabs.length && (
           <div className="flex items-center px-3 text-[11px] text-ink-500">No open terminals</div>
@@ -273,7 +273,7 @@ export function TerminalArea() {
 
       {tearing && (
         <div className="pointer-events-none absolute inset-x-0 top-9 z-20 flex justify-center">
-          <span className="rounded-b-md border border-t-0 border-accent-dim bg-ink-850 px-3 py-1 text-[11px] text-accent shadow-lg">
+          <span className="rounded-b-control border border-t-0 border-accent-dim bg-ink-850 px-3 py-1 text-[11px] text-accent shadow-lg">
             Release to open in a new window
           </span>
         </div>

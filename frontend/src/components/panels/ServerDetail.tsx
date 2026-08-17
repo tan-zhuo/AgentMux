@@ -76,7 +76,7 @@ export function ServerDetail({ server }: { server: Server }) {
         </div>
 
         {state?.state === 'error' && (
-          <p className="mt-2 rounded border border-danger/30 bg-danger/10 px-2 py-1.5 text-[11px] leading-relaxed text-danger">
+          <p className="mt-2 rounded-control border border-danger/30 bg-danger/10 px-2 py-1.5 text-[11px] leading-relaxed text-danger">
             {state.detail}
           </p>
         )}
