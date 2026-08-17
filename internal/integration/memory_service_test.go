@@ -44,6 +44,9 @@ func TestMemorySurvivesWithoutAModelRuntime(t *testing.T) {
 	if status.Reachable {
 		t.Fatal("nothing should be reachable on port 1")
 	}
+	// Whichever way the machine words the failure, the hint has to leave the
+	// reader with something to do. Which branch of the diagnosis produced it is
+	// pinned by the unit tests in the llm package, not here.
 	if !strings.Contains(status.Hint, "ollama serve") {
 		t.Errorf("the status should say how to start the runtime, got %q", status.Hint)
 	}

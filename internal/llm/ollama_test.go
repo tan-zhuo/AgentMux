@@ -114,6 +114,11 @@ func TestProbeMatchesTheImplicitLatestTag(t *testing.T) {
 func TestProbeExplainsAnUnreachableRuntime(t *testing.T) {
 	// A port nothing listens on: the normal state of a machine where Ollama has
 	// not been started.
+	//
+	// This asserts only that the answer is useful, not which branch produced
+	// it. How the kernel words a failed connection differs between machines —
+	// a CI runner and a laptop disagreed here once — so the branches are pinned
+	// against synthetic errors in diagnose_test.go instead.
 	st := llm.New("http://127.0.0.1:1").Probe(context.Background(), "qwen3:8b", "bge-m3")
 	if st.Reachable {
 		t.Fatal("nothing is listening there")

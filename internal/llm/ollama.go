@@ -13,9 +13,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -140,18 +143,41 @@ func modelMatches(installed, want string) bool {
 }
 
 // diagnose turns a transport error into something a person can act on.
+//
+// The cases are recognised by error type rather than by matching the text of
+// the message. The text is the operating system's, it differs between platforms
+// and sandboxes, and a diagnosis that silently degrades to a shrug on some
+// machines is worse than no diagnosis at all — the string match here used to do
+// exactly that.
+//
+// The fallback is written to be worth reading too: whatever went wrong, if
+// AgentMux cannot reach Ollama then "start Ollama" is the first thing to check,
+// so the generic branch says so instead of restating that something failed.
 func (c *Client) diagnose(err error) string {
-	msg := err.Error()
+	var dns *net.DNSError
 	switch {
-	case strings.Contains(msg, "connection refused"):
+	case errors.Is(err, syscall.ECONNREFUSED):
 		return "Nothing is listening at " + c.BaseURL + ". Start Ollama with `ollama serve`."
-	case strings.Contains(msg, "no such host"):
+
+	case errors.As(err, &dns):
 		return "The host in " + c.BaseURL + " does not resolve. Check the address in Settings."
-	case strings.Contains(msg, "context deadline exceeded"), strings.Contains(msg, "timeout"):
-		return "Ollama did not answer in time. It may be loading a model."
+
+	case errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, os.ErrDeadlineExceeded),
+		isTimeout(err):
+		return "Ollama did not answer in time. It may still be loading a model."
+
 	default:
-		return "Could not reach Ollama at " + c.BaseURL + "."
+		return "Could not reach Ollama at " + c.BaseURL +
+			" (" + err.Error() + "). If it is not running, start it with `ollama serve`."
 	}
+}
+
+// isTimeout covers the net.Error timeouts that are not one of the sentinel
+// deadline errors.
+func isTimeout(err error) bool {
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
 }
 
 // Models lists what is installed.

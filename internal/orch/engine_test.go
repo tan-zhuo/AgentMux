@@ -134,10 +134,16 @@ func newFixture(t *testing.T, trust store.TrustLevel, turns []llm.Message, toolN
 	return &fixture{engine: eng, store: st, model: model, tools: rec, events: events}
 }
 
+// waitTimeout is generous on purpose. These tests wait on a goroutine writing
+// to SQLite, and a shared CI runner is far slower than a developer's machine —
+// a tight bound here buys nothing and costs an occasional red build that means
+// nothing.
+const waitTimeout = 30 * time.Second
+
 // waitForRun blocks until the run reaches a terminal state.
 func (f *fixture) waitForRun(t *testing.T, runID string) store.Run {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(waitTimeout)
 	for time.Now().Before(deadline) {
 		run, err := f.store.GetRun(runID)
 		if err == nil {
@@ -154,7 +160,7 @@ func (f *fixture) waitForRun(t *testing.T, runID string) store.Run {
 
 func (f *fixture) waitForApproval(t *testing.T) store.Approval {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(waitTimeout)
 	for time.Now().Before(deadline) {
 		pending, err := f.store.PendingApprovals()
 		if err == nil && len(pending) > 0 {
@@ -457,7 +463,7 @@ func TestToolOutputIsWrappedAsUntrusted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(waitTimeout)
 	for time.Now().Before(deadline) {
 		if r, _ := st.GetRun(run.ID); r.Status == store.RunSucceeded || r.Status == store.RunFailed {
 			break
