@@ -175,7 +175,9 @@ downloading with `curl -L -O <url>` avoids it.
 
 1. **Add a host.** Address, user, and one of ssh-agent, key or password. Jump
    hosts are supported. The host key is pinned on first connection.
-2. **Add a project and a workspace** — a working directory on that host.
+2. **Add a project and a workspace** — a working directory on that host. Or skip
+   the forms: browse the host's files, find the directory and add it as a
+   project there, since its name, path and host are already known.
 3. **Add an agent**: a name and the command that starts it. Select Start.
 4. `Ctrl+K` opens the command palette — the fastest route to attaching to an
    agent, opening a shell, installing a CLI or changing theme.
