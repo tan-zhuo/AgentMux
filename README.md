@@ -2,720 +2,176 @@
 
 # AgentMux
 
-**A desktop control room for AI agents that live on other people's computers.**
+**A desktop control room for AI coding agents running on other people's computers.**
 
-[English](#english) · [中文](#中文)
+English · [中文](README.zh-CN.md)
 
 ![AgentMux](docs/demo.gif)
 
-*Recorded against a local test box. Nothing is sped up.*
-*录制于本地测试机，没有加速。*
-
 ---
+
+## The problem it solves
+
+Coding agents do their best work on real machines — the build server, the GPU
+box, the staging host. So you SSH in, start `claude` or `codex` or `aider`, and
+now you are holding it. Close the laptop and the connection drops and the work
+dies with it. Run five of them across three servers and you have become the
+scheduler: a `tmux` cheat sheet, a folder of aliases, and a notes file recording
+which agent is doing what where.
+
+AgentMux is a window onto work that is already running somewhere else. Every
+agent it starts runs inside a `tmux` session **on the server**. The app never
+owns the process, so closing it, losing wifi, or putting the laptop in a bag
+changes nothing about what the agent is doing.
+
+## Why this one
+
+**Closing a window is detaching, not killing.** This is the whole design, and
+everything else follows from it. Open an agent's terminal and you are attached
+to its own tmux pane; close the tab and it keeps working. You stop being careful
+with windows.
 
 ![Terminal attached to an agent](docs/terminal.png)
 
-**A real terminal, attached to the agent's own tmux pane.** Close the tab and you
-have detached, not killed.
-**真终端，直接连到 agent 自己的 tmux pane。** 关掉标签页是分离，不是杀掉。
+**A real terminal, not a chat box with a terminal theme.** Colours, mouse,
+selection, search, and the same pane the agent is typing into — so you can take
+over mid-task, correct it, and hand it back without restarting anything.
+
+**One instruction, one receipt per agent.** Tick twenty agents, send once, and
+get twenty answers saying whether the message actually landed. A fan-out you
+cannot verify is just hope.
 
 ![Broadcast receipts](docs/broadcast.png)
 
-**One instruction, one receipt per agent.** A fan-out you cannot verify is just
-hope.
-**一条指令，每个 agent 回一张回执。** 无法验证的群发只是许愿。
+**A local orchestrator that has to ask.** Give it a goal — *find out why the
+payment agent is stuck* — and it reads the fleet, recalls what it knows, and
+works through it one tool call at a time. Anything that changes a server stops
+and asks first, showing the tool, the arguments, the machine, and its own
+sentence explaining why. Killing sessions and deleting files are confirmed on
+every server, including the ones you marked trusted. It runs on a local model
+through Ollama: no goal, no log line and no memory leaves the machine. And it is
+off until you switch it on.
+
+**It remembers, and shows you what it remembers.** Facts about a project,
+preferences you have stated, what agents did — searchable by wording or by
+meaning. Credentials are stripped before anything is stored, because the real
+risk is not a stolen database file, it is the same token being handed back to a
+model on every retrieval that matches.
+
+**Procedures you approve, reused.** Write down what to do when the payment
+service slows under load, and it gets matched and followed next time. Skills the
+orchestrator proposes for itself arrive as drafts and cannot influence anything
+until you approve them.
+
+**A new box is not a chore.** The install panel looks at a server and offers only
+what it can actually run — no npm on the host means the npm-based agents stay
+hidden, and it says why. Installs run inside tmux, so a dropped connection cannot
+leave you with half a package tree.
 
 ![Install panel](docs/install.png)
 
-**The install panel only offers what the box can actually run.** No npm on the
-server means the npm-based agents stay hidden, and it tells you why.
-**安装面板只提供这台机器真能装的东西。** 服务器上没有 npm，基于 npm 的 agent 就
-不会出现，并且告诉你原因。
+**It looks like it belongs on the machine.** Apple's system palette by default,
+with segmented controls, sheets and switches rather than web conventions — and
+six other themes including Nord, Solarized and a proper light one.
 
----
+![Themes](docs/themes.png)
 
-## English
+## Where it fits
 
-### The problem
+- **Long jobs you cannot babysit.** A four-hour migration or refactor keeps
+  running through a closed laptop, a train tunnel and a coffee break.
+- **More agents than you can hold in your head.** Three to fifty boxes, each with
+  work in flight, in one tree with a green dot for what is running and the last
+  line each agent printed.
+- **Fleet-wide instructions.** "Stop, pull main, rerun the tests" to everything
+  at once — with proof of what landed.
+- **Provisioning.** New server, no agent CLI, no runtime: pick from the list and
+  let it install.
+- **Unattended watching.** Patrols can look around on a timer and report an agent
+  that has been stuck for an hour. A patrol may only read, whatever any server's
+  trust level says.
+- **Work that cannot leave the building.** The planner, the embeddings and the
+  memory library are all local. AgentMux does not proxy your agent's model
+  traffic or read its API keys.
 
-If you run coding agents on remote machines, the day starts the same way every
-time. Open a terminal. SSH in. Try to remember whether the checkout was under
-`~/work` or `~/src`. Start the agent. Do it again for the second box. And the
-third.
+## Install
 
-Then you close the laptop to catch a train, and everything you started dies with
-the connection.
+Every release carries a build for each platform, made by GitHub Actions from the
+tagged commit, with a `.sha256` beside it.
 
-The workarounds are familiar: a `tmux` cheat sheet taped to the wall, a folder
-of shell aliases, a notes file listing which agent is doing what on which host.
-It works, right up until you have thirty projects and eight servers, at which
-point you are the scheduler, and you are not a good one.
+| File | What it is |
+|---|---|
+| [`agentmux-macos-universal.zip`](../../releases/latest) | `AgentMux.app`, one binary for Intel and Apple silicon (macOS 11+) |
+| [`agentmux-windows-amd64.zip`](../../releases/latest) | `agentmux.exe` plus an install script |
+| [`agentmux-linux-amd64.tar.gz`](../../releases/latest) | the binary, an icon, a `.desktop` file and `install.sh` |
 
-### What AgentMux does
+On the remote side you need `tmux` and an SSH account, and AgentMux will install
+tmux for you if it is missing.
 
-AgentMux is a desktop window onto work that is already running somewhere else.
+**Linux** also needs GTK3 and WebKitGTK 4.1 present to run — `libwebkit2gtk-4.1-0`
+on Debian and Ubuntu, `webkit2gtk4.1` on Fedora. Most desktops already have them,
+and `install.sh` names what is missing rather than leaving you with a binary that
+exits without a word.
 
-Everything it starts, it starts inside a `tmux` session on the server. The
-desktop app never owns the process. Close the app, lose the wifi, put the laptop
-in a bag — the agent keeps working, and when you come back the terminal picks up
-exactly where it was, scrollback and all.
+**The builds are not notarized or code-signed**, which costs an Apple developer
+account and a Microsoft certificate. On Windows, click "More info" then "Run
+anyway". On macOS, what works depends on the version:
 
-Around that one idea sits the thing you actually wanted: a single tree with
-every server, every project and every agent in it, colour-coded by what is
-running, searchable when the list gets long.
+| Your macOS | What to do |
+|---|---|
+| 15 Sequoia or newer | Open it, let it be blocked, then System Settings → Privacy & Security → Security → **Open Anyway** |
+| 14 Sonoma or older | Control-click the app → **Open** → Open |
+| any version | `xattr -dr com.apple.quarantine /Applications/AgentMux.app`, then open it normally |
 
-### What it is like to use
+That quarantine flag is attached by the browser, not by the archive: downloading
+with `curl -L -O <url>` means there is nothing to clear.
 
-**One tree for everything.** Servers, projects, workspaces, agents. A green dot
-means running, grey means idle, and the line underneath an agent is the last
-thing it printed. Hundreds of rows stay fast because the tree only renders what
-is on screen.
+## First run
 
-**Closing a terminal is not killing it.** Open an agent's terminal and you are
-attached to its tmux pane. Close the tab and you have detached. The distinction
-sounds small and it changes how you work: you stop being careful with windows.
+1. **Add a server.** Host, user, and ssh-agent, a key or a password. Jump hosts
+   are supported. The host key is pinned on first connection.
+2. **Add a project and a workspace** — a directory on that server.
+3. **Add an agent**: a name and the command you run (`claude`, `codex`, whatever
+   it is). Press Start.
+4. `Ctrl+K` opens the command palette, which is the fastest way to attach to an
+   agent, open a shell, install a CLI or switch theme.
 
-**It is a real terminal.** Not a chat box with a terminal theme. Colours, mouse,
-copy and paste, search. Anything you would type over SSH you type here, in the
-same pane the agent is working in, which means you can take over mid-task
-without disturbing it.
+Passwords and key passphrases are encrypted with AES-256-GCM before they touch
+disk, and the key lives in the OS keychain — Credential Manager on Windows,
+Keychain on macOS, Secret Service on Linux. If the keychain cannot be reached,
+AgentMux falls back to a `0600` file and says so in the status bar, because a
+weaker guarantee should never be a silent one.
 
-**Talk to one agent, or twenty.** Tick the agents you want, type an instruction,
-send. Each one comes back with a receipt saying whether the message actually
-landed. A fan-out you cannot verify is just hope.
+## What it deliberately does not do
 
-**Files, without leaving the app.** Every server gets a file browser over SFTP:
-navigate, upload, download, rename, delete, make directories. Transfers show a
-progress bar and can be cancelled, and a browser tab reopens at the directory
-you left it in. It runs over the same pooled connection as everything else, so
-it costs no extra login.
-
-**Editing a file does not mean leaving.** Double-click a text file in the
-browser and it opens in an editor tab — the same editor core VS Code is built
-on, so you get syntax highlighting for sixty-odd languages, multiple cursors,
-find and replace, folding, a minimap, bracket matching. `Ctrl+S` writes it back
-over the same SFTP connection. The save is atomic — a temporary file and a
-rename, so a dropped connection cannot leave you with half a file — and it
-keeps the original permissions, which matters the first time you edit a shell
-script. If something else changed the file while you had it open, saving stops
-and asks; an agent working in the same directory is normal here, and silently
-overwriting its work would be the worst kind of data loss, the invisible kind.
-
-**You can see what the machine is doing.** The Metrics panel reads the host in a
-single command and shows CPU broken down by user/system/iowait/steal, every core
-individually, memory and cache, load, swap, disk usage with inode pressure, disk
-throughput, per-interface network rates, established connections, open file
-descriptors, context switches, run and block queues, temperature, and the top
-five processes by CPU and by memory. NVIDIA GPUs come through too — utilisation,
-memory, temperature, power — which is the number you actually want when an agent
-is training something.
-
-**A new box is not a chore.** The Install panel looks at a server and tells you
-what is already there and what is missing — Claude Code, Codex, Gemini CLI,
-OpenCode, Aider, Cursor CLI, plus the runtimes they need. One click installs
-the right one, and the install itself runs inside tmux, so a dropped connection
-cannot leave you with half a package tree.
-
-**It remembers, and shows you what it remembers.** The Memory panel holds facts
-about a project, preferences you have stated and what agents did, searchable
-either by exact text or by meaning. Meaning comes from a local embedding model
-through Ollama; nothing is sent anywhere. Secrets are stripped on the way in —
-a token in a log line becomes `[REDACTED:secret]` before it is stored, because
-the real risk is not a stolen database file, it is the same credential being
-handed back to a model on every retrieval that matches.
-
-Everything about it degrades honestly. With no model runtime installed the panel
-still works: memories are stored and listed, marked as not yet searchable, and a
-rebuild picks them up when Ollama appears. Changing the embedding model
-invalidates every stored vector — numbers from two models are not comparable —
-so the panel says so and offers to rebuild rather than quietly returning worse
-results.
-
-**Procedures worth repeating, written down.** The Skills panel holds named
-procedures: when one applies, what to do, which tools to reach for, what must
-never happen. Describe a situation in the test bench and you see which skills
-would be matched and why, before any of it is wired into a plan. Editing makes a
-new version and keeps the old one, so a rollback is always available — and a
-rollback is itself a new version rather than an erasure.
-
-A skill only ever recommends. It names tools; it carries nothing executable, and
-whether a named tool actually runs is decided separately, against that tool's own
-risk level. Skills the orchestrator proposes arrive as drafts and are not
-embedded at all until a person approves them, so an unreviewed skill cannot
-shape a plan — that is enforced by the vector being absent, not by a filter
-somebody could forget.
-
-**It can do the work, if you let it.** Give the orchestrator a goal — "find out
-why the payment agent is stuck" — and it looks at the fleet, recalls what it
-knows, follows any skill that applies, and works through it one tool call at a
-time. Every step appears as it happens, with the reason it gave.
-
-Anything that changes a server stops and asks first. The card shows the tool,
-the arguments, the machine, and its own sentence explaining why now; you allow
-or refuse, and a refusal is something it carries on from rather than dies on.
-Destructive actions — killing a session, deleting a file, broadcasting to
-everyone — are confirmed on every server, including the ones you marked trusted,
-because trust buys recoverable actions and nothing else.
-
-It can also patrol on a timer, and a patrol is deliberately not the same thing:
-it may only read. It can tell you an agent has been stuck for an hour; it cannot
-restart it. Unattended, holding SSH tools, reading text a remote machine wrote is
-the combination worth taking apart, and that is the piece to remove.
-
-The whole thing is off until you turn it on.
-
-**Six themes.** Midnight, Graphite, Nord, Solarized Dark, Gruvbox Dark and a
-proper light theme. `Ctrl+K` and start typing.
-
-### Things it deliberately does not do
-
-It does not replace your terminal, your editor, or your agent. It does not
-proxy the agent's model traffic or read its API keys. It is a control plane:
-it starts things, watches them, talks to them, and gets out of the way.
+It does not replace your terminal, your editor or your agent, and it does not sit
+between an agent and its model. It starts things, watches them, talks to them,
+and gets out of the way.
 
 Deleting anything in the app never kills remote work. The only button that
 destroys a running session is called Kill, and it asks first.
 
-### Getting started
+## How it works
 
-You need Go 1.25+ and Node 20+. On the remote side you need `tmux` and an SSH
-account; AgentMux can install tmux for you if it is missing.
+One SSH connection per server, multiplexed: every terminal, command and file
+transfer is a channel on the same connection, so ten terminals on one host is one
+login. Connections idle out after ten minutes unless something is watching them.
 
-```sh
-git clone git@github.com:tan-zhuo/AgentMux.git
-cd AgentMux
-cd frontend && npm install && npm run build && cd ..
-go build -o agentmux .
-./agentmux
-```
+Agents run in a login shell inside tmux rather than as the session's own process,
+so an agent that exits leaves you a shell in the right directory instead of
+destroying the session.
 
-The frontend is embedded in the binary, so `npm run build` has to happen before
-`go build`.
+State is one SQLite file in your application data directory. There is no server,
+no daemon and no account.
 
-On Linux the webview is WebKitGTK, so its headers have to be there at compile
-time. AgentMux builds against GTK3 and webkit2gtk-4.1, which is what desktops
-have installed today — Wails would otherwise reach for GTK4 and webkitgtk-6.0,
-which only exist from Ubuntu 24.04 onwards. Install the headers and name the
-build:
+## Building, testing, releasing
 
-```sh
-sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
-go build -tags gtk3 -o agentmux .
-```
+See [docs/development.md](docs/development.md).
 
-The same `-tags gtk3` belongs on `go vet` and `go test`. macOS and Windows use
-their own webview — WKWebView and WebView2 — and need nothing installed; the tag
-is ignored there.
-
-On Windows that plain `go build` gives you a console binary, which is what you
-want while developing — the Wails log goes to the terminal. For something you
-double-click, link it as a GUI binary so no console window opens behind the app:
-
-```sh
-go build -ldflags "-H windowsgui" -o agentmux.exe .
-```
-
-Then stderr goes nowhere, so a failure to start would be silent. AgentMux writes
-those to `startup-error.log` in its data directory instead.
-
-**Windows, with a proper install:**
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Build
-```
-
-That builds it, puts it in `%LOCALAPPDATA%\Programs\AgentMux`, and creates
-Desktop and Start Menu shortcuts. It is per-user, so it needs no administrator
-rights, and it never touches your data in `%APPDATA%\AgentMux` — installing over
-an existing copy keeps every server, key and layout you had. Pass `-Uninstall`
-to remove the app and its shortcuts again.
-
-Add a server, point a workspace at a directory on it, give an agent a command
-(`claude`, `opencode`, whatever you run), and press Start.
-
-Keyboard: `Ctrl+K` opens the command palette, which is the fastest way to attach
-to an agent, open a shell, switch theme or install a CLI. `Ctrl+B` toggles the
-sidebar.
-
-Both side panes resize by dragging the divider, and the widths are remembered.
-Double-click a divider to put it back, or focus it and use the arrow keys.
-
-**Or take a build someone already made.** Every published release carries a
-build for each platform, put together by GitHub Actions from the tagged commit:
-
-| File | What it is |
-|---|---|
-| `agentmux-macos-universal.zip` | `AgentMux.app`, one binary for Intel and Apple Silicon |
-| `agentmux-windows-amd64.zip` | `agentmux.exe` plus the install script |
-| `agentmux-linux-amd64.tar.gz` | the binary, an icon, a `.desktop` file and `install.sh` |
-
-The Linux build needs GTK3 and WebKitGTK 4.1 present at run time
-(`libwebkit2gtk-4.1-0` on Debian and Ubuntu, `webkit2gtk4.1` on Fedora). Most
-desktops already have them; `install.sh` says so plainly if they are missing
-instead of leaving you with a binary that exits without a word.
-
-Each one ships a `.sha256` beside it. Settings shows the version the binary was
-built from, so you can always tell what you are running.
-
-**The builds are not notarized**, which costs an Apple developer account and a
-Microsoft certificate, so the first launch takes one extra step.
-
-On **Windows**: click "More info", then "Run anyway".
-
-On **macOS**, what to do depends on the version, because macOS 15 removed the
-Control-click shortcut that used to be the answer:
-
-| Your macOS | What works |
-|---|---|
-| 15 Sequoia or newer | Open it, let it be blocked, then System Settings → Privacy & Security → scroll to Security → **Open Anyway** → authenticate → Open |
-| 14 Sonoma or older | Control-click the app → **Open** → Open |
-| any version | `xattr -dr com.apple.quarantine /Applications/AgentMux.app` in Terminal, then open it normally |
-
-The quarantine flag those steps clear is attached by the *browser*, not by the
-archive. Downloading with `curl -L -O <url>` instead of clicking a link means
-there is no flag to clear and the app opens on the first try.
-
-### Where your secrets live
-
-Passwords and key passphrases are encrypted with AES-256-GCM before they touch
-disk. The key lives in the OS keychain — Credential Manager on Windows, Keychain
-on macOS, Secret Service on Linux. If the keychain cannot be reached, AgentMux
-falls back to a `0600` file and says so in the status bar, because a weaker
-guarantee should never be a silent one.
-
-Host keys are pinned on first connection. A later mismatch aborts with a plain
-explanation rather than a shrug; clearing the pin is something you do on purpose.
-
-Secrets never cross into the UI. The frontend only ever learns whether a secret
-is set, never what it is.
-
-### How it is put together
-
-```
-main.go                Wails app, service registration, window
-internal/store/        SQLite, AES-256-GCM secrets, OS keychain
-internal/sshx/         SSH connection pool, auth, PTY manager
-internal/tmuxx/        tmux CLI wrapper
-internal/sftpx/        remote file system and transfers
-internal/metrics/      host vitals, read in one command
-internal/agentkit/     catalogue and detection for agent CLIs
-internal/app/          the services the frontend calls
-frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js + Monaco
-tools/icongen/         draws the app icon at every size the platforms want
-.github/workflows/     CI on every push, desktop builds on every release
-```
-
-Go and Wails 3 on the back, React on the front. Around 4,300 lines of Go and
-4,000 of TypeScript.
-
-**One connection per server.** Every terminal and every command multiplexes over
-a single SSH connection as separate channels — the same idea as OpenSSH's
-`ControlMaster`. Idle links are dropped after ten minutes and status polling only
-touches servers that are already connected, which is why a hundred configured
-machines cost nothing until you use them.
-
-**Agents run in a login shell, not as the process.** Starting an agent creates
-`agentmux/{project}/{agent}` and types the command into it. If the agent exits,
-the pane survives with its scrollback, and you can take over by typing.
-
-Two things that cost real debugging time, written down so they do not cost yours:
-
-*tmux escapes control characters in its output.* When `tmux -F` output goes to a
-client that is not a terminal — an SSH exec channel is not — control bytes get
-escaped. A tab comes back as `_`; `0x1f` comes back as the literal text `\037`.
-Using a tab as a field separator silently collapsed every row into one
-unparseable field. The wrapper uses a printable separator and puts free-form
-fields last.
-
-*Terminal bytes are base64 across the IPC boundary.* PTY output is not valid
-UTF-8 at arbitrary chunk boundaries, so both directions are encoded and xterm is
-fed a `Uint8Array`. The backend also keeps 256 KB of scrollback per shell and
-replays it on attach, so switching tabs never shows you a blank terminal.
-
-*A component defined inside another component remounts on every render.* React
-compares element types by reference, so a nested definition is a new type each
-time — the whole subtree unmounts, effects re-run, and any panel underneath
-refetches. It showed up here as the right panel flickering every few seconds
-once a server was connected and status polling started. The rule
-`react/no-unstable-nested-components` is now an error in the lint config so it
-cannot come back.
-
-*Metrics are one command, not one command per number.* Rates are measured by
-sampling `/proc` twice around a half-second sleep inside that command, which
-keeps the backend stateless and means a reading says the same thing regardless
-of how often the panel asks. Requires Linux `/proc`; on other hosts the panel
-reports what it could not read rather than showing zeros.
-
-### Testing
-
-`go test ./...` is safe offline; the integration suite skips unless you point it
-at a real host.
-
-```sh
-AGENTMUX_TEST_HOST=127.0.0.1 AGENTMUX_TEST_PORT=2222 \
-AGENTMUX_TEST_USER=you AGENTMUX_TEST_KEY=/path/to/key \
-go test ./internal/integration -v
-```
-
-It covers connecting, host key mismatch, connection reuse, the tmux session
-lifecycle, scrollback replay, toolchain detection, the editor's read-edit-save
-round trip including the conflict guard, and the one that matters most: closing
-a terminal detaches without killing the remote process.
-
-`AGENTMUX_DATA_DIR` points the app at a different profile, which is how the demo
-recording was made without touching a real setup.
-
-### Cutting a release
-
-Push, then publish a release on GitHub with a tag like `v0.2.0`. That is the
-whole procedure. `.github/workflows/release.yml` builds macOS, Windows and Linux
-from that commit and attaches the archives with their checksums to the release
-you just published — nothing else triggers a build, so a release is always
-something you decided to make. `workflow_dispatch` runs the same three builds
-without touching any release, for when you want to check the pipeline still
-works.
-
-The version you tag is compiled into the binary with
-`-ldflags "-X agentmux/internal/app.Version=..."` and shown in Settings, so a
-build can always tell you where it came from.
-
-### Not there yet
-
-The orchestrator AI from the original design is not built. The plumbing it needs
-exists — broadcast already returns per-agent receipts, which was the hard part —
-but there is no model panel and no tool-permission model yet.
-
-Folders exist in the schema but the tree renders projects flat. There is no
-config import/export, no plugin system, and no split panes inside a tab. File
-transfers are one file at a time — no directory uploads and no drag and drop
-yet. Metrics history lives only in the open panel, so there are no long-range
-graphs.
-
-The editor is Monaco, which is the editor core VS Code is built on, and it is
-not VS Code. It cannot run VS Code extensions: those need the extension host,
-which is a separate process with a Node runtime and an API surface Monaco does
-not ship. So there is no language server, no linting, no Copilot, no theme
-marketplace — syntax highlighting is Monaco's own, and there is no autocomplete
-beyond what it can infer from the open file. It also refuses files over 4 MiB
-and anything that looks binary, because opening one in a text editor is how you
-corrupt it. If you genuinely need extensions on the remote box, run `code-server`
-there and let AgentMux keep it alive in tmux — that is real VS Code, and it is
-the honest answer.
-
-The install commands are the vendors' documented ones as of writing. Check them
-against current docs before trusting them on a machine you care about.
-
----
-
-## 中文
-
-### 起因
-
-在远程机器上跑编码 agent 的人，每天开头都是同一套动作。开终端，SSH 上去，想
-半天代码是在 `~/work` 还是 `~/src`，启动 agent。换第二台再来一遍。第三台再来
-一遍。
-
-然后合上笔记本赶地铁，刚才起的东西跟着连接一起没了。
-
-绕过去的办法大家都熟：墙上贴一张 tmux 速查表，一堆 shell 别名，一个记着"哪台
-机器上哪个 agent 在干什么"的笔记文件。这套东西能用，直到项目变成三十个、服务器
-变成八台——那时候调度器就是你本人，而你干得并不好。
-
-### AgentMux 做什么
-
-AgentMux 是一扇窗，看向已经在别处运行的工作。
-
-它启动的一切都跑在服务器的 tmux 会话里，桌面端从不持有进程。关掉应用、断网、
-把电脑塞进包里——agent 照常干活；等你回来，终端接着上次的位置继续，连滚动历史
-都在。
-
-围绕这一点，才是你真正想要的东西：一棵树装下所有服务器、项目和 agent，按运行
-状态着色，列表长了还能搜。
-
-### 用起来是什么感觉
-
-**所有东西在一棵树里。** 服务器、项目、工作区、agent。绿点表示运行中，灰点表示
-空闲，agent 下面那行就是它最后打印的内容。几百行也不卡，因为树只渲染屏幕上能
-看见的部分。
-
-**关掉终端不等于杀掉它。** 打开 agent 的终端，你就是附加到了它的 tmux pane 上；
-关掉标签页，你只是分离了。这个区别听着小，但它会改变你的习惯——你不用再小心翼翼
-地对待窗口。
-
-**这是真终端。** 不是套了终端皮肤的聊天框。颜色、鼠标、复制粘贴、搜索都在。任何
-你会在 SSH 里敲的命令都能在这儿敲，而且就在 agent 正在工作的那个 pane 里，所以
-你可以中途接手而不打断它。
-
-**对一个 agent 说话，或者对二十个。** 勾选要发的 agent，输入指令，发送。每个都
-会回一张回执，告诉你消息到底送到没有。无法验证的群发只是许愿。
-
-**文件不用离开应用。** 每台服务器都有基于 SFTP 的文件浏览器：进目录、上传、下载、
-重命名、删除、新建文件夹。传输有进度条、可以取消，标签页重开时还会回到你上次
-待的目录。它走的是和其它功能同一条连接池里的连接，不额外登录一次。
-
-**改个文件不用切出去。** 在文件浏览器里双击文本文件，它会在一个编辑器标签页里
-打开——用的就是 VS Code 的编辑器内核，六十多种语言的语法高亮、多光标、查找替换、
-折叠、缩略图、括号匹配都在。`Ctrl+S` 沿着同一条 SFTP 连接写回去。保存是原子的
-（先写临时文件再改名），断线不会给你留下半个文件；权限也会带过去，第一次改 shell
-脚本的时候你会庆幸这一点。如果你打开期间别人动过这个文件，保存会停下来问你一句
-——在这里，另一个 agent 正在同一个目录里干活是常态，默默覆盖掉它的成果是最糟糕
-的那种数据丢失：看不见的那种。
-
-**你能看见机器在干什么。** 指标面板用一条命令读完整台主机：CPU 按 user/system/
-iowait/steal 拆开、每个核心单独显示、内存与缓存、负载、swap、磁盘占用（含 inode
-压力）、磁盘吞吐、每张网卡的速率、已建立连接数、打开的文件描述符、上下文切换、
-运行与阻塞队列、温度，以及按 CPU 和按内存排序的前五个进程。NVIDIA 显卡也会读出来
-——利用率、显存、温度、功耗——agent 在训练东西的时候，这才是你真正想看的数字。
-
-**新机器不再是苦差事。** 安装面板会看一眼服务器，告诉你哪些已经装了、哪些没有
-——Claude Code、Codex、Gemini CLI、OpenCode、Aider、Cursor CLI，以及它们依赖的
-运行时。一键装上，而且安装过程本身跑在 tmux 里，所以掉线不会留给你半个装了一半
-的包树。
-
-**它会记住，而且让你看见它记住了什么。** 记忆面板存项目的事实、你说过的偏好、
-agent 干过的事，既能按原文找，也能按意思找。按意思找靠的是通过 Ollama 跑的本地
-embedding 模型，什么都不会发出去。密钥在入库前就被抹掉——日志里的 token 会变成
-`[REDACTED:secret]` 再落盘，因为真正的风险不是数据库文件被偷，而是同一个凭据在
-之后每一次命中检索时被重新递给模型。
-
-它在各种缺失下都退化得诚实。没装模型运行时也照样能用：记忆照存照列，只是标成
-"还搜不到"，等 Ollama 起来了重建一次就补上。换了 embedding 模型会让所有已存向量
-作废——两个模型的数字之间没有可比性——所以面板会明说并提供重建，而不是闷声给你
-更差的结果。
-
-**值得重复的做法，写下来。** 技能面板存的是命名过的处理流程：什么情况下适用、
-怎么做、该用哪些工具、什么绝对不能干。在测试台里描述一个场景，就能看到哪些技能会被
-匹配到、以及为什么——不用等它真的进了某次规划才知道。改一次存一个新版本，旧的留着，
-随时能回滚；而回滚本身也是新版本，不是抹掉。
-
-技能只提建议。它写工具的名字，不携带任何可执行的东西；某个工具到底跑不跑，是另一处
-按那个工具自己的风险档决定的。Orchestrator 提出的技能以草案进来，在有人批准之前
-**根本不会被 embedding**，所以未经审核的技能无法影响规划——这是靠"向量压根不存在"
-保证的，不是靠某个可能被忘掉的过滤条件。
-
-**它可以动手干活——如果你允许。** 给 orchestrator 一个目标，比如"查清楚 payment
-agent 为什么卡住"，它会看一眼整个集群、翻出记得的东西、套上适用的技能，然后一次一个
-工具调用地推进。每一步都实时出现在面板上，连同它给出的理由。
-
-任何会改动服务器的动作都会先停下来问你。卡片上有工具名、参数、目标机器，以及它自己
-写的那句"为什么是现在"；你放行或者拒绝，而拒绝之后它是接着想别的办法，不是就此崩掉。
-破坏性动作——杀 session、删文件、群发——在**每一台**服务器上都要确认，包括你标成信任的
-那些：信任买到的是可恢复的动作，仅此而已。
-
-它也可以定时巡检，而巡检刻意不是同一回事：**只能读**。它可以告诉你某个 agent 卡了
-一小时，但不能去重启它。无人值守 + 握着 SSH 工具 + 读远端机器写的文本，这三件事凑齐
-才是危险的，而巡检要拆掉的就是中间那件。
-
-整套东西默认关着，要你自己打开。
-
-**六套主题。** Midnight、Graphite、Nord、Solarized Dark、Gruvbox Dark，外加一套
-正经的亮色主题。按 `Ctrl+K` 直接输名字。
-
-### 它刻意不做的事
-
-它不取代你的终端、编辑器或 agent。它不代理 agent 的模型流量，也不碰它的 API
-key。它是控制面：负责启动、观察、对话，然后让开。
-
-在应用里删任何东西都不会杀掉远端的工作。唯一会摧毁运行中会话的按钮叫 Kill，而且
-它会先问你。
-
-### 上手
-
-需要 Go 1.25+ 和 Node 20+。远端需要 `tmux` 和一个 SSH 账号；如果没有 tmux，
-AgentMux 可以帮你装。
-
-```sh
-git clone git@github.com:tan-zhuo/AgentMux.git
-cd AgentMux
-cd frontend && npm install && npm run build && cd ..
-go build -o agentmux .
-./agentmux
-```
-
-前端会被嵌进二进制，所以 `npm run build` 必须在 `go build` 之前跑。
-
-在 Linux 上 webview 是 WebKitGTK，编译期就要有它的头文件。AgentMux 编译时用的是
-GTK3 加 webkit2gtk-4.1——今天的桌面上装的就是这一套；Wails 默认会去找 GTK4 和
-webkitgtk-6.0，而后者从 Ubuntu 24.04 才有。装好头文件，并且把这条路径显式写出来：
-
-```sh
-sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
-go build -tags gtk3 -o agentmux .
-```
-
-`go vet` 和 `go test` 同样要带 `-tags gtk3`。macOS 和 Windows 用系统自己的
-webview——WKWebView 和 WebView2——不需要装任何东西，这个 tag 在那边没有作用。
-
-在 Windows 上，这样直接 `go build` 出来的是 console 子系统的二进制——开发时正好，
-Wails 的日志会打到终端里。但如果是要双击运行的，得链接成 GUI 子系统，否则应用后面
-会挂一个黑色控制台窗口：
-
-```sh
-go build -ldflags "-H windowsgui" -o agentmux.exe .
-```
-
-代价是 stderr 无处可去，启动失败会变成"什么都没发生"。所以 AgentMux 会把这类错误
-写到数据目录下的 `startup-error.log`。
-
-**Windows 上正经装一份：**
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Build
-```
-
-它会构建、装到 `%LOCALAPPDATA%\Programs\AgentMux`，并建好桌面和开始菜单快捷方式。
-按用户安装，不需要管理员权限，也不会碰 `%APPDATA%\AgentMux` 里的数据——覆盖安装
-之后你的服务器、密钥和布局都还在。想卸载就加 `-Uninstall`。
-
-加一台服务器，给工作区指一个它上面的目录，给 agent 一条命令（`claude`、
-`opencode`，你跑什么就写什么），按 Start。
-
-快捷键：`Ctrl+K` 打开命令面板，这是附加 agent、开 shell、换主题、装 CLI 最快的
-路子。`Ctrl+B` 收起侧栏。
-
-左右两侧栏都可以拖分隔线改宽度，宽度会记住。双击分隔线恢复默认，或者用 Tab 聚焦
-它之后按方向键微调。
-
-**或者直接拿别人编译好的。** 每个发布的 release 都带三个平台的构建，由 GitHub
-Actions 从打了 tag 的那个 commit 编出来：
-
-| 文件 | 是什么 |
-|---|---|
-| `agentmux-macos-universal.zip` | `AgentMux.app`，一个二进制同时跑 Intel 和 Apple Silicon |
-| `agentmux-windows-amd64.zip` | `agentmux.exe` 加安装脚本 |
-| `agentmux-linux-amd64.tar.gz` | 二进制、图标、`.desktop` 文件和 `install.sh` |
-
-Linux 那份运行时需要 GTK3 和 WebKitGTK 4.1（Debian/Ubuntu 上是
-`libwebkit2gtk-4.1-0`，Fedora 上是 `webkit2gtk4.1`）。大多数桌面本来就装了；
-真的缺了的话，`install.sh` 会直接告诉你，而不是留给你一个一声不吭就退出的二进制。
-
-每个旁边都有对应的 `.sha256`。设置面板里能看到这个二进制是从哪个版本编出来的，
-你随时知道自己在跑什么。
-
-**这些构建没有做公证（notarization）**——那需要 Apple 开发者账号和微软的证书——
-所以第一次打开要多一步。
-
-**Windows**：点"更多信息"，再点"仍要运行"。
-
-**macOS** 要看版本，因为 macOS 15 把"右键→打开"这个老办法删掉了：
-
-| 你的 macOS | 怎么开 |
-|---|---|
-| 15 Sequoia 及以上 | 先双击让它被拦下，然后 系统设置 → 隐私与安全性 → 拉到底部"安全性" → **仍要打开** → 输密码 → 再点"打开" |
-| 14 Sonoma 及以下 | 右键（Control 点按）应用 → **打开** → 再点"打开" |
-| 任何版本 | 终端里跑 `xattr -dr com.apple.quarantine /Applications/AgentMux.app`，之后正常双击即可 |
-
-上面这几步清掉的隔离标记，是**浏览器**打上的，不在压缩包里。用
-`curl -L -O <链接>` 下载而不是点链接，就没有标记可清，第一次双击就能开。
-
-### 你的密钥放在哪
-
-密码和私钥口令在落盘之前用 AES-256-GCM 加密。主密钥存在系统钥匙串里——Windows
-用凭据管理器，macOS 用 Keychain，Linux 用 Secret Service。如果钥匙串连不上，
-AgentMux 会退回到 `0600` 权限的文件，并在状态栏明确告诉你，因为更弱的保证不该
-悄无声息。
-
-主机密钥在首次连接时固定。之后不匹配会直接中止并给出清楚的解释，而不是含糊带过；
-清除固定值是一件需要你主动去做的事。
-
-密钥从不进入界面层。前端只知道某个密钥"设了没有"，永远不知道它是什么。
-
-### 大致结构
-
-```
-main.go                Wails 应用、服务注册、窗口
-internal/store/        SQLite、AES-256-GCM 加密、系统钥匙串
-internal/sshx/         SSH 连接池、认证、PTY 管理
-internal/tmuxx/        tmux 命令封装
-internal/sftpx/        远程文件系统与传输
-internal/metrics/      一条命令读完的主机指标
-internal/agentkit/     agent CLI 的目录与探测
-internal/app/          前端调用的服务层
-frontend/src/          React 19 + TypeScript + Tailwind 4 + xterm.js + Monaco
-tools/icongen/         把应用图标按各平台要的尺寸画出来
-.github/workflows/     每次 push 跑 CI，每次发布编三个平台的桌面版
-```
-
-后端 Go + Wails 3，前端 React。大约 4300 行 Go、4000 行 TypeScript。
-
-**每台服务器一条连接。** 所有终端和命令都以独立 channel 复用同一条 SSH 连接，
-和 OpenSSH 的 `ControlMaster` 是一个思路。空闲连接十分钟后回收，状态轮询只碰
-已经连上的服务器——所以配一百台机器，在你真正用到之前几乎不花代价。
-
-**agent 跑在登录 shell 里，而不是作为进程本身。** 启动 agent 会创建
-`agentmux/{项目}/{agent}` 会话，然后把命令敲进去。agent 退出时 pane 还在，滚动
-历史还在，你可以直接接手继续敲。
-
-两个花了真金白银调试时间的坑，写下来省你的：
-
-*tmux 会转义输出中的控制字符。* 当 `tmux -F` 的输出送给一个非终端的客户端时
-（SSH exec 通道就不是终端），控制字节会被转义：制表符变成 `_`，`0x1f` 变成字面量
-`\037`。用制表符做字段分隔符会让每一行静默塌成一个无法解析的字段。封装层改用了
-可打印分隔符，并把自由文本字段排在最后。
-
-*终端字节在 IPC 边界上走 base64。* PTY 输出在任意分块边界上都不是合法 UTF-8，
-所以两个方向都编码，xterm 拿到的是 `Uint8Array`。后端还为每个 shell 保留 256 KB
-滚动缓冲并在附加时回放，所以切标签页永远不会看到一片空白。
-
-*在组件内部定义组件，每次渲染都会重新挂载。* React 按引用比较元素类型，嵌套定义
-每次都是一个新类型——整棵子树卸载、effect 重新执行、下面的面板重新拉数据。这个问题
-在这里的表现是：连上服务器、状态轮询一开始，右侧面板就每隔几秒闪一下。现在
-`react/no-unstable-nested-components` 已经在 lint 配置里设为 error，不会再回来。
-
-*指标是一条命令，不是一个数字一条命令。* 速率类指标是在那条命令内部、围绕半秒
-sleep 采样两次 `/proc` 算出来的，这让后端保持无状态，也让读数不随面板轮询频率而
-改变含义。依赖 Linux 的 `/proc`；在其它系统上面板会告诉你哪些读不到，而不是显示
-一堆 0。
-
-### 测试
-
-`go test ./...` 离线安全；集成测试除非你指向一台真实主机，否则会跳过。
-
-```sh
-AGENTMUX_TEST_HOST=127.0.0.1 AGENTMUX_TEST_PORT=2222 \
-AGENTMUX_TEST_USER=you AGENTMUX_TEST_KEY=/path/to/key \
-go test ./internal/integration -v
-```
-
-覆盖连接、主机密钥不匹配、连接复用、tmux 会话生命周期、滚动回放、工具链探测、
-编辑器的读—改—存全链路（含冲突保护），以及最要紧的那条：关闭终端只会分离，不会
-杀掉远端进程。
-
-`AGENTMUX_DATA_DIR` 可以把应用指向另一份配置，演示录制就是这么做到不碰真实环境的。
-
-### 怎么发一个版本
-
-推代码，然后在 GitHub 上用 `v0.2.0` 这样的 tag 发一个 release。就这么一步。
-`.github/workflows/release.yml` 会从那个 commit 编出 macOS、Windows、Linux 三个
-版本，连同校验和一起挂到你刚发布的这个 release 上——除此之外没有别的触发条件，
-所以出包永远是你主动决定的事。想验证流水线还能跑，用 `workflow_dispatch` 触发
-一次，它会照样编三个平台，但不碰任何 release。
-
-你打的那个 tag 会通过 `-ldflags "-X agentmux/internal/app.Version=..."` 编进二进制，
-在设置面板里能看到，所以任何一个构建都能告诉你它是从哪儿来的。
-
-### 还没做的
-
-原设计里的主控 AI 还没实现。它需要的管道已经在了——广播已经返回每个 agent 的
-回执，这是最难的部分——但还没有模型面板，也没有工具权限模型。
-
-文件夹在数据库里有，但树目前是平铺项目的。没有配置导入导出、没有插件系统，标签页
-内也还不能分屏。文件传输一次只能传一个文件——还不支持整个目录，也还不支持拖拽。
-指标历史只存在于打开着的面板里，所以没有长时间跨度的曲线。
-
-编辑器用的是 Monaco，也就是 VS Code 的编辑器内核——但它不是 VS Code。它跑不了
-VS Code 插件：插件依赖 extension host，那是一个独立进程、一套 Node 运行时，和一大
-片 Monaco 根本没带的 API。所以没有 language server、没有 lint、没有 Copilot、没有
-主题市场——语法高亮是 Monaco 自己那套，补全也只能从当前文件里猜。它还会拒绝超过
-4 MiB 的文件和任何看起来是二进制的东西，因为用文本编辑器打开二进制正是把它弄坏
-的方式。如果你确实需要插件，就在那台机器上跑 `code-server`，让 AgentMux 用 tmux
-把它守住——那是真的 VS Code，这才是老实的答案。
-
-安装命令取自各厂商当前的官方文档。在你在意的机器上用之前，请对照最新文档再确认
-一遍。
-
----
+The orchestrator's design — the tool gate, the trust levels, the memory and skill
+layers, and the reasoning behind each — is written up in
+[docs/orchestrator-blueprint.md](docs/orchestrator-blueprint.md) (Chinese).
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
