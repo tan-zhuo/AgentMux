@@ -2,6 +2,7 @@ import { Clipboard, Dialogs } from '@wailsio/runtime'
 import clsx from 'clsx'
 import {
   ArrowUp,
+  Boxes,
   ChevronRight,
   ClipboardCopy,
   CornerUpLeft,
@@ -21,12 +22,12 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { errText, files as filesApi, on, windows as windowsApi } from '../lib/api'
+import { errText, files as filesApi, on, tree as treeApi, windows as windowsApi } from '../lib/api'
 import type { FileEntry, Listing, Transfer } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
-import { LaunchHere } from './LaunchHere'
+import { AgentPicker, LaunchHere } from './LaunchHere'
 import { Button, Empty, inputClass } from './ui'
 
 function bytes(n: number): string {
@@ -73,16 +74,17 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [newDir, setNewDir] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null)
-  // Set when the rocket on a row is clicked, so the picker targets that folder
-  // instead of the one currently open.
-  const [launchDir, setLaunchDir] = useState<string | null>(null)
+  // Set when the rocket on a row is clicked or a folder's menu asks to run an
+  // agent: the picker targets that folder instead of the one currently open, and
+  // opens where the pointer already is.
+  const [launch, setLaunch] = useState<{ dir: string; x: number; y: number } | null>(null)
 
   const openTab = useAppStore((s) => s.openTab)
   const detached = useAppStore((s) => s.detached)
 
   /** Attach to the session the launcher just started. */
   function openAgentTab(session: string, title: string) {
-    setLaunchDir(null)
+    setLaunch(null)
     if (detached) {
       // This window shows one tab and has no strip to add another to, so the
       // new session gets a window of its own.
@@ -233,6 +235,63 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   }
 
   /**
+   * Registers a folder as a project with a workspace in it.
+   *
+   * The two dialogs ask for what is already on screen — the name is the folder,
+   * the path is the path, the server is the one being browsed — so the honest
+   * amount of typing here is none. Adding the same folder twice selects what is
+   * already there instead of duplicating it, and a folder whose name matches an
+   * existing project joins that project rather than standing up a rival copy,
+   * which is what the same checkout on a second host should do.
+   */
+  async function addAsProject(path: string) {
+    const { snapshot, refreshSnapshot, select } = useAppStore.getState()
+    const name = path.split('/').filter(Boolean).pop() || path
+    const already = snapshot.workspaces.find(
+      (w) => w.serverId === tab.serverId && w.remotePath === path,
+    )
+    if (already) {
+      select({ kind: 'workspace', id: already.id })
+      toast('info', `${already.name} already points at this folder`)
+      return
+    }
+    try {
+      const twin = snapshot.projects.find((p) => p.name === name)
+      const project =
+        twin ??
+        (await treeApi.saveProject({
+          id: '',
+          name,
+          description: '',
+          folderId: null,
+          sort: 0,
+          createdAt: 0,
+        }))
+      const ws = await treeApi.saveWorkspace({
+        id: '',
+        projectId: project.id,
+        serverId: tab.serverId,
+        name,
+        remotePath: path,
+        defaultTmuxSession: '',
+        defaultAgentCommand: '',
+        env: {},
+        sort: 0,
+      })
+      await refreshSnapshot()
+      select({ kind: 'workspace', id: ws.id })
+      toast(
+        'ok',
+        twin
+          ? `${name} added to the project ${project.name} — add an agent to it on the left`
+          : `${name} is now a project — add an agent to it on the left`,
+      )
+    } catch (e) {
+      toast('error', errText(e))
+    }
+  }
+
+  /**
    * Applies the inline rename, which only Enter does.
    *
    * Escape and clicking away abandon it instead: a rename is a change to a file
@@ -322,6 +381,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button size="sm" variant="subtle" title="New folder" onClick={() => setNewDir('')}>
           <FolderPlus size={12} />
         </Button>
+        <Button
+          size="sm"
+          variant="subtle"
+          title={`Add ${cwd.split('/').filter(Boolean).pop() || cwd} as a project — a project and a workspace, without the forms`}
+          onClick={() => void addAsProject(cwd)}
+        >
+          <Boxes size={12} />
+        </Button>
         <Button size="sm" variant="subtle" title="Refresh" onClick={() => void load(cwd)} disabled={loading}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : undefined} />
         </Button>
@@ -353,16 +420,17 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         </div>
       )}
 
-      {launchDir && (
-        <div className="flex items-center gap-2 border-b hairline bg-ink-900 px-2.5 py-2">
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-400">
-            {launchDir}
-          </span>
-          <LaunchHere serverId={tab.serverId} dir={launchDir} onLaunched={openAgentTab} />
-          <Button size="sm" onClick={() => setLaunchDir(null)}>
-            Cancel
-          </Button>
-        </div>
+      {/* Asking which agent to run belongs at the folder that was clicked, not
+          in a bar above the listing that has to be found and then cancelled. */}
+      {launch && (
+        <AgentPicker
+          serverId={tab.serverId}
+          dir={launch.dir}
+          x={launch.x}
+          y={launch.y}
+          onClose={() => setLaunch(null)}
+          onLaunched={openAgentTab}
+        />
       )}
 
       {error && (
@@ -385,6 +453,9 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                   onDoubleClick={() => (isDir ? void load(e.path) : openEditor(e))}
                   onContextMenu={(ev) => {
                     setSelected(e.path)
+                    // Where the menu was opened, so anything it opens in turn
+                    // appears in the same place rather than jumping.
+                    const at = { x: ev.clientX, y: ev.clientY }
                     openContextMenu(ev, [
                       isDir
                         ? { label: 'Open', icon: Folder, onSelect: () => void load(e.path) }
@@ -400,7 +471,15 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                         ? {
                             label: 'Run agent here',
                             icon: Rocket,
-                            onSelect: () => setLaunchDir(e.path),
+                            onSelect: () => setLaunch({ dir: e.path, ...at }),
+                          }
+                        : {},
+                      isDir
+                        ? {
+                            label: 'Add as a project',
+                            icon: Boxes,
+                            hint: 'project and workspace',
+                            onSelect: () => void addAsProject(e.path),
                           }
                         : {},
                       isDir
@@ -505,10 +584,22 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     <span className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100">
                       {isDir && (
                         <button
+                          title={`Add ${e.name} as a project`}
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            void addAsProject(e.path)
+                          }}
+                          className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
+                        >
+                          <Boxes size={12} />
+                        </button>
+                      )}
+                      {isDir && (
+                        <button
                           title={`Run an agent in ${e.name}`}
                           onClick={(ev) => {
                             ev.stopPropagation()
-                            setLaunchDir(e.path)
+                            setLaunch({ dir: e.path, x: ev.clientX, y: ev.clientY })
                           }}
                           className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-accent"
                         >
