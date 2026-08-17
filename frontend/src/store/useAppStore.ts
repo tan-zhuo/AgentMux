@@ -52,13 +52,17 @@ export interface Toast {
   text: string
 }
 
-/** How a two-or-three-way split is laid out. Four panes are always a 2×2 grid,
- *  where an axis would mean nothing. */
+/** Which way a split divides. Two or three panes divide along this axis alone;
+ *  from four up it decides whether the grid is wider than tall or the reverse,
+ *  and means nothing at all when the grid comes out square. */
 export type SplitAxis = 'cols' | 'rows'
 
-/** The most panes worth having. Past four, each one is too small to read a
- *  terminal in, and the tab strip is the better tool. */
-export const MAX_PANES = 4
+/** The most panes at once: a 3×3 wall.
+ *
+ *  Nothing technical stops more — a pane is a tab, and tabs are unlimited — but
+ *  a tenth pane would push the grid to 4×4, where a terminal on a laptop screen
+ *  is about forty columns wide and stops being readable. */
+export const MAX_PANES = 9
 
 export type RightPanel =
   | 'detail'
@@ -191,6 +195,11 @@ interface AppState {
    *  which is the pane holding keyboard focus. One entry means no split. */
   paneIds: string[]
   splitAxis: SplitAxis
+  /** True while the focused pane fills the area and the rest of the split is
+   *  hidden — for reading something a nine-way grid made too small. It follows
+   *  the focus rather than pinning one tab, and is deliberately not persisted:
+   *  a zoom is attention, and attention is not a layout. */
+  paneZoom: boolean
   rightPanel: RightPanel
   sidebarOpen: boolean
   rightOpen: boolean
@@ -220,6 +229,8 @@ interface AppState {
   closePane: (tabId: string) => void
   /** Move keyboard focus to the next (+1) or previous (-1) pane. */
   focusPane: (delta: number) => void
+  /** Fill the area with the focused pane, or put the split back. */
+  toggleZoom: () => void
   setSplitAxis: (axis: SplitAxis) => void
   setRightPanel: (p: RightPanel) => void
   toggleSidebar: () => void
@@ -265,6 +276,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selection: { kind: 'none' },
   paneIds: [],
   splitAxis: 'cols',
+  paneZoom: false,
   rightPanel: 'detail',
   sidebarOpen: true,
   rightOpen: true,
@@ -418,6 +430,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // what is already on screen instead of replacing it. Silently ignored once
     // the grid is full, because the tab is still worth opening.
     const newPane = !!opts?.newPane && get().paneIds.length < MAX_PANES
+    if (newPane) set({ paneZoom: false })
     // Re-focus an equivalent tab instead of stacking duplicates.
     const existing = get().tabs.find(
       (t) =>
@@ -502,7 +515,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id !== id)
       const active = s.activeTabId === id ? null : s.activeTabId
-      return { tabs, ...reconcilePanes(tabs, s.paneIds, active) }
+      const panes = reconcilePanes(tabs, s.paneIds, active)
+      return { tabs, ...panes, paneZoom: panes.paneIds.length > 1 && s.paneZoom }
     })
     // Closing the tab a pane was showing collapses the split, and the collapsed
     // layout is the one worth coming back to.
@@ -534,7 +548,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id !== id)
       const active = s.activeTabId === id ? null : s.activeTabId
-      return { tabs, ...reconcilePanes(tabs, s.paneIds, active) }
+      const panes = reconcilePanes(tabs, s.paneIds, active)
+      return { tabs, ...panes, paneZoom: panes.paneIds.length > 1 && s.paneZoom }
     })
     // Closing the tab a pane was showing collapses the split, and the collapsed
     // layout is the one worth coming back to.
@@ -566,7 +581,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   requestSplit() {
     if (get().paneIds.length >= MAX_PANES) {
-      get().toast('info', 'Four panes is the limit — close one before adding another')
+      get().toast('info', `${MAX_PANES} panes is the limit — close one before adding another`)
       return
     }
     // Nothing spare to show means the pane needs a session started for it, and
@@ -575,6 +590,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   splitWith(tabId) {
+    // Asking for another pane is asking to see it beside the others, so a zoom
+    // that would hide it on arrival ends here.
+    set({ paneZoom: false })
     set((s) => {
       const paneIds = addPane(s.paneIds, tabId)
       // A full grid cannot take another pane, and focusing a tab that is not on
@@ -595,7 +613,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Closing a pane hides a tab; it does not close it. The shell stays
       // attached and the tab stays in the strip.
       const activeTabId = s.activeTabId === tabId ? paneIds[0] : s.activeTabId
-      return { paneIds, activeTabId }
+      // One pane left is the un-split state, where a zoom means nothing.
+      return { paneIds, activeTabId, paneZoom: paneIds.length > 1 && s.paneZoom }
     })
     savePaneCount(get().paneIds.length)
   },
@@ -605,7 +624,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (s.paneIds.length < 2) return
     const at = s.paneIds.indexOf(s.activeTabId ?? '')
     const next = s.paneIds[(at + delta + s.paneIds.length) % s.paneIds.length]
+    // Zoomed, this steps through the panes one at a time at full size, which is
+    // the other half of being able to read a crowded grid.
     if (next) set({ activeTabId: next })
+  },
+
+  toggleZoom() {
+    set((s) => (s.paneIds.length > 1 ? { paneZoom: !s.paneZoom } : { paneZoom: false }))
   },
 
   setSplitAxis(splitAxis) {

@@ -3,8 +3,10 @@ import {
   Bot,
   ChevronsRight,
   Columns2,
+  Expand,
   Minimize2,
   Rows2,
+  Shrink,
   SplitSquareHorizontal,
   ExternalLink,
   FileCode2,
@@ -24,34 +26,230 @@ import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
 import { Empty } from './ui'
 
+/** The narrowest and shortest a pane is worth being, in CSS pixels: roughly
+ *  forty columns and a dozen rows at the terminal's own type size. Below that a
+ *  pane stops being a terminal and becomes a sliver, so the grid wraps instead
+ *  of dividing further. */
+const CELL_MIN_W = 330
+const CELL_MIN_H = 176
+
+/** No pane may be dragged below this share of the axis it sits on. */
+const MIN_SHARE = 0.1
+
+type Grid = { cols: number; rows: number }
+
+function equalShares(n: number): number[] {
+  return Array.from({ length: n }, () => 1 / n)
+}
+
+function sum(ns: number[]): number {
+  return ns.reduce((a, b) => a + b, 0)
+}
+
+/**
+ * How many columns and rows a number of panes is arranged in, given the space.
+ *
+ * Two and three divide along the axis alone, because a terminal would rather be
+ * full height and narrow than half of both. From four up the arrangement is the
+ * squarest one that fits, with the axis choosing which way a non-square grid
+ * leans: six panes are 3×2 side by side and 2×3 stacked.
+ *
+ * Then the measured area gets a veto. A column too narrow to read is dropped and
+ * its panes wrap onto another row, so narrowing the window — or opening both side
+ * panels — turns a 3×3 wall into a taller, narrower grid rather than nine
+ * unreadable slivers. Width is settled last because a short pane still shows its
+ * last lines, while a narrow one wraps every one of them.
+ */
+function paneGrid(count: number, axis: SplitAxis, w: number, h: number): Grid {
+  let cols: number
+  let rows: number
+  if (count <= 3) {
+    cols = axis === 'cols' ? count : 1
+    rows = axis === 'cols' ? 1 : count
+  } else {
+    const major = Math.ceil(Math.sqrt(count))
+    const minor = Math.ceil(count / major)
+    cols = axis === 'cols' ? major : minor
+    rows = axis === 'cols' ? minor : major
+  }
+  // Zero means not measured yet — the first frame keeps the shape the count
+  // asked for rather than collapsing to one column.
+  if (h > 0) {
+    while (rows > 1 && h / rows < CELL_MIN_H) {
+      rows -= 1
+      cols = Math.ceil(count / rows)
+    }
+  }
+  if (w > 0) {
+    while (cols > 1 && w / cols < CELL_MIN_W) {
+      cols -= 1
+      rows = Math.ceil(count / cols)
+    }
+  }
+  return { cols, rows: Math.max(rows, Math.ceil(count / cols)) }
+}
+
 /** Where a pane sits, as percentages of the terminal area.
  *
  *  Computed rather than measured: a CSS grid would need its cells measured
  *  before the absolutely-positioned tabs could be placed into them, and a frame
  *  of wrong geometry is a frame of wrongly-sized terminal. */
-function paneRect(index: number, count: number, axis: SplitAxis): React.CSSProperties {
-  const pct = (n: number) => `${n}%`
+function paneRect(
+  index: number,
+  count: number,
+  grid: Grid,
+  colShares: number[],
+  rowShares: number[],
+): React.CSSProperties {
   if (count <= 1) return { inset: 0 }
-  if (count === 4) {
-    const col = index % 2
-    const row = index < 2 ? 0 : 1
-    return { left: pct(col * 50), top: pct(row * 50), width: '50%', height: '50%' }
+  const row = Math.floor(index / grid.cols)
+  const col = index % grid.cols
+  // A last row with fewer panes than the others divides itself between them in
+  // the same proportions, so eight panes are three, three and two rather than a
+  // hole where the ninth would have been.
+  const inRow = Math.min(grid.cols, count - row * grid.cols)
+  const span = colShares.slice(0, inRow)
+  const total = sum(span)
+  return {
+    left: `${(sum(span.slice(0, col)) / total) * 100}%`,
+    top: `${sum(rowShares.slice(0, row)) * 100}%`,
+    width: `${(span[col] / total) * 100}%`,
+    height: `${rowShares[row] * 100}%`,
   }
-  const share = 100 / count
-  return axis === 'cols'
-    ? { left: pct(index * share), top: 0, width: pct(share), height: '100%' }
-    : { left: 0, top: pct(index * share), width: '100%', height: pct(share) }
 }
 
 /** Tabs that are open but not on screen stay mounted, laid out, and invisible.
  *
  *  Hiding them with `display: none` would collapse the terminal to zero columns
  *  and make xterm reflow every line the moment it came back. They are laid out
- *  at the size of a pane rather than of the whole area — every pane is the same
- *  size, so a tab swapped into one needs no resize, and the remote session is
- *  never reflowed to a width nobody is looking at. */
-function hiddenRect(count: number, axis: SplitAxis): React.CSSProperties {
-  return { ...paneRect(0, count, axis), visibility: 'hidden' }
+ *  at the size of the first pane rather than of the whole area, so a tab swapped
+ *  into the split needs no resize — or at most the one a short last row implies
+ *  — instead of being reflowed to a width nobody is looking at. */
+function hiddenRect(
+  count: number,
+  grid: Grid,
+  colShares: number[],
+  rowShares: number[],
+): React.CSSProperties {
+  return { ...paneRect(0, count, grid, colShares, rowShares), visibility: 'hidden' }
+}
+
+/**
+ * The draggable seams between panes.
+ *
+ * One set of column shares is used by every row and one set of row shares by
+ * every column, so the grid stays a grid: dragging a seam moves it in all the
+ * rows at once rather than knocking the panes out of alignment. Only full rows
+ * carry vertical seams — a short last row divides itself proportionally, and a
+ * handle there would sit somewhere no boundary exists.
+ *
+ * The shares are not persisted. A grid that changes shape starts even again,
+ * which is the only honest thing to restore when the cells themselves are
+ * different cells.
+ */
+function PaneSeams({
+  count,
+  grid,
+  colShares,
+  rowShares,
+  onCols,
+  onRows,
+}: {
+  count: number
+  grid: Grid
+  colShares: number[]
+  rowShares: number[]
+  onCols: (shares: number[]) => void
+  onRows: (shares: number[]) => void
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [dragging, setDragging] = useState<string | null>(null)
+
+  function startDrag(e: React.PointerEvent, axis: 'x' | 'y', boundary: number, key: string) {
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (!rect) return
+    e.preventDefault()
+    const shares = axis === 'x' ? colShares : rowShares
+    const from = [...shares]
+    const span = axis === 'x' ? rect.width : rect.height
+    const origin = axis === 'x' ? e.clientX : e.clientY
+    const before = from[boundary - 1]
+    const after = from[boundary]
+    setDragging(key)
+
+    const move = (ev: PointerEvent) => {
+      const moved = ((axis === 'x' ? ev.clientX : ev.clientY) - origin) / span
+      // Neither neighbour may be squeezed past the floor, so a seam stops rather
+      // than collapsing the pane on the other side of it.
+      const delta = Math.max(MIN_SHARE - before, Math.min(moved, after - MIN_SHARE))
+      const next = [...from]
+      next[boundary - 1] = before + delta
+      next[boundary] = after - delta
+      if (axis === 'x') onCols(next)
+      else onRows(next)
+    }
+    const done = () => {
+      setDragging(null)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', done)
+      window.removeEventListener('pointercancel', done)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', done)
+    window.addEventListener('pointercancel', done)
+  }
+
+  const seams: React.ReactNode[] = []
+
+  for (let row = 0; row < grid.rows; row++) {
+    const inRow = Math.min(grid.cols, count - row * grid.cols)
+    if (inRow < grid.cols) continue
+    for (let b = 1; b < grid.cols; b++) {
+      const key = `x${b}`
+      seams.push(
+        <div
+          key={`${key}-${row}`}
+          onPointerDown={(e) => startDrag(e, 'x', b, key)}
+          onDoubleClick={() => onCols(equalShares(grid.cols))}
+          title="Drag to resize · double-click to even them out"
+          style={{
+            left: `${sum(colShares.slice(0, b)) * 100}%`,
+            top: `${sum(rowShares.slice(0, row)) * 100}%`,
+            height: `${rowShares[row] * 100}%`,
+          }}
+          className={clsx(
+            'pointer-events-auto absolute -ml-[3px] w-[7px] cursor-col-resize touch-none',
+            dragging === key ? 'bg-accent/50' : 'hover:bg-accent/30',
+          )}
+        />,
+      )
+    }
+  }
+
+  for (let b = 1; b < grid.rows; b++) {
+    const key = `y${b}`
+    seams.push(
+      <div
+        key={key}
+        onPointerDown={(e) => startDrag(e, 'y', b, key)}
+        onDoubleClick={() => onRows(equalShares(grid.rows))}
+        title="Drag to resize · double-click to even them out"
+        style={{ top: `${sum(rowShares.slice(0, b)) * 100}%` }}
+        className={clsx(
+          'pointer-events-auto absolute inset-x-0 -mt-[3px] h-[7px] cursor-row-resize touch-none',
+          dragging === key ? 'bg-accent/50' : 'hover:bg-accent/30',
+        )}
+      />,
+    )
+  }
+
+  return (
+    // Transparent to the mouse except on the handles themselves, so a click in a
+    // pane still reaches the terminal.
+    <div ref={rootRef} className="pointer-events-none absolute inset-0 z-10">
+      {seams}
+    </div>
+  )
 }
 
 const kindIcon = {
@@ -92,6 +290,30 @@ export function TerminalArea() {
   const splitAxis = useAppStore((s) => s.splitAxis)
   const closePane = useAppStore((s) => s.closePane)
   const splitWith = useAppStore((s) => s.splitWith)
+  const toggleZoom = useAppStore((s) => s.toggleZoom)
+  // A zoom only exists inside a split; one pane already fills the area.
+  const zoomed = useAppStore((s) => s.paneZoom) && panes.length > 1
+
+  // The grid shape depends on the space available, so the space is measured.
+  const areaRef = useRef<HTMLDivElement | null>(null)
+  const [area, setArea] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = areaRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth
+      const h = el.clientHeight
+      setArea((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Dragged seam positions. Held as shares of the axis and only for the shape
+  // they were dragged in: a grid of a different size falls back to even, which
+  // is what the mismatched length below means.
+  const [draggedCols, setDraggedCols] = useState<number[]>([])
+  const [draggedRows, setDraggedRows] = useState<number[]>([])
   const setSplitAxis = useAppStore((s) => s.setSplitAxis)
   const openDialog = useDialogs((s) => s.open)
 
@@ -206,6 +428,14 @@ export function TerminalArea() {
     moveTab(d.fromIndex, to)
   }
 
+  const grid = paneGrid(panes.length, splitAxis, area.w, area.h)
+  const colShares = draggedCols.length === grid.cols ? draggedCols : equalShares(grid.cols)
+  const rowShares = draggedRows.length === grid.rows ? draggedRows : equalShares(grid.rows)
+  // Flipping is only worth offering when it would land on a different shape: at
+  // 2×2, or once a narrow window has forced a single column, both axes agree.
+  const flipped = paneGrid(panes.length, splitAxis === 'cols' ? 'rows' : 'cols', area.w, area.h)
+  const canFlip = grid.cols !== flipped.cols || grid.rows !== flipped.rows
+
   return (
     // Positioned: the tear-out hint below the strip is placed against this.
     <div className="relative flex min-w-0 flex-1 flex-col bg-ink-950">
@@ -220,12 +450,27 @@ export function TerminalArea() {
             // In a split, more than one tab is on screen. Both are lifted out of
             // the strip's background; only the focused one is marked, because
             // "which pane am I typing into" is the question a split raises.
-            const onScreen = panes.includes(tab.id)
+            // Zoomed, the strip says what it always says: what you can see.
+            const inPane = panes.includes(tab.id)
+            const onScreen = inPane && (!zoomed || active)
             const isDragging = dragId === tab.id
             return (
               <div
                 key={tab.id}
                 data-tab-index={index}
+                // Double-clicking the tab zooms its pane. The pane itself cannot
+                // take the gesture: inside a terminal a double-click selects a
+                // word, and inside the file browser it opens what was hit.
+                onDoubleClick={() => {
+                  // It means "show me this one big" — and on the pane that is
+                  // already filling the area, the opposite.
+                  if (active && zoomed) {
+                    toggleZoom()
+                    return
+                  }
+                  if (!active) setActiveTab(tab.id)
+                  if (!zoomed) toggleZoom()
+                }}
                 onPointerDown={(e) => onPointerDown(e, tab, index)}
                 onPointerMove={onPointerMove}
                 onPointerUp={(e) => void onPointerUp(e)}
@@ -240,19 +485,33 @@ export function TerminalArea() {
                     {
                       label: 'Show in its own pane',
                       icon: SplitSquareHorizontal,
-                      hint: onScreen
-                        ? 'already on screen'
+                      hint: inPane
+                        ? 'already in the split'
                         : panes.length >= MAX_PANES
-                          ? 'four panes is the limit'
+                          ? `${MAX_PANES} panes is the limit`
                           : undefined,
-                      disabled: onScreen || panes.length >= MAX_PANES,
+                      disabled: inPane || panes.length >= MAX_PANES,
                       onSelect: () => splitWith(tab.id),
+                    },
+                    {
+                      label: zoomed && active ? 'Back to the split' : 'Fill the area with this pane',
+                      icon: zoomed && active ? Shrink : Expand,
+                      hint: '⇧⌘↵ · double-click the tab',
+                      disabled: panes.length < 2 || !inPane,
+                      onSelect: () => {
+                        if (active && zoomed) {
+                          toggleZoom()
+                          return
+                        }
+                        if (!active) setActiveTab(tab.id)
+                        if (!zoomed) toggleZoom()
+                      },
                     },
                     {
                       label: 'Close this pane',
                       icon: Minimize2,
                       hint: 'the tab stays open',
-                      disabled: !onScreen || panes.length < 2,
+                      disabled: !inPane || panes.length < 2,
                       onSelect: () => closePane(tab.id),
                     },
                     separator,
@@ -346,15 +605,30 @@ export function TerminalArea() {
 
         {tabs.length > 0 && (
           <div className="flex shrink-0 items-center gap-0.5 border-l hairline px-1.5">
-            {/* Two and three panes divide along an axis; four are a 2×2 grid,
-                where flipping would mean nothing, so the control goes away. */}
-            {panes.length > 1 && panes.length < MAX_PANES && (
+            {panes.length > 1 && canFlip && (
               <button
                 onClick={() => setSplitAxis(splitAxis === 'cols' ? 'rows' : 'cols')}
-                title={splitAxis === 'cols' ? 'Stack the panes instead' : 'Put the panes side by side'}
+                title={
+                  splitAxis === 'cols'
+                    ? `Stack the panes instead — ${flipped.cols}×${flipped.rows}`
+                    : `Put the panes side by side — ${flipped.cols}×${flipped.rows}`
+                }
                 className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
               >
                 {splitAxis === 'cols' ? <Rows2 size={13} /> : <Columns2 size={13} />}
+              </button>
+            )}
+            {panes.length > 1 && (
+              <button
+                onClick={toggleZoom}
+                title={
+                  zoomed
+                    ? 'Back to the split — ⇧⌘↵'
+                    : 'Fill the area with the focused pane — ⇧⌘↵'
+                }
+                className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+              >
+                {zoomed ? <Shrink size={13} /> : <Expand size={13} />}
               </button>
             )}
             {panes.length > 1 && (
@@ -374,7 +648,7 @@ export function TerminalArea() {
               disabled={panes.length >= MAX_PANES}
               title={
                 panes.length >= MAX_PANES
-                  ? 'Four panes is the limit — close one first'
+                  ? `${MAX_PANES} panes is the limit — close one first`
                   : 'Add a pane: a host, a workspace, an agent or an open tab (⌘\\ splits with the next tab)'
               }
               className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100 disabled:pointer-events-none disabled:opacity-30"
@@ -393,7 +667,7 @@ export function TerminalArea() {
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1 bg-ink-800">
+      <div ref={areaRef} className="relative min-h-0 flex-1 bg-ink-800">
         {tabs.length === 0 ? (
           <Empty
             title="Nothing attached yet"
@@ -408,19 +682,26 @@ export function TerminalArea() {
             const index = panes.indexOf(tab.id)
             const shown = index !== -1
             const focused = tab.id === activeTabId
+            // Zoomed, the focused pane takes the area and its neighbours are
+            // parked at pane size rather than hidden at full size, so putting
+            // the split back costs no reflow.
+            const filling = zoomed && focused
+            const framed = shown && !zoomed && panes.length > 1
             return (
               <div
                 key={tab.id}
                 onPointerDownCapture={() => shown && !focused && setActiveTab(tab.id)}
                 className={clsx(
-                  'absolute overflow-hidden',
-                  shown && panes.length > 1 && 'outline outline-1 -outline-offset-1',
-                  shown && panes.length > 1 && (focused ? 'outline-accent/60' : 'outline-ink-800'),
+                  'group/pane absolute overflow-hidden',
+                  framed && 'outline outline-1 -outline-offset-1',
+                  framed && (focused ? 'outline-accent/60' : 'outline-ink-800'),
                 )}
                 style={
-                  shown
-                    ? paneRect(index, panes.length, splitAxis)
-                    : hiddenRect(panes.length, splitAxis)
+                  filling
+                    ? { inset: 0 }
+                    : shown && !zoomed
+                      ? paneRect(index, panes.length, grid, colShares, rowShares)
+                      : hiddenRect(panes.length, grid, colShares, rowShares)
                 }
               >
                 {tab.kind === 'files' ? (
@@ -430,9 +711,38 @@ export function TerminalArea() {
                 ) : (
                   <TerminalPane tab={tab} active={focused} />
                 )}
+
+                {/* Reading one pane of a nine-way grid needs it bigger, and a
+                    terminal cannot spare a double-click — inside one that
+                    selects a word. So the zoom is a control of its own, on the
+                    pane it acts on, appearing on hover. */}
+                {panes.length > 1 && (shown || filling) && (
+                  <button
+                    onClick={toggleZoom}
+                    title={
+                      zoomed
+                        ? 'Back to the split — ⇧⌘↵, or double-click the tab'
+                        : 'Fill the area with this pane — ⇧⌘↵, or double-click the tab'
+                    }
+                    className="absolute top-1 right-1 rounded-control bg-ink-900/80 p-1 text-ink-400 opacity-0 backdrop-blur-sm transition-opacity group-hover/pane:opacity-100 hover:text-ink-100 focus-visible:opacity-100"
+                  >
+                    {zoomed ? <Shrink size={12} /> : <Expand size={12} />}
+                  </button>
+                )}
               </div>
             )
           })
+        )}
+
+        {!zoomed && panes.length > 1 && (
+          <PaneSeams
+            count={panes.length}
+            grid={grid}
+            colShares={colShares}
+            rowShares={rowShares}
+            onCols={setDraggedCols}
+            onRows={setDraggedRows}
+          />
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@
 import {
   Activity,
   Bot,
+  Expand,
   FolderTree,
   Minimize2,
   Palette,
@@ -98,6 +99,13 @@ export function CommandPalette() {
           const s = useAppStore.getState()
           if (s.activeTabId) s.closePane(s.activeTabId)
         },
+      },
+      {
+        id: 'zoom-pane',
+        label: 'Fill the area with the focused pane',
+        hint: '⇧⌘↵ — or double-click its tab',
+        icon: Expand,
+        run: () => useAppStore.getState().toggleZoom(),
       },
       {
         id: 'flip-split',

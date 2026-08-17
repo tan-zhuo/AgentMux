@@ -88,6 +88,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       void termApi.write(id, btoa(binary)).catch(() => {})
     })
 
+    let tellFar = 0
     const observer = new ResizeObserver(() => {
       // A hidden pane reports zero size; fitting then would collapse the PTY.
       if (!hostRef.current?.clientWidth || !hostRef.current?.clientHeight) return
@@ -96,13 +97,21 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       } catch {
         /* xterm not ready */
       }
-      const id = shellIdRef.current
-      if (id) void termApi.resize(id, term.cols, term.rows).catch(() => {})
+      // Refit locally on every frame, but tell the far end once the size settles:
+      // dragging a pane seam or a side panel resizes continuously, and a resize
+      // per frame per pane on screen is a burst of round trips for geometry that
+      // is about to change again. The last one always lands.
+      window.clearTimeout(tellFar)
+      tellFar = window.setTimeout(() => {
+        const id = shellIdRef.current
+        if (id) void termApi.resize(id, term.cols, term.rows).catch(() => {})
+      }, 90)
     })
     observer.observe(hostRef.current)
 
     return () => {
       mountedRef.current = false
+      window.clearTimeout(tellFar)
       observer.disconnect()
       for (const d of disposersRef.current) d()
       disposersRef.current = []

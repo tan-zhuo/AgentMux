@@ -103,6 +103,12 @@ export default function App() {
           store.requestSplit()
         }
       }
+      // Zoom the focused pane, for reading something a crowded grid made too
+      // small. Enter rather than a letter: the terminal owns the letters.
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter') {
+        e.preventDefault()
+        useAppStore.getState().toggleZoom()
+      }
       // Move between panes without reaching for the mouse, which is the whole
       // point of watching two agents at once.
       if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.startsWith('Arrow')) {

@@ -34,11 +34,17 @@ a four-hour migration is not tied to an SSH session staying up.
 reporting, selection, search — not a transcript view. An operator can intervene
 mid-task, correct the agent and hand control back without restarting the run.
 
-**Several sessions on screen at once.** The terminal area divides into up to four
-panes — two or three along either axis, four as a grid — each holding its own
-session, on one host or on several, each independently interactive. A pane is a
-view rather than a session: closing it hides the terminal and leaves the shell
-attached, and the number of panes is restored on the next start. One dialog fills
+**Several sessions on screen at once.** The terminal area divides into up to nine
+panes — two or three along either axis, more as the squarest grid that fits, up
+to a 3×3 wall — each holding its own session, on one host or on several, each
+independently interactive. The arrangement follows the space
+it has: panes divide the area in proportions rather than pixels, and a column too
+narrow to read is dropped so that narrowing the window — or opening both side
+panels — wraps a 3×3 wall into a taller grid instead of leaving nine slivers.
+Seams are draggable, and any one pane can fill the area for a moment —
+double-click its tab — without disturbing the split it came from. A pane is a view rather than
+a session: closing it hides the terminal and leaves the shell attached, and the
+number of panes is restored on the next start. One dialog fills
 a pane from the hosts, workspace directories, running agents and open tabs
 available, so watching two agents on two servers costs a keystroke and a choice
 rather than an exercise in window management.
@@ -188,7 +194,8 @@ downloading with `curl -L -O <url>` avoids it.
 | `Ctrl/⌘ B` | Show or hide the tree |
 | `Ctrl/⌘ \` | Add a pane — instantly with the next open tab, otherwise asking what to attach |
 | `Ctrl/⌘ ⇧ \` | Close the pane, leaving the tab and its shell open |
-| `Ctrl/⌘ ⌥ ←` `→` | Move between panes |
+| `Ctrl/⌘ ⇧ ↵` | Fill the area with the focused pane, and back again |
+| `Ctrl/⌘ ⌥ ←` `→` | Move between panes — zoomed, this reads them one at a time |
 
 ## Architecture
 
