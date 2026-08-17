@@ -51,7 +51,14 @@ export interface Toast {
   text: string
 }
 
-export type RightPanel = 'detail' | 'broadcast' | 'tmux' | 'toolkit' | 'metrics' | 'memory'
+export type RightPanel =
+  | 'detail'
+  | 'broadcast'
+  | 'tmux'
+  | 'toolkit'
+  | 'metrics'
+  | 'memory'
+  | 'skills'
 
 const emptySnapshot: Snapshot = {
   folders: [],
@@ -202,7 +209,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         tree.getSetting('sidebarWidth', String(SIDEBAR_DEFAULT)),
         tree.getSetting('rightWidth', String(RIGHT_DEFAULT)),
       ])
-      const known: RightPanel[] = ['detail', 'broadcast', 'tmux', 'toolkit', 'metrics', 'memory']
+      const known: RightPanel[] = [
+        'detail', 'broadcast', 'tmux', 'toolkit', 'metrics', 'memory', 'skills',
+      ]
       set({
         snapshot,
         diagnostics,

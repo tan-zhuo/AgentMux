@@ -39,6 +39,14 @@ import type {
   LLMConfig,
   LLMModel,
   LLMStatus,
+  ImportResult,
+  Skill,
+  SkillFilter,
+  SkillMatch,
+  SkillQuery,
+  SkillStats,
+  SkillVersion,
+  ToolMeta,
 } from './types'
 
 // Wails binds methods as "<go package path>.<Type>.<Method>".
@@ -204,6 +212,24 @@ export const memory = {
   stats: () => call<MemoryStats>('MemoryService', 'Stats'),
   reindex: () => call<void>('MemoryService', 'Reindex'),
   cancelReindex: () => call<void>('MemoryService', 'CancelReindex'),
+}
+
+export const skills = {
+  list: (filter: SkillFilter) => call<Skill[]>('SkillService', 'List', filter),
+  get: (id: string) => call<Skill>('SkillService', 'Get', id),
+  create: (s: Partial<Skill>) => call<Skill>('SkillService', 'Create', s),
+  update: (s: Skill, note: string) => call<Skill>('SkillService', 'Update', s, note),
+  remove: (id: string) => call<void>('SkillService', 'Delete', id),
+  apply: (id: string, event: string) => call<Skill>('SkillService', 'Apply', id, event),
+  versions: (id: string) => call<SkillVersion[]>('SkillService', 'Versions', id),
+  rollback: (id: string, version: number) => call<Skill>('SkillService', 'Rollback', id, version),
+  match: (q: SkillQuery) => call<SkillMatch[]>('SkillService', 'Match', q),
+  stats: () => call<SkillStats>('SkillService', 'Stats'),
+  embed: () => call<void>('SkillService', 'Embed'),
+  exportJson: (ids: string[]) => call<string>('SkillService', 'ExportJSON', ids),
+  exportMarkdown: (ids: string[]) => call<string>('SkillService', 'ExportMarkdown', ids),
+  importJson: (data: string) => call<ImportResult>('SkillService', 'ImportJSON', data),
+  tools: () => call<ToolMeta[]>('SkillService', 'Tools'),
 }
 
 /** Turns a backend error into something worth showing a user. */

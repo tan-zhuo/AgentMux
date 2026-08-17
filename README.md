@@ -131,6 +131,20 @@ invalidates every stored vector — numbers from two models are not comparable �
 so the panel says so and offers to rebuild rather than quietly returning worse
 results.
 
+**Procedures worth repeating, written down.** The Skills panel holds named
+procedures: when one applies, what to do, which tools to reach for, what must
+never happen. Describe a situation in the test bench and you see which skills
+would be matched and why, before any of it is wired into a plan. Editing makes a
+new version and keeps the old one, so a rollback is always available — and a
+rollback is itself a new version rather than an erasure.
+
+A skill only ever recommends. It names tools; it carries nothing executable, and
+whether a named tool actually runs is decided separately, against that tool's own
+risk level. Skills the orchestrator proposes arrive as drafts and are not
+embedded at all until a person approves them, so an unreviewed skill cannot
+shape a plan — that is enforced by the vector being absent, not by a filter
+somebody could forget.
+
 **Six themes.** Midnight, Graphite, Nord, Solarized Dark, Gruvbox Dark and a
 proper light theme. `Ctrl+K` and start typing.
 
@@ -434,6 +448,16 @@ embedding 模型，什么都不会发出去。密钥在入库前就被抹掉—�
 "还搜不到"，等 Ollama 起来了重建一次就补上。换了 embedding 模型会让所有已存向量
 作废——两个模型的数字之间没有可比性——所以面板会明说并提供重建，而不是闷声给你
 更差的结果。
+
+**值得重复的做法，写下来。** 技能面板存的是命名过的处理流程：什么情况下适用、
+怎么做、该用哪些工具、什么绝对不能干。在测试台里描述一个场景，就能看到哪些技能会被
+匹配到、以及为什么——不用等它真的进了某次规划才知道。改一次存一个新版本，旧的留着，
+随时能回滚；而回滚本身也是新版本，不是抹掉。
+
+技能只提建议。它写工具的名字，不携带任何可执行的东西；某个工具到底跑不跑，是另一处
+按那个工具自己的风险档决定的。Orchestrator 提出的技能以草案进来，在有人批准之前
+**根本不会被 embedding**，所以未经审核的技能无法影响规划——这是靠"向量压根不存在"
+保证的，不是靠某个可能被忘掉的过滤条件。
 
 **六套主题。** Midnight、Graphite、Nord、Solarized Dark、Gruvbox Dark，外加一套
 正经的亮色主题。按 `Ctrl+K` 直接输名字。

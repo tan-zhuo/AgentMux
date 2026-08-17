@@ -546,3 +546,102 @@ export interface LLMStatus {
   error: string
   hint: string
 }
+
+// --- skills -----------------------------------------------------------------
+
+export type SkillStatus = 'draft' | 'active' | 'disabled' | 'archived' | 'rejected'
+export type SkillScope = 'global' | 'project' | 'agent_type'
+export type SkillEvent = 'approve' | 'reject' | 'disable' | 'enable' | 'archive' | 'restore'
+export type Risk = 'read' | 'act' | 'destructive'
+
+export interface SkillStep {
+  order: number
+  description: string
+  recommendedTools: string[]
+  notes: string
+}
+
+export interface SkillExamples {
+  success: string
+  failure: string
+}
+
+export interface Skill {
+  id: string
+  name: string
+  description: string
+  trigger: string
+  scope: SkillScope
+  projectIds: string[]
+  agentTypes: string[]
+  steps: SkillStep[]
+  constraints: string[]
+  examples: SkillExamples
+  version: number
+  status: SkillStatus
+  createdBy: string
+  originRunId: string
+  confidence: number | null
+  embeddingModel: string
+  dim: number
+  hasVector: boolean
+  createdAt: number
+  updatedAt: number
+  usageCount: number
+  lastUsedAt: number | null
+  successCount: number
+  failureCount: number
+}
+
+export interface SkillVersion {
+  id: string
+  skillId: string
+  version: number
+  snapshot: Skill
+  note: string
+  changedBy: string
+  createdAt: number
+}
+
+export interface SkillFilter {
+  statuses?: string[]
+  scope?: string
+  projectId?: string
+  text?: string
+  createdBy?: string
+}
+
+export interface SkillQuery {
+  text: string
+  projectId?: string
+  agentType?: string
+  topK?: number
+  minScore?: number
+}
+
+export interface SkillMatch {
+  skill: Skill
+  score: number
+  reason: string
+}
+
+export interface SkillStats {
+  total: number
+  active: number
+  draft: number
+  disabled: number
+  archived: number
+  pending: number
+  model: string
+}
+
+export interface ImportResult {
+  imported: number
+  skipped: string[]
+}
+
+export interface ToolMeta {
+  name: string
+  description: string
+  risk: Risk
+}

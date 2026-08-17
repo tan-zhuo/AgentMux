@@ -121,6 +121,48 @@ CREATE TABLE IF NOT EXISTS memories (
 CREATE INDEX IF NOT EXISTS idx_memories_scope    ON memories(scope, project_id);
 CREATE INDEX IF NOT EXISTS idx_memories_kind     ON memories(kind);
 CREATE INDEX IF NOT EXISTS idx_memories_vecspace ON memories(embedding_model, dim);
+
+CREATE TABLE IF NOT EXISTS skills (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  description     TEXT NOT NULL DEFAULT '',
+  trigger_text    TEXT NOT NULL DEFAULT '',
+  scope           TEXT NOT NULL DEFAULT 'global',
+  project_ids     TEXT NOT NULL DEFAULT '[]',
+  agent_types     TEXT NOT NULL DEFAULT '[]',
+  steps           TEXT NOT NULL DEFAULT '[]',
+  constraints     TEXT NOT NULL DEFAULT '[]',
+  examples        TEXT NOT NULL DEFAULT '{}',
+  version         INTEGER NOT NULL DEFAULT 1,
+  status          TEXT NOT NULL DEFAULT 'draft',
+  created_by      TEXT NOT NULL DEFAULT 'user',
+  origin_run_id   TEXT NOT NULL DEFAULT '',
+  confidence      REAL,
+  -- Only an active skill is ever embedded. A draft that could already be
+  -- matched would be shaping plans before anyone approved it, which would make
+  -- the review step decorative.
+  embedding       BLOB,
+  embedding_model TEXT NOT NULL DEFAULT '',
+  dim             INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  usage_count     INTEGER NOT NULL DEFAULT 0,
+  last_used_at    INTEGER,
+  success_count   INTEGER NOT NULL DEFAULT 0,
+  failure_count   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_skills_status ON skills(status);
+
+CREATE TABLE IF NOT EXISTS skill_versions (
+  id         TEXT PRIMARY KEY,
+  skill_id   TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  version    INTEGER NOT NULL,
+  snapshot   TEXT NOT NULL,
+  note       TEXT NOT NULL DEFAULT '',
+  changed_by TEXT NOT NULL DEFAULT 'user',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_skill_versions ON skill_versions(skill_id, version DESC);
 `
 
 // Store is the encrypted local database. Every method is safe for concurrent

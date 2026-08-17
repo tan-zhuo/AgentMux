@@ -8,8 +8,10 @@ import {
   Radio,
   Sparkles,
   TerminalSquare,
+  Wand2,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { skills as skillApi } from '../lib/api'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { AgentDetail } from './panels/AgentDetail'
@@ -17,6 +19,7 @@ import { BroadcastPanel } from './panels/BroadcastPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
 import { MetricsPanel } from './panels/MetricsPanel'
 import { ServerDetail } from './panels/ServerDetail'
+import { SkillPanel } from './panels/SkillPanel'
 import { TmuxPanel } from './panels/TmuxPanel'
 import { ToolkitPanel } from './panels/ToolkitPanel'
 import { Badge, Button, Empty } from './ui'
@@ -70,6 +73,22 @@ export function RightPanel() {
   const stripRef = useRef<HTMLDivElement | null>(null)
   const activeRef = useRef<HTMLButtonElement | null>(null)
   const [overflow, setOverflow] = useState({ left: false, right: false })
+  const [drafts, setDrafts] = useState(0)
+
+  // A review queue nobody can see is a review queue nobody works through, so
+  // the count rides on the tab. Re-read on every panel change rather than on a
+  // timer: it is one local query, and the moment that matters is coming back
+  // from having approved something.
+  useEffect(() => {
+    let alive = true
+    void skillApi
+      .stats()
+      .then((s) => alive && setDrafts(s?.draft ?? 0))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [panel])
 
   const syncOverflow = useCallback(() => {
     const el = stripRef.current
@@ -123,6 +142,7 @@ export function RightPanel() {
     { id: 'tmux', label: 'tmux', icon: TerminalSquare },
     { id: 'toolkit', label: 'Install', icon: Sparkles },
     { id: 'memory', label: 'Memory', icon: Brain },
+    { id: 'skills', label: 'Skills', icon: Wand2, badge: drafts },
   ]
 
   return (
@@ -180,6 +200,7 @@ export function RightPanel() {
         {panel === 'toolkit' && <ForServer render={(id) => <ToolkitPanel serverId={id} />} />}
         {/* Memory is not server-scoped: what is remembered spans the fleet. */}
         {panel === 'memory' && <MemoryPanel />}
+        {panel === 'skills' && <SkillPanel />}
         {panel === 'detail' && <DetailRouter />}
       </div>
     </div>

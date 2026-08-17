@@ -26,6 +26,11 @@ func Normalise(v []float32) []float32 {
 	return v
 }
 
+// Dot is the similarity of two normalised vectors, exported for the skill
+// index, which compares vectors from the same embedder in the same way.
+// Vector arithmetic lives here rather than being written twice.
+func Dot(a, b []float32) float32 { return dot(a, b) }
+
 // dot is the similarity of two normalised vectors.
 func dot(a, b []float32) float32 {
 	if len(a) != len(b) {

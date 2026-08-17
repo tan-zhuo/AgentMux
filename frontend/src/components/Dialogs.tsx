@@ -21,6 +21,7 @@ import type {
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useTheme } from '../store/useTheme'
+import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
 import { Button, Field, Modal, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
@@ -37,6 +38,10 @@ export function Dialogs() {
       return <AgentDialog />
     case 'settings':
       return <SettingsDialog />
+    case 'skill':
+      return <SkillDialog />
+    case 'skillHistory':
+      return <SkillHistoryDialog />
   }
 }
 

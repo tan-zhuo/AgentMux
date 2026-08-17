@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Agent, Project, Server, Workspace } from '../lib/types'
+import type { Agent, Project, Server, Skill, Workspace } from '../lib/types'
 
 export type Dialog =
   | { kind: 'server'; server?: Server }
@@ -7,6 +7,8 @@ export type Dialog =
   | { kind: 'workspace'; workspace?: Workspace; projectId?: string }
   | { kind: 'agent'; agent?: Agent; workspaceId?: string; presetCommand?: string }
   | { kind: 'settings' }
+  | { kind: 'skill'; skill?: Skill }
+  | { kind: 'skillHistory'; skill: Skill }
   | null
 
 interface DialogState {

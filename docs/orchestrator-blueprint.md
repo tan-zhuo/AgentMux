@@ -1,6 +1,6 @@
 # 本地 Orchestrator + 记忆 + Skill：实现蓝图
 
-> 状态：已确认，Phase 1 实施中。五个开放问题的结论见 §12
+> 状态：已确认。Phase 1 与 Phase 2 已实现，Phase 3 未开始。五个开放问题的结论见 §12
 > 日期：2026-08-17
 > 上游：《AgentMux v2.1 — 本地 AI Orchestrator + 向量记忆 + Skill 系统》v0.3
 
@@ -150,7 +150,9 @@ CREATE TABLE IF NOT EXISTS skills (
   id              TEXT PRIMARY KEY,
   name            TEXT NOT NULL,
   description     TEXT NOT NULL DEFAULT '',
-  trigger         TEXT NOT NULL DEFAULT '',   -- 自然语言触发条件，同时是匹配用的向量源
+  -- 自然语言触发条件，同时是匹配用的向量源。列名不能直接叫 trigger：
+  -- 那是 SQLite 的关键字。
+  trigger_text    TEXT NOT NULL DEFAULT '',
   scope           TEXT NOT NULL DEFAULT 'global',  -- global | project | agent_type
   project_ids     TEXT NOT NULL DEFAULT '[]', -- JSON 数组
   agent_types     TEXT NOT NULL DEFAULT '[]', -- JSON 数组
@@ -222,7 +224,11 @@ CREATE TABLE IF NOT EXISTS orch_steps (
 );
 CREATE INDEX IF NOT EXISTS idx_orch_steps_run ON orch_steps(run_id, seq);
 
--- 一个队列同时服务两种审批：待执行的高危工具调用、待审核的 Skill 草案。
+-- 待执行的高危工具调用。Phase 3 才建。
+--
+-- 原计划让这张表同时装 Skill 草案，实现时否掉了：草案状态本来就在 skills.status
+-- 上，再写一行等于同一件事有两个真相，而它们迟早会不一致。Skill 的审核队列就是
+-- status='draft' 的列表。
 CREATE TABLE IF NOT EXISTS approvals (
   id          TEXT PRIMARY KEY,
   kind        TEXT NOT NULL,             -- tool_call | skill_draft
@@ -334,11 +340,11 @@ stateDiagram-v2
 
 | 当前 | 事件 | 目标 | 副作用 |
 |---|---|---|---|
-| — | `orchestrator.propose` | `draft` | 写 approvals(kind=skill_draft)；**不建向量** |
+| — | `orchestrator.propose` | `draft` | 写 skill_versions v1；**不建向量** |
 | — | `user.create` | `active` | 建向量；写 skill_versions v1 |
-| `draft` | `user.approve` | `active` | 建向量；approvals→approved；skill_versions 快照 |
+| `draft` | `user.approve` | `active` | 建向量 |
 | `draft` | `user.edit` | `draft` | 覆盖内容；不建向量 |
-| `draft` | `user.reject` | `rejected` | approvals→rejected；保留供审计 |
+| `draft` | `user.reject` | `rejected` | 保留供审计 |
 | `active` | `user.edit` | `active` | version+1；旧内容进 skill_versions；重建向量 |
 | `active` | `user.disable` | `disabled` | 退出匹配池 |
 | `disabled` | `user.enable` | `active` | 重入匹配池 |
@@ -665,7 +671,7 @@ observe 阶段直接读 `Store.ListAgents()` 的最新结果，并订阅 `agents
 
 ## 11. 分阶段实施与验收
 
-### Phase 1 — 记忆与模型通路
+### Phase 1 — 记忆与模型通路 ✅
 
 - `internal/llm`：Ollama chat + embeddings + 模型列表；设置页配置 base_url / 对话模型 /
   embedding 模型（默认 `bge-m3`，§12.4）；连不上时给出明确诊断（不是转圈）。
@@ -678,11 +684,19 @@ Phase 1 不碰 `trust_level`、不碰审批、不碰 Orchestrator 开关——�
 **验收**：手工写入 200 条记忆，语义检索能召回；换 embedding 模型后 UI 提示重建，重建后
 检索恢复；Ollama 未启动时应用照常可用，只是编排功能显示不可用。
 
-### Phase 2 — Skill 系统（人管为主）
+### Phase 2 — Skill 系统（人管为主）✅
 
 - `internal/skill`：CRUD、版本快照与回滚、状态机（§5.1）、匹配（向量 + scope 过滤）。
-- UI：Skill 管理面板（列表/搜索/过滤、编辑器、启停、版本历史、导入导出）。
-- 匹配结果接入规划提示词，但**此时还不放开自动总结**。
+- `internal/orch/catalog.go`：工具白名单的元数据（名字、说明、风险档）。**只有目录，
+  没有执行**——Registry 和 Gate 是 Phase 3 的事。提前建它是因为 Skill 校验需要它：
+  引用了不存在的工具的 Skill 必须在写下来的时候被拒绝，而不是等到被照做的那一刻。
+- UI：Skill 管理面板（Active / Draft / Retired 三个页签、搜索、编辑器、启停归档、
+  版本历史与回滚、剪贴板导入导出）。
+- 匹配已经可用，但**自动总结仍然没有放开**——那是 Phase 3。
+
+实现中与原计划的一处偏差：**匹配测试台从 Phase 4 提前到这里**。验收要求"给定场景能
+匹配出预期的那条并说明理由"，而这件事本身就是测试台。没有它，一个 trigger 到底写了
+什么意思，只能等它在真实规划里第一次匹配错了才知道——那是最差的发现时机。
 
 **验收**：手工建 5 条 Skill，给定场景能匹配出预期的那条并说明理由；编辑后可回滚到上一版；
 导出再导入内容一致。

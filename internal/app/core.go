@@ -12,6 +12,7 @@ import (
 	"agentmux/internal/llm"
 	"agentmux/internal/memory"
 	"agentmux/internal/sftpx"
+	"agentmux/internal/skill"
 	"agentmux/internal/sshx"
 	"agentmux/internal/store"
 	"agentmux/internal/tmuxx"
@@ -30,6 +31,7 @@ type Core struct {
 	Shells *sshx.ShellManager
 	Files  *sftpx.Client
 	Memory *memory.Index
+	Skills *skill.Manager
 
 	// llmMu guards the client, which is rebuilt whenever the user points
 	// AgentMux at a different Ollama.
@@ -63,6 +65,7 @@ func NewCore() (*Core, error) {
 	// where no model runtime is installed at all.
 	c.llm = llm.New(st.GetSetting(SettingLLMBaseURL, ""))
 	c.Memory = memory.NewIndex(st, c.llm, func() string { return c.EmbedModel() })
+	c.Skills = skill.NewManager(st, c.llm, func() string { return c.EmbedModel() })
 	return c, nil
 }
 
@@ -102,6 +105,7 @@ func (c *Core) SetLLMBaseURL(baseURL string) error {
 	c.llmMu.Unlock()
 
 	c.Memory.SetEmbedder(client)
+	c.Skills.SetEmbedder(client)
 	return nil
 }
 
