@@ -144,6 +144,21 @@ go build -o agentmux .
 The frontend is embedded in the binary, so `npm run build` has to happen before
 `go build`.
 
+On Linux the webview is WebKitGTK, so its headers have to be there at compile
+time. AgentMux builds against GTK3 and webkit2gtk-4.1, which is what desktops
+have installed today — Wails would otherwise reach for GTK4 and webkitgtk-6.0,
+which only exist from Ubuntu 24.04 onwards. Install the headers and name the
+build:
+
+```sh
+sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+go build -tags gtk3 -o agentmux .
+```
+
+The same `-tags gtk3` belongs on `go vet` and `go test`. macOS and Windows use
+their own webview — WKWebView and WebView2 — and need nothing installed; the tag
+is ignored there.
+
 On Windows that plain `go build` gives you a console binary, which is what you
 want while developing — the Wails log goes to the terminal. For something you
 double-click, link it as a GUI binary so no console window opens behind the app:
@@ -185,6 +200,11 @@ build for each platform, put together by GitHub Actions from the tagged commit:
 | `agentmux-macos-universal.zip` | `AgentMux.app`, one binary for Intel and Apple Silicon |
 | `agentmux-windows-amd64.zip` | `agentmux.exe` plus the install script |
 | `agentmux-linux-amd64.tar.gz` | the binary, an icon, a `.desktop` file and `install.sh` |
+
+The Linux build needs GTK3 and WebKitGTK 4.1 present at run time
+(`libwebkit2gtk-4.1-0` on Debian and Ubuntu, `webkit2gtk4.1` on Fedora). Most
+desktops already have them; `install.sh` says so plainly if they are missing
+instead of leaving you with a binary that exits without a word.
 
 Each one ships a `.sha256` beside it. The builds are not code-signed, which
 costs money and tells you nothing you cannot check yourself, so the first launch
@@ -415,6 +435,18 @@ go build -o agentmux .
 
 前端会被嵌进二进制，所以 `npm run build` 必须在 `go build` 之前跑。
 
+在 Linux 上 webview 是 WebKitGTK，编译期就要有它的头文件。AgentMux 编译时用的是
+GTK3 加 webkit2gtk-4.1——今天的桌面上装的就是这一套；Wails 默认会去找 GTK4 和
+webkitgtk-6.0，而后者从 Ubuntu 24.04 才有。装好头文件，并且把这条路径显式写出来：
+
+```sh
+sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+go build -tags gtk3 -o agentmux .
+```
+
+`go vet` 和 `go test` 同样要带 `-tags gtk3`。macOS 和 Windows 用系统自己的
+webview——WKWebView 和 WebView2——不需要装任何东西，这个 tag 在那边没有作用。
+
 在 Windows 上，这样直接 `go build` 出来的是 console 子系统的二进制——开发时正好，
 Wails 的日志会打到终端里。但如果是要双击运行的，得链接成 GUI 子系统，否则应用后面
 会挂一个黑色控制台窗口：
@@ -453,6 +485,10 @@ Actions 从打了 tag 的那个 commit 编出来：
 | `agentmux-macos-universal.zip` | `AgentMux.app`，一个二进制同时跑 Intel 和 Apple Silicon |
 | `agentmux-windows-amd64.zip` | `agentmux.exe` 加安装脚本 |
 | `agentmux-linux-amd64.tar.gz` | 二进制、图标、`.desktop` 文件和 `install.sh` |
+
+Linux 那份运行时需要 GTK3 和 WebKitGTK 4.1（Debian/Ubuntu 上是
+`libwebkit2gtk-4.1-0`，Fedora 上是 `webkit2gtk4.1`）。大多数桌面本来就装了；
+真的缺了的话，`install.sh` 会直接告诉你，而不是留给你一个一声不吭就退出的二进制。
 
 每个旁边都有对应的 `.sha256`。这些构建没有做代码签名——签名要花钱，而且并不能
 告诉你任何你自己验不了的事——所以第一次打开要多一步：macOS 上右键选"打开"，

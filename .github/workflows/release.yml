@@ -18,6 +18,11 @@ permissions:
 env:
   GO_VERSION: '1.25.4'
   NODE_VERSION: '22'
+  # Wails v3 builds against GTK4 and webkitgtk-6.0 unless you ask for the GTK3
+  # path by name, and webkitgtk-6.0 only exists from Ubuntu 24.04 onwards.
+  # Building on 22.04 against GTK3 and webkit2gtk-4.1 keeps the glibc floor low
+  # and asks users for libraries their desktop already has.
+  GO_TAGS: gtk3
 
 jobs:
   build:
@@ -85,7 +90,7 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
-          go build -trimpath \
+          go build -tags ${{ env.GO_TAGS }} -trimpath \
             -ldflags "-s -w -X agentmux/internal/app.Version=${{ steps.ver.outputs.version }}" \
             -o dist/agentmux .
 
@@ -125,6 +130,15 @@ jobs:
           command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" || true
           echo "Installed to $bin/agentmux"
           echo "If that is not on your PATH, add it to your shell profile."
+          # The webview is the system's own WebKitGTK. Saying which library is
+          # missing beats letting the app exit without a word on first launch.
+          if command -v ldd >/dev/null 2>&1 && ldd "$bin/agentmux" 2>/dev/null | grep -q "not found"; then
+            echo
+            echo "Some libraries this build needs are not installed:"
+            ldd "$bin/agentmux" 2>/dev/null | grep "not found" | sed 's/^/  /'
+            echo "On Debian or Ubuntu: sudo apt-get install libgtk-3-0 libwebkit2gtk-4.1-0"
+            echo "On Fedora:           sudo dnf install gtk3 webkit2gtk4.1"
+          fi
           INSTALL
           chmod +x "$stage/install.sh"
           tar -C dist -czf "dist/${{ matrix.asset }}" agentmux-linux-amd64

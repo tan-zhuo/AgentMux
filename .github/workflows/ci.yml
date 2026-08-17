@@ -12,6 +12,12 @@ on:
 env:
   GO_VERSION: '1.25.4'
   NODE_VERSION: '22'
+  # Wails v3 builds against GTK4 and webkitgtk-6.0 unless you ask for the GTK3
+  # path by name. GTK3 with webkit2gtk-4.1 is what desktops actually have
+  # installed today, so that is what we build and what the Linux binary needs
+  # at run time. The tag means nothing on macOS and Windows, so every job can
+  # pass it and the build commands stay identical across the matrix.
+  GO_TAGS: gtk3
 
 jobs:
   frontend:
@@ -67,10 +73,10 @@ jobs:
             build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Vet
-        run: go vet ./...
+        run: go vet -tags ${{ env.GO_TAGS }} ./...
       - name: Build
-        run: go build ./...
+        run: go build -tags ${{ env.GO_TAGS }} ./...
       # The integration tests need a real sshd with tmux, so they skip
       # themselves unless AGENTMUX_TEST_HOST is set. Everything else runs.
       - name: Test
-        run: go test ./...
+        run: go test -tags ${{ env.GO_TAGS }} ./...
