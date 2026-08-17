@@ -219,6 +219,52 @@ export function FileBrowser({ tab }: { tab: Tab }) {
     }
   }
 
+  /** Creates the folder named in the new-folder bar. */
+  async function createDir() {
+    const name = (newDir ?? '').trim()
+    if (!name) return
+    try {
+      await filesApi.mkdir(tab.serverId, `${cwd}/${name}`)
+      setNewDir(null)
+      await load(cwd)
+    } catch (e) {
+      toast('error', errText(e))
+    }
+  }
+
+  /**
+   * Applies the inline rename, which only Enter does.
+   *
+   * Escape and clicking away abandon it instead: a rename is a change to a file
+   * an agent may be working in, and a stray click somewhere else is not somebody
+   * asking for it. Typed-and-discarded says so, because silence there reads as
+   * having been saved.
+   */
+  async function commitRename() {
+    if (!renaming) return
+    const name = renaming.name.trim()
+    if (!name || name === renaming.path.split('/').pop()) {
+      setRenaming(null)
+      return
+    }
+    try {
+      await filesApi.rename(tab.serverId, renaming.path, `${cwd}/${name}`)
+      setRenaming(null)
+      await load(cwd)
+    } catch (e) {
+      // Left open with the name still in it, so it can be corrected.
+      toast('error', errText(e))
+    }
+  }
+
+  function cancelRename() {
+    if (!renaming) return
+    if (renaming.name.trim() !== renaming.path.split('/').pop()) {
+      toast('info', `${renaming.path.split('/').pop()} was not renamed — Enter applies a new name`)
+    }
+    setRenaming(null)
+  }
+
   async function remove(entry: FileEntry) {
     const isDir = entry.isDir
     const ok = await confirmAction({
@@ -295,23 +341,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
             onChange={(e) => setNewDir(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') setNewDir(null)
+              if (e.key === 'Enter') void createDir()
             }}
           />
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={async () => {
-              const name = (newDir ?? '').trim()
-              if (!name) return
-              try {
-                await filesApi.mkdir(tab.serverId, `${cwd}/${name}`)
-                setNewDir(null)
-                await load(cwd)
-              } catch (e) {
-                toast('error', errText(e))
-              }
-            }}
-          >
+          <Button size="sm" variant="primary" onClick={() => void createDir()}>
             Create
           </Button>
           <Button size="sm" onClick={() => setNewDir(null)}>
@@ -441,19 +474,15 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                         value={renaming.name}
                         onClick={(ev) => ev.stopPropagation()}
                         onChange={(ev) => setRenaming({ path: e.path, name: ev.target.value })}
-                        onKeyDown={async (ev) => {
+                        // Clicking anywhere else is how a rename is taken back.
+                        // Losing the window is not a decision, though, so
+                        // switching apps and back finds the field as it was.
+                        onBlur={() => {
+                          if (document.hasFocus()) cancelRename()
+                        }}
+                        onKeyDown={(ev) => {
                           if (ev.key === 'Escape') setRenaming(null)
-                          if (ev.key === 'Enter') {
-                            const name = renaming.name.trim()
-                            if (!name) return
-                            try {
-                              await filesApi.rename(tab.serverId, e.path, `${cwd}/${name}`)
-                              setRenaming(null)
-                              await load(cwd)
-                            } catch (err) {
-                              toast('error', errText(err))
-                            }
-                          }
+                          if (ev.key === 'Enter') void commitRename()
                         }}
                       />
                     ) : (
