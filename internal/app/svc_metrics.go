@@ -21,7 +21,15 @@ func (m *MetricsService) ServiceName() string { return "MetricsService" }
 
 // Sample reads one set of vitals from a server.
 func (m *MetricsService) Sample(serverID string) metrics.Sample {
-	return metrics.Collect(m.core.Run, serverID, time.Now().Unix())
+	return m.collect(serverID, time.Now().Unix())
+}
+
+// collect asks in whichever shell dialect the host speaks.
+func (m *MetricsService) collect(serverID string, at int64) metrics.Sample {
+	if m.core.IsWinHost(serverID) {
+		return metrics.CollectWindows(m.core.Run, serverID, at)
+	}
+	return metrics.Collect(m.core.Run, serverID, at)
 }
 
 // SampleMany reads several servers concurrently, for an overview across a fleet.
@@ -35,7 +43,7 @@ func (m *MetricsService) SampleMany(serverIDs []string) []metrics.Sample {
 		go func(i int, id string) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			out[i] = metrics.Collect(m.core.Run, id, now)
+			out[i] = m.collect(id, now)
 			done <- i
 		}(i, id)
 	}

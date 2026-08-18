@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"agentmux/internal/app"
+	"agentmux/internal/natmux"
 	"agentmux/internal/store"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -30,6 +31,14 @@ var assets embed.FS
 var appIcon []byte
 
 func main() {
+	// The same executable is also the native session daemon: the broker that
+	// keeps agents alive on hosts that have no tmux — native Windows. It is
+	// spawned detached with this flag and must never start a window.
+	if len(os.Args) > 1 && os.Args[1] == "--natmuxd" {
+		natmux.DaemonMain()
+		return
+	}
+
 	core, err := app.NewCore()
 	if err != nil {
 		fatal("AgentMux could not start", err)

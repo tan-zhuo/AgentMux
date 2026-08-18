@@ -230,7 +230,7 @@ func (a *AgentService) Start(agentID string) (StartResult, error) {
 		return res, nil
 	}
 
-	cmd := buildLaunchCommand(ws, ag.Command)
+	cmd := a.launchCommand(ws, ag.Command)
 	if err := a.core.Tmux.SendText(ws.ServerID, target, cmd, true); err != nil {
 		res.Error = err.Error()
 		return res, err
@@ -240,6 +240,15 @@ func (a *AgentService) Start(agentID string) (StartResult, error) {
 	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusRunning, &pane.PID, "starting…")
 	a.emitAgents()
 	return res, nil
+}
+
+// launchCommand builds the line typed into the agent's session, in the dialect
+// the host's shell actually speaks.
+func (a *AgentService) launchCommand(ws store.Workspace, command string) string {
+	if a.core.IsWinHost(ws.ServerID) {
+		return buildLaunchCommandWin(ws, command)
+	}
+	return buildLaunchCommand(ws, command)
 }
 
 // buildLaunchCommand prefixes the agent command with its workspace environment
@@ -500,6 +509,9 @@ func (a *AgentService) LaunchInDir(serverID, dir, command string) (QuickLaunch, 
 	}
 
 	full := "cd " + sshx.ShellQuote(dir) + " && " + command
+	if a.core.IsWinHost(serverID) {
+		full = "Set-Location " + psQuote(dir) + "; " + command
+	}
 	if err := a.core.Tmux.SendText(serverID, pane.PaneID, full, true); err != nil {
 		return res, err
 	}

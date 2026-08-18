@@ -139,6 +139,8 @@ export function SplitDialog() {
         hint:
           s.kind === 'local'
             ? t('tree.thisComputer')
+            : s.kind === 'localwin'
+            ? t('tree.thisComputerWin')
             : `${s.username}@${s.host}${s.port === 22 ? '' : `:${s.port}`}`,
         icon: Server,
         lead: <ConnDot connected={!!connections[s.id]?.connected} />,

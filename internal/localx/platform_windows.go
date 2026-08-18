@@ -12,13 +12,13 @@ import (
 	"sync"
 )
 
-// On Windows the local host is WSL.
+// On Windows the POSIX local host is WSL.
 //
-// That is not a shortcut, it is the only honest reading of the promise this
-// application makes: work survives the window closing because it lives in a tmux
-// session, and tmux exists on Windows only inside WSL. So a local host here means
-// the default WSL distribution — its shell, its tmux, its filesystem — and the
-// paths above this file stay POSIX throughout.
+// Work survives the window closing because it lives in a tmux session, and tmux
+// exists on Windows only inside WSL. So this host kind means the default WSL
+// distribution — its shell, its tmux, its filesystem — and the paths above this
+// file stay POSIX throughout. The machine's native Windows side is its own host
+// kind, served by the Native* types and the natmux session daemon.
 const (
 	wslExe = "wsl.exe"
 	// The share Windows exposes the WSL filesystem on. The older form is tried as

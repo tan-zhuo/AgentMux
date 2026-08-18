@@ -102,6 +102,7 @@ export const zh: Messages = {
   'tree.removeServer': '移除服务器',
   'tree.deleteServer': '删除服务器',
   'tree.thisComputer': '这台电脑',
+  'tree.thisComputerWin': '这台电脑 · Windows 原生',
   'tree.newServer': '服务器',
   'tree.newProject': '项目',
   'agent.start': '启动',
@@ -165,6 +166,15 @@ export const zh: Messages = {
   'server.kind.remoteTitle': '通过 SSH 连接',
   'server.kind.local': '这台电脑',
   'server.kind.localTitle': 'AgentMux 正在运行的这台机器',
+  'server.kind.sshwin': '远程 Windows',
+  'server.kind.sshwinTitle': '通过 SSH 连接的 Windows 机器',
+  'server.kind.sshwinHint':
+    '通过 SSH 接入的远程 Windows 机器（需先启用其内置的 OpenSSH Server）。agent 原生运行——PowerShell、MSVC、WPF——由 AgentMux 会话守护进程保活，首次使用时自动部署到远端。',
+  'server.kind.localWsl': '这台电脑 (WSL)',
+  'server.kind.localwin': '这台电脑 (Windows)',
+  'server.kind.localwinTitle': 'Windows 原生环境：PowerShell 与 Windows 工具链',
+  'server.kind.localwinHint':
+    '这台机器的 Windows 原生侧，用于 WSL 做不了的工作：MSVC 编译、WPF、运行刚构建出的 .exe。agent 由 AgentMux 自带的会话守护进程保活，关掉 AgentMux 也不会停。',
   'server.alreadyInTree': '这台电脑已经在树里了 —— 保存会选中它，而不是再加一个。',
   'server.name': '名称',
   'server.tags': '标签',

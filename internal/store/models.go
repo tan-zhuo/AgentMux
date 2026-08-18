@@ -36,7 +36,18 @@ const (
 	// KindLocal is the computer AgentMux is running on, reached by starting
 	// processes directly. It has no address, no credentials and no host key,
 	// which is exactly why it is a different kind rather than a loopback SSH row.
+	// On Windows this kind works inside WSL, where tmux lives.
 	KindLocal ServerKind = "local"
+	// KindLocalWin is the same computer on native Windows: PowerShell, Windows
+	// paths, Windows toolchains. It exists because some work — MSVC builds, WPF,
+	// running the .exe that was just built — cannot happen inside WSL, and its
+	// sessions persist through AgentMux's own session daemon instead of tmux.
+	KindLocalWin ServerKind = "localwin"
+	// KindSSHWin is a remote Windows machine reached over SSH: same address,
+	// port and credentials as any SSH host, but PowerShell instead of a POSIX
+	// shell, and AgentMux's session daemon — deployed to the host on first use —
+	// instead of tmux.
+	KindSSHWin ServerKind = "sshwin"
 )
 
 // Server is a host AgentMux can work on: a machine reached over SSH, or the

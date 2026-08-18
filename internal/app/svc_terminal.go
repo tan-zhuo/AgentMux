@@ -23,7 +23,10 @@ func (t *TerminalService) ServiceName() string { return "TerminalService" }
 // that keeps full SSH available: anything the user could type over ssh, they can
 // type here.
 func (t *TerminalService) OpenShell(serverID string, cols, rows int) (sshx.ShellInfo, error) {
-	return t.core.Shells.Open(sshx.ShellOptions{ServerID: serverID, Cols: cols, Rows: rows})
+	return t.core.Shells.Open(sshx.ShellOptions{
+		ServerID: serverID, Cols: cols, Rows: rows,
+		WindowsHost: t.core.IsSSHWin(serverID),
+	})
 }
 
 // OpenCommand starts a PTY running one command instead of a login shell. It
@@ -35,6 +38,7 @@ func (t *TerminalService) OpenCommand(serverID, command string, cols, rows int) 
 	}
 	return t.core.Shells.Open(sshx.ShellOptions{
 		ServerID: serverID, Cols: cols, Rows: rows, Command: command,
+		WindowsHost: t.core.IsSSHWin(serverID),
 	})
 }
 
@@ -46,11 +50,12 @@ func (t *TerminalService) OpenWorkspace(workspaceID string, cols, rows int) (ssh
 		return sshx.ShellInfo{}, err
 	}
 	return t.core.Shells.Open(sshx.ShellOptions{
-		ServerID: ws.ServerID,
-		Cols:     cols,
-		Rows:     rows,
-		Cwd:      ws.RemotePath,
-		Env:      ws.Env,
+		ServerID:    ws.ServerID,
+		Cols:        cols,
+		Rows:        rows,
+		Cwd:         ws.RemotePath,
+		Env:         ws.Env,
+		WindowsHost: t.core.IsSSHWin(ws.ServerID),
 	})
 }
 
@@ -65,7 +70,24 @@ func (t *TerminalService) AttachTmux(serverID, session string, cols, rows int) (
 		return sshx.ShellInfo{}, err
 	}
 	if !exists {
-		return sshx.ShellInfo{}, fmt.Errorf("tmux session %q no longer exists on this server", session)
+		return sshx.ShellInfo{}, fmt.Errorf("session %q no longer exists on this server", session)
+	}
+	return t.attachSession(serverID, session, cols, rows)
+}
+
+// attachSession connects a terminal to a persistent session by whatever means
+// the host has: a tmux client over the host's transport, or — on a Windows
+// host, where the sessions live in AgentMux's own daemon — a direct attachment
+// adopted into the same shell manager. For a remote Windows host that
+// attachment rides an SSH port forward; either way, closing the terminal
+// detaches and the session keeps running.
+func (t *TerminalService) attachSession(serverID, session string, cols, rows int) (sshx.ShellInfo, error) {
+	if t.core.IsWinHost(serverID) {
+		opened, err := t.core.NatMuxFor(serverID).OpenAttach(session, cols, rows)
+		if err != nil {
+			return sshx.ShellInfo{}, err
+		}
+		return t.core.Shells.Adopt(sshx.ShellOptions{ServerID: serverID, Cols: cols, Rows: rows}, opened), nil
 	}
 	return t.core.Shells.Open(sshx.ShellOptions{
 		ServerID: serverID,
@@ -95,12 +117,7 @@ func (t *TerminalService) AttachAgent(agentID string, cols, rows int) (sshx.Shel
 			return sshx.ShellInfo{}, err
 		}
 	}
-	return t.core.Shells.Open(sshx.ShellOptions{
-		ServerID: ws.ServerID,
-		Cols:     cols,
-		Rows:     rows,
-		Command:  tmuxx.AttachCommand(ag.TmuxSession),
-	})
+	return t.attachSession(ws.ServerID, ag.TmuxSession, cols, rows)
 }
 
 // Write forwards keystrokes to a PTY. Payload is base64 so binary and partial

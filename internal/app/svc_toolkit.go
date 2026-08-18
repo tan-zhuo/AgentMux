@@ -26,8 +26,16 @@ func (t *ToolkitService) ServiceName() string { return "ToolkitService" }
 // Catalog returns every installable tool, runtimes first.
 func (t *ToolkitService) Catalog() []agentkit.Tool { return agentkit.All() }
 
-// Detect reports what is already installed on a server.
+// Detect reports what is already installed on a server, probing in whichever
+// shell dialect the host actually speaks.
 func (t *ToolkitService) Detect(serverID string) agentkit.Report {
+	return t.detect(serverID)
+}
+
+func (t *ToolkitService) detect(serverID string) agentkit.Report {
+	if t.core.IsWinHost(serverID) {
+		return agentkit.DetectWindows(t.core.Run, serverID)
+	}
 	return agentkit.Detect(t.core.Run, serverID)
 }
 
@@ -43,7 +51,7 @@ type AgentChoice struct {
 // The quick-launch picker needs only this, so it avoids paying for the full
 // report every time someone opens the menu.
 func (t *ToolkitService) InstalledAgents(serverID string) []AgentChoice {
-	rep := agentkit.Detect(t.core.Run, serverID)
+	rep := t.detect(serverID)
 	out := []AgentChoice{}
 	for _, a := range rep.Agents {
 		if !a.Installed {
@@ -165,6 +173,9 @@ func (t *ToolkitService) Verify(serverID, toolID string) (agentkit.Presence, err
 	tool, ok := agentkit.ByID(toolID)
 	if !ok {
 		return agentkit.Presence{}, fmt.Errorf("unknown tool %q", toolID)
+	}
+	if t.core.IsWinHost(serverID) {
+		return agentkit.VerifyWindows(t.core.Run, serverID, tool)
 	}
 	// Two things are needed to see a freshly installed binary. A login shell,
 	// because installers write their PATH line into a profile that an SSH exec

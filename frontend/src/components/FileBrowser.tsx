@@ -96,10 +96,12 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   // opens where the pointer already is.
   const [launch, setLaunch] = useState<{ dir: string; x: number; y: number } | null>(null)
   // On this computer there is nothing to transfer: the file is already here, and
-  // copying it to another local path is a file manager's job.
-  const isLocalHost = useAppStore(
-    (s) => s.snapshot.servers.find((x) => x.id === tab.serverId)?.kind === 'local',
-  )
+  // copying it to another local path is a file manager's job. Both flavours of
+  // this computer — the POSIX one and the native Windows one — are "here".
+  const isLocalHost = useAppStore((s) => {
+    const kind = s.snapshot.servers.find((x) => x.id === tab.serverId)?.kind
+    return kind === 'local' || kind === 'localwin'
+  })
 
   const openTab = useAppStore((s) => s.openTab)
   const detached = useAppStore((s) => s.detached)

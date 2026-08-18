@@ -60,6 +60,8 @@ export function ServerDetail({ server }: { server: Server }) {
             <p className="truncate font-mono text-[11px] text-ink-400">
               {server.kind === 'local'
                 ? t('tree.thisComputer')
+                : server.kind === 'localwin'
+                ? t('tree.thisComputerWin')
                 : `${server.username}@${server.host}:${server.port}`}
             </p>
           </div>
@@ -69,7 +71,7 @@ export function ServerDetail({ server }: { server: Server }) {
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {server.kind === 'local' ? (
+          {server.kind === 'local' || server.kind === 'localwin' ? (
             // A local host is either usable or the platform cannot host anything;
             // "connected" would be describing a connection that does not exist.
             <Badge tone={connected ? 'ok' : 'warn'}>

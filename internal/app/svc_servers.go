@@ -2,7 +2,9 @@ package app
 
 import (
 	"os"
+	"runtime"
 	"strings"
+	"time"
 
 	"agentmux/internal/sshx"
 	"agentmux/internal/store"
@@ -54,7 +56,35 @@ func (s *ServerService) Test(id string) sshx.Probe {
 	if s.core.IsLocal(id) {
 		return s.core.Local.Probe()
 	}
+	if s.core.IsLocalWin(id) {
+		return s.core.NativeLocal.Probe()
+	}
+	if s.core.IsSSHWin(id) {
+		return s.winProbe(id)
+	}
 	return s.core.Pool.TestConnection(id)
+}
+
+// winProbe asks a remote Windows host the questions TestConnection asks of a
+// POSIX one, in the dialect it actually speaks.
+func (s *ServerService) winProbe(id string) sshx.Probe {
+	start := time.Now()
+	res, err := s.core.Run.Exec(id, `(Get-CimInstance Win32_OperatingSystem).Caption`)
+	if err != nil {
+		return sshx.Probe{Error: err.Error()}
+	}
+	p := sshx.Probe{OK: true, OS: strings.TrimSpace(res.Stdout)}
+	if res, err := s.core.Run.Exec(id,
+		`$b=(Get-CimInstance Win32_OperatingSystem).LastBootUpTime; `+
+			`'{0:%d}d {0:hh}h {0:mm}m' -f ((Get-Date)-$b)`); err == nil {
+		p.Uptime = strings.TrimSpace(res.Stdout)
+	}
+	// Sessions on this host persist through AgentMux's own daemon; for the one
+	// question the flag answers — does work survive the window closing — yes.
+	p.HasTmux = true
+	p.TmuxVer = "AgentMux sessions"
+	p.LatencyMS = time.Since(start).Milliseconds()
+	return p
 }
 
 // Connect warms a pooled connection without opening a terminal. This computer has
@@ -63,6 +93,9 @@ func (s *ServerService) Test(id string) sshx.Probe {
 func (s *ServerService) Connect(id string) error {
 	if s.core.IsLocal(id) {
 		return s.core.Local.Available()
+	}
+	if s.core.IsLocalWin(id) {
+		return s.core.NativeLocal.Available()
 	}
 	lease, err := s.core.Pool.Acquire(id)
 	if err != nil {
@@ -137,6 +170,61 @@ func (s *ServerService) AddLocal(name string) (store.Server, error) {
 	})
 }
 
+// LocalWinSupport reports whether this computer's native Windows side can be
+// added as its own host. Everywhere but Windows the answer is no with a reason;
+// on Windows it is the door to the work WSL cannot do — MSVC, WPF, running the
+// .exe that was just built.
+func (s *ServerService) LocalWinSupport() LocalHost {
+	out := LocalHost{Name: localHostName() + " (Windows)"}
+	if servers, err := s.core.Store.ListServers(); err == nil {
+		for _, srv := range servers {
+			if srv.Kind == store.KindLocalWin {
+				out.ExistingID = srv.ID
+				break
+			}
+		}
+	}
+	if err := s.core.NativeLocal.Available(); err != nil {
+		out.Reason = err.Error()
+		return out
+	}
+	out.Supported = true
+	return out
+}
+
+// AddLocalWin puts this computer's native Windows side in the tree as a host.
+// Like AddLocal it takes nothing but a name and refuses to create a second one.
+func (s *ServerService) AddLocalWin(name string) (store.Server, error) {
+	if err := s.core.NativeLocal.Available(); err != nil {
+		return store.Server{}, err
+	}
+	servers, err := s.core.Store.ListServers()
+	if err != nil {
+		return store.Server{}, err
+	}
+	for _, srv := range servers {
+		if srv.Kind == store.KindLocalWin {
+			return srv, nil
+		}
+	}
+	if strings.TrimSpace(name) == "" {
+		name = localHostName() + " (Windows)"
+	}
+	return s.core.Store.SaveServer(store.ServerInput{
+		Kind: store.KindLocalWin,
+		Name: name,
+		Tags: []string{"local", "windows"},
+		// Deliberately not trusted, for the same reason the WSL host is not: this
+		// is the machine with the user's own files on it.
+		TrustLevel: store.TrustNormal,
+	})
+}
+
+// Platform names the operating system this build runs on, so the UI can offer
+// only the local host flavours that exist here — the native Windows host being
+// the one that exists nowhere else.
+func (s *ServerService) Platform() string { return runtime.GOOS }
+
 // localHostName is what to call this computer in the tree.
 func localHostName() string {
 	if h, err := os.Hostname(); err == nil && strings.TrimSpace(h) != "" {
@@ -163,12 +251,16 @@ func (s *ServerService) Connections() ([]ConnStatus, error) {
 	}
 	out := make([]ConnStatus, 0, len(servers))
 	for _, srv := range servers {
-		if srv.Kind == store.KindLocal {
+		if srv.Kind == store.KindLocal || srv.Kind == store.KindLocalWin {
 			// Nothing to connect and nothing to lose: this computer is either
 			// usable or the platform cannot host anything, which Test explains.
+			available := s.core.Local.Available()
+			if srv.Kind == store.KindLocalWin {
+				available = s.core.NativeLocal.Available()
+			}
 			out = append(out, ConnStatus{
 				ServerID:  srv.ID,
-				Connected: s.core.Local.Available() == nil,
+				Connected: available == nil,
 			})
 			continue
 		}

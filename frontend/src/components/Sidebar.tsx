@@ -29,6 +29,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
 import { agentStatusLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
+import { isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
@@ -727,7 +728,7 @@ export function Sidebar() {
                     },
                     separator,
                     // There is no connection to this computer to open or close.
-                    s.kind === 'local'
+                    isLocalKind(s.kind)
                       ? {}
                       : conn?.connected
                       ? {
@@ -753,7 +754,7 @@ export function Sidebar() {
                         },
                     {
                       label:
-                        s.kind === 'local' ? t('tree.checkThisComputer') : t('tree.testConnection'),
+                        isLocalKind(s.kind) ? t('tree.checkThisComputer') : t('tree.testConnection'),
                       icon: Zap,
                       onSelect: async () => {
                         const p = await serverApi.test(s.id)
@@ -772,12 +773,12 @@ export function Sidebar() {
                     },
                     separator,
                     {
-                      label: s.kind === 'local' ? t('tree.editThisHost') : t('tree.editServer'),
+                      label: isLocalKind(s.kind) ? t('tree.editThisHost') : t('tree.editServer'),
                       icon: Pencil,
                       onSelect: () => openDialog({ kind: 'server', server: s }),
                     },
                     {
-                      label: s.kind === 'local' ? t('tree.removeThisHost') : t('tree.removeServer'),
+                      label: isLocalKind(s.kind) ? t('tree.removeThisHost') : t('tree.removeServer'),
                       icon: Trash2,
                       danger: true,
                       onSelect: () => void deleteServer(s),
@@ -795,14 +796,20 @@ export function Sidebar() {
                   })
                 }
                 icon={
-                  s.kind === 'local' ? (
+                  isLocalKind(s.kind) ? (
                     <Laptop size={11} className={conn?.connected ? 'text-accent' : 'text-ink-500'} />
                   ) : (
                     <ConnDot connected={!!conn?.connected} />
                   )
                 }
                 label={s.name}
-                meta={s.kind === 'local' ? t('tree.thisComputer') : `${s.username}@${s.host}`}
+                meta={
+                  s.kind === 'local'
+                    ? t('tree.thisComputer')
+                    : s.kind === 'localwin'
+                    ? t('tree.thisComputerWin')
+                    : `${s.username}@${s.host}`
+                }
                 metaDim
                 actions={
                   <>

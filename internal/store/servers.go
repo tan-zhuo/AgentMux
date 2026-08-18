@@ -86,8 +86,13 @@ func (s *Store) ServerKindOf(id string) ServerKind {
 	if err := s.db.QueryRow(`SELECT kind FROM servers WHERE id = ?`, id).Scan(&kind); err != nil {
 		return KindSSH
 	}
-	if ServerKind(kind) == KindLocal {
+	switch ServerKind(kind) {
+	case KindLocal:
 		return KindLocal
+	case KindLocalWin:
+		return KindLocalWin
+	case KindSSHWin:
+		return KindSSHWin
 	}
 	return KindSSH
 }
@@ -100,11 +105,11 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 	switch in.Kind {
 	case "":
 		in.Kind = KindSSH
-	case KindSSH, KindLocal:
+	case KindSSH, KindSSHWin, KindLocal, KindLocalWin:
 	default:
 		return Server{}, fmt.Errorf("%q is not a kind of host", in.Kind)
 	}
-	if in.Kind == KindLocal {
+	if in.Kind == KindLocal || in.Kind == KindLocalWin {
 		// A local host is not addressed and not authenticated, so the fields that
 		// describe how to reach one are cleared rather than validated. Leaving a
 		// stale address on the row would be an invitation to dial it.

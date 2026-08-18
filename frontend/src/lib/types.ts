@@ -18,9 +18,14 @@ export interface Project {
   createdAt: number
 }
 
-/** How AgentMux reaches a host: over SSH, or by starting processes on this
- *  computer. */
-export type ServerKind = 'ssh' | 'local'
+/** How AgentMux reaches a host: over SSH (to a POSIX machine, or to a remote
+ *  Windows one), or by starting processes on this computer — through its POSIX
+ *  shell (WSL on Windows), or natively in PowerShell on Windows, where the
+ *  work WSL cannot do lives. */
+export type ServerKind = 'ssh' | 'sshwin' | 'local' | 'localwin'
+
+/** Whether a host is this computer, in either of its flavours. */
+export const isLocalKind = (k: ServerKind) => k === 'local' || k === 'localwin'
 
 export interface Server {
   id: string

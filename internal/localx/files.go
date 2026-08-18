@@ -21,21 +21,35 @@ const editLimit = 4 << 20
 // SFTP client does so the browser and the editor cannot tell which host they are
 // looking at.
 //
-// Paths are POSIX everywhere above this type, because that is what the shell, the
-// tmux sessions and the workspace records use. On Windows they are paths inside
-// WSL, and hostPath is what turns one into something this process can open.
-type Files struct{ run *Runner }
+// Paths above this type are always in forward-slash form, because that is what
+// the shells, the sessions and the workspace records use. What such a path
+// means on disk differs per host flavour — itself on Unix, a WSL share on a
+// Windows WSL host, a backslashed Windows path on a native Windows host — so
+// the mapping is injected rather than assumed.
+type Files struct {
+	home     func() (string, error)
+	toHost   func(p string) (string, error)
+	fromHost func(p string) string
+}
 
-// NewFiles builds the local file layer.
-func NewFiles(run *Runner) *Files { return &Files{run: run} }
+// NewFiles builds the file layer for the POSIX local host: the machine itself,
+// or its default WSL distribution on Windows.
+func NewFiles(run *Runner) *Files {
+	return &Files{home: run.Home, toHost: hostPath, fromHost: shellPathOf}
+}
 
-// Home is the home directory of the local shell.
-func (f *Files) Home(_ string) (string, error) { return f.run.Home() }
+// NewNativeFiles builds the file layer for the native Windows host.
+func NewNativeFiles(run *NativeRunner) *Files {
+	return &Files{home: run.Home, toHost: nativeHostPath, fromHost: nativePathOf}
+}
+
+// Home is the home directory of the host's shell.
+func (f *Files) Home(_ string) (string, error) { return f.home() }
 
 // List reads a directory. An empty path opens the home directory.
 func (f *Files) List(serverID, dir string) (sftpx.Listing, error) {
 	if strings.TrimSpace(dir) == "" || dir == "~" {
-		home, err := f.run.Home()
+		home, err := f.home()
 		if err != nil {
 			return sftpx.Listing{}, err
 		}
@@ -43,7 +57,7 @@ func (f *Files) List(serverID, dir string) (sftpx.Listing, error) {
 	}
 	dir = path.Clean(dir)
 
-	local, err := hostPath(dir)
+	local, err := f.toHost(dir)
 	if err != nil {
 		return sftpx.Listing{}, err
 	}
@@ -72,7 +86,7 @@ func (f *Files) List(serverID, dir string) (sftpx.Listing, error) {
 		}
 		if e.IsLink {
 			if target, lerr := os.Readlink(filepath.Join(local, de.Name())); lerr == nil {
-				e.Target = shellPathOf(target)
+				e.Target = f.fromHost(target)
 				// Stat follows the link; a broken one simply stays a file.
 				if st, serr := os.Stat(filepath.Join(local, de.Name())); serr == nil {
 					e.TargetIsDir = st.IsDir()
@@ -102,7 +116,7 @@ func (f *Files) List(serverID, dir string) (sftpx.Listing, error) {
 
 // Mkdir creates a directory and any missing parents.
 func (f *Files) Mkdir(_ string, dir string) error {
-	local, err := hostPath(dir)
+	local, err := f.toHost(dir)
 	if err != nil {
 		return err
 	}
@@ -111,11 +125,11 @@ func (f *Files) Mkdir(_ string, dir string) error {
 
 // Rename moves a file or directory.
 func (f *Files) Rename(_ string, from, to string) error {
-	src, err := hostPath(from)
+	src, err := f.toHost(from)
 	if err != nil {
 		return err
 	}
-	dst, err := hostPath(to)
+	dst, err := f.toHost(to)
 	if err != nil {
 		return err
 	}
@@ -125,7 +139,7 @@ func (f *Files) Rename(_ string, from, to string) error {
 // Remove deletes a path. A directory needs recursive set explicitly, so a
 // mis-click cannot take a tree with it.
 func (f *Files) Remove(_ string, target string, recursive bool) error {
-	local, err := hostPath(target)
+	local, err := f.toHost(target)
 	if err != nil {
 		return err
 	}
@@ -138,7 +152,7 @@ func (f *Files) Remove(_ string, target string, recursive bool) error {
 // ReadFile loads a text file for the editor, refusing the same things the SFTP
 // reader refuses: directories, oversized files and binaries.
 func (f *Files) ReadFile(_ string, target string) (sftpx.FileContent, error) {
-	local, err := hostPath(target)
+	local, err := f.toHost(target)
 	if err != nil {
 		return sftpx.FileContent{}, err
 	}
@@ -191,7 +205,7 @@ func (f *Files) ReadFile(_ string, target string) (sftpx.FileContent, error) {
 func (f *Files) WriteFile(
 	_ string, target, content string, expectedModTime int64, crlf bool,
 ) (sftpx.FileContent, error) {
-	local, err := hostPath(target)
+	local, err := f.toHost(target)
 	if err != nil {
 		return sftpx.FileContent{}, err
 	}

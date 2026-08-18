@@ -34,6 +34,9 @@ func (f *FileService) on(serverID string) files {
 	if f.core.IsLocal(serverID) {
 		return f.core.LocalFiles
 	}
+	if f.core.IsLocalWin(serverID) {
+		return f.core.NativeFiles
+	}
 	return f.core.Files
 }
 
@@ -76,10 +79,16 @@ func (f *FileService) Rename(serverID, from, to string) error {
 // Remove deletes a path. Directories need recursive set explicitly, so a
 // mis-click cannot take a tree with it.
 func (f *FileService) Remove(serverID, target string, recursive bool) error {
-	if strings.TrimSpace(target) == "" || target == "/" {
+	if strings.TrimSpace(target) == "" || target == "/" || isDriveRoot(target) {
 		return errors.New("refusing to delete that path")
 	}
 	return f.on(serverID).Remove(serverID, target, recursive)
+}
+
+// isDriveRoot recognises "C:" and "C:/" — the Windows spellings of "everything".
+func isDriveRoot(p string) bool {
+	p = strings.TrimSuffix(strings.TrimSpace(p), "/")
+	return len(p) == 2 && p[1] == ':'
 }
 
 // Read loads a text file for the editor.
@@ -98,7 +107,7 @@ func (f *FileService) Write(
 // Download copies a file from a host to a local path. It returns as soon as the
 // transfer starts; progress arrives as transfer:update events.
 func (f *FileService) Download(serverID, remote, local string) (sftpx.Transfer, error) {
-	if f.core.IsLocal(serverID) {
+	if f.core.IsLocalAny(serverID) {
 		return sftpx.Transfer{}, localx.ErrNotTransferable
 	}
 	return f.core.Files.Download(serverID, remote, local)
@@ -106,7 +115,7 @@ func (f *FileService) Download(serverID, remote, local string) (sftpx.Transfer, 
 
 // Upload copies a local file into a directory on a host.
 func (f *FileService) Upload(serverID, local, remoteDir string) (sftpx.Transfer, error) {
-	if f.core.IsLocal(serverID) {
+	if f.core.IsLocalAny(serverID) {
 		return sftpx.Transfer{}, localx.ErrNotTransferable
 	}
 	return f.core.Files.Upload(serverID, local, remoteDir)

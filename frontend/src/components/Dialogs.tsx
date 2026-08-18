@@ -114,20 +114,37 @@ function ServerDialog() {
   // Which kind of host is being added. Editing never changes it: a machine does
   // not stop being this computer, and the fields it would need do not exist.
   const [kind, setKind] = useState<ServerKind>(existing?.kind ?? 'ssh')
-  const local = kind === 'local'
-  const [support, setSupport] = useState<LocalHost | null>(null)
+  const local = kind === 'local' || kind === 'localwin'
+  const [posixSupport, setPosixSupport] = useState<LocalHost | null>(null)
+  const [winSupport, setWinSupport] = useState<LocalHost | null>(null)
+  const [platform, setPlatform] = useState('')
   useEffect(() => {
-    // Asked once, before offering it: on Windows this is the answer to "is there
+    // Asked once, before offering it: on Windows the POSIX answer is "is there
     // a WSL distribution to work in", and there is no point offering otherwise.
+    // The native Windows flavour is only asked about — and only shown — where
+    // it exists, which is Windows itself.
     let cancelled = false
     serverApi
       .localSupport()
-      .then((s) => !cancelled && setSupport(s))
+      .then((s) => !cancelled && setPosixSupport(s))
+      .catch(() => {})
+    serverApi
+      .platform()
+      .then((p) => {
+        if (cancelled) return
+        setPlatform(p)
+        if (p === 'windows')
+          serverApi
+            .localWinSupport()
+            .then((s) => !cancelled && setWinSupport(s))
+            .catch(() => {})
+      })
       .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [])
+  const support = kind === 'localwin' ? winSupport : posixSupport
 
   const set = <K extends keyof ServerInput>(k: K, v: ServerInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
@@ -174,7 +191,10 @@ function ServerDialog() {
                   // A new local host has nothing to fill in, so the backend
                   // creates it: there is exactly one of this machine, and it
                   // knows what to call it.
-                  if (local && !existing) return serverApi.addLocal(form.name)
+                  if (local && !existing)
+                    return kind === 'localwin'
+                      ? serverApi.addLocalWin(form.name)
+                      : serverApi.addLocal(form.name)
                   return serverApi.save({ ...form, kind, tags })
                 },
                 existing ? t('server.updated') : t('server.added'),
@@ -190,14 +210,24 @@ function ServerDialog() {
         {!existing && (
           <Field
             label={t('server.whereWorkRuns')}
-            hint={local ? t('server.kind.localHint') : t('server.kind.sshHint')}
+            hint={
+              kind === 'localwin'
+                ? t('server.kind.localwinHint')
+                : local
+                ? t('server.kind.localHint')
+                : kind === 'sshwin'
+                ? t('server.kind.sshwinHint')
+                : t('server.kind.sshHint')
+            }
           >
             <Segmented<ServerKind>
               size="sm"
               value={kind}
               onChange={(v) => {
                 setKind(v)
-                if (v === 'local' && support?.name && !form.name) set('name', support.name)
+                const s = v === 'localwin' ? winSupport : posixSupport
+                if ((v === 'local' || v === 'localwin') && s?.name && !form.name)
+                  set('name', s.name)
               }}
               options={[
                 {
@@ -206,10 +236,29 @@ function ServerDialog() {
                   title: t('server.kind.remoteTitle'),
                 },
                 {
+                  value: 'sshwin',
+                  label: t('server.kind.sshwin'),
+                  title: t('server.kind.sshwinTitle'),
+                },
+                {
                   value: 'local',
-                  label: t('server.kind.local'),
+                  // On Windows the POSIX local host is WSL, and saying so is
+                  // what makes the difference from the native option legible.
+                  label:
+                    platform === 'windows'
+                      ? t('server.kind.localWsl')
+                      : t('server.kind.local'),
                   title: t('server.kind.localTitle'),
                 },
+                ...(platform === 'windows'
+                  ? [
+                      {
+                        value: 'localwin' as ServerKind,
+                        label: t('server.kind.localwin'),
+                        title: t('server.kind.localwinTitle'),
+                      },
+                    ]
+                  : []),
               ]}
             />
           </Field>
@@ -520,7 +569,13 @@ function WorkspaceDialog() {
             >
               {snapshot.servers.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.kind === 'local' ? t('tree.thisComputer') : s.host})
+                  {s.name} (
+                  {s.kind === 'local'
+                    ? t('tree.thisComputer')
+                    : s.kind === 'localwin'
+                    ? t('tree.thisComputerWin')
+                    : s.host}
+                  )
                 </option>
               ))}
             </select>

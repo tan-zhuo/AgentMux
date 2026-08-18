@@ -3,8 +3,11 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -12,12 +15,14 @@ import (
 	"agentmux/internal/llm"
 	"agentmux/internal/localx"
 	"agentmux/internal/memory"
+	"agentmux/internal/natmux"
 	"agentmux/internal/orch"
 	"agentmux/internal/sftpx"
 	"agentmux/internal/skill"
 	"agentmux/internal/sshx"
 	"agentmux/internal/store"
 	"agentmux/internal/tmuxx"
+	"agentmux/internal/winhost"
 )
 
 // idleTTL closes SSH connections that nothing has used for this long. It is the
@@ -29,7 +34,7 @@ const idleTTL = 10 * time.Minute
 type Core struct {
 	Store  *store.Store
 	Pool   *sshx.Pool
-	Tmux   *tmuxx.Client
+	Tmux   Mux
 	Shells *sshx.ShellManager
 	Files  *sftpx.Client
 	Memory *memory.Index
@@ -42,6 +47,20 @@ type Core struct {
 	Local      *localx.Runner
 	LocalFiles *localx.Files
 	Run        Runner
+
+	// The same machine's native Windows side, when there is one: PowerShell,
+	// Windows paths, Windows toolchains — and sessions that persist through
+	// AgentMux's own daemon instead of tmux, because some work (MSVC, WPF,
+	// running the .exe that was just built) cannot happen inside WSL.
+	NativeLocal *localx.NativeRunner
+	NativeFiles *localx.Files
+	NatMux      *natmux.Client
+
+	// Session daemon clients for remote Windows hosts, one per server, built on
+	// first use. Each speaks the same protocol as NatMux, carried through an
+	// SSH port forward instead of the local pipe.
+	remoteMuxMu sync.Mutex
+	remoteMux   map[string]*natmux.Client
 
 	// llmMu guards the client, which is rebuilt whenever the user points
 	// AgentMux at a different Ollama.
@@ -68,13 +87,28 @@ func NewCore() (*Core, error) {
 	})
 	c.Local = localx.NewRunner()
 	c.LocalFiles = localx.NewFiles(c.Local)
+	c.NativeLocal = localx.NewNativeRunner()
+	c.NativeFiles = localx.NewNativeFiles(c.NativeLocal)
+	c.NatMux = natmux.NewClient()
 	c.Run = hostRunner{core: c}
 	// tmux, agent detection and host metrics all reach a host through Run, so a
 	// local host gets the same treatment as a remote one without any of them
-	// carrying a special case.
-	c.Tmux = tmuxx.New(c.Run)
+	// carrying a special case. Session operations route the same way: tmux for
+	// every host that has one, the native session daemon for the one kind that
+	// cannot.
+	c.Tmux = muxRouter{core: c, tmux: tmuxx.New(c.Run)}
 	c.Shells = sshx.NewShellManager(c.Pool, c.Emit)
-	c.Shells.UseLocal(c.IsLocal, localx.NewTerminals(c.Local))
+	localTerminals := localx.NewTerminals(c.Local)
+	nativeTerminals := localx.NewNativeTerminals(c.NativeLocal)
+	c.Shells.UseLocal(func(serverID string) sshx.Opener {
+		switch c.Store.ServerKindOf(serverID) {
+		case store.KindLocal:
+			return localTerminals
+		case store.KindLocalWin:
+			return nativeTerminals
+		}
+		return nil
+	})
 	c.Files = sftpx.New(c.Pool, c.Emit)
 
 	// Nothing here reaches out to Ollama. Building the client is local work, and
@@ -103,8 +137,8 @@ func NewCore() (*Core, error) {
 	return c, nil
 }
 
-// Runner executes one command on a host. Both transports satisfy it, and
-// everything that runs commands takes it rather than either of them.
+// Runner executes one command on a host. All transports satisfy it, and
+// everything that runs commands takes it rather than any of them.
 type Runner interface {
 	Exec(serverID, cmd string) (sshx.ExecResult, error)
 }
@@ -112,18 +146,156 @@ type Runner interface {
 // hostRunner routes a command to the transport that owns the host.
 type hostRunner struct{ core *Core }
 
-// Exec runs the command where the host actually is.
+// Exec runs the command where the host actually is. What "runs a command" means
+// differs with it: a POSIX shell for SSH and local hosts, PowerShell for the
+// Windows ones — callers that build command lines ask the kind first. For a
+// remote Windows host the PowerShell script travels as -EncodedCommand, the one
+// spelling that survives whichever default shell its sshd hands commands to.
 func (r hostRunner) Exec(serverID, cmd string) (sshx.ExecResult, error) {
-	if r.core.IsLocal(serverID) {
+	switch r.core.Store.ServerKindOf(serverID) {
+	case store.KindLocal:
 		return r.core.Local.Exec(serverID, cmd)
+	case store.KindLocalWin:
+		return r.core.NativeLocal.Exec(serverID, cmd)
+	case store.KindSSHWin:
+		return r.core.Pool.Exec(serverID, sshx.PowerShellCommand(cmd))
 	}
 	return r.core.Pool.Exec(serverID, cmd)
 }
 
-// IsLocal reports whether a host is this computer. It reads one column, and is
-// asked before every command, terminal and file operation.
+// Mux is the session layer for one host: create, list, address, type into and
+// capture persistent terminal sessions. tmux implements it everywhere tmux
+// exists; the native session daemon implements it where it cannot.
+type Mux interface {
+	Available(serverID string) tmuxx.Info
+	ListSessions(serverID string) ([]tmuxx.Session, error)
+	ListPanes(serverID string) ([]tmuxx.Pane, error)
+	HasSession(serverID, name string) (bool, error)
+	NewSession(serverID, name, cwd string) error
+	KillSession(serverID, name string) error
+	RenameSession(serverID, from, to string) error
+	SendText(serverID, tgt, text string, pressEnter bool) error
+	SendKey(serverID, tgt, key string) error
+	CapturePane(serverID, tgt string, lines int) (string, error)
+}
+
+// muxRouter sends session operations to whichever layer owns the host.
+type muxRouter struct {
+	core *Core
+	tmux *tmuxx.Client
+}
+
+func (m muxRouter) of(serverID string) Mux {
+	if m.core.IsWinHost(serverID) {
+		return m.core.NatMuxFor(serverID)
+	}
+	return m.tmux
+}
+
+func (m muxRouter) Available(serverID string) tmuxx.Info { return m.of(serverID).Available(serverID) }
+func (m muxRouter) ListSessions(serverID string) ([]tmuxx.Session, error) {
+	return m.of(serverID).ListSessions(serverID)
+}
+func (m muxRouter) ListPanes(serverID string) ([]tmuxx.Pane, error) {
+	return m.of(serverID).ListPanes(serverID)
+}
+func (m muxRouter) HasSession(serverID, name string) (bool, error) {
+	return m.of(serverID).HasSession(serverID, name)
+}
+func (m muxRouter) NewSession(serverID, name, cwd string) error {
+	return m.of(serverID).NewSession(serverID, name, cwd)
+}
+func (m muxRouter) KillSession(serverID, name string) error {
+	return m.of(serverID).KillSession(serverID, name)
+}
+func (m muxRouter) RenameSession(serverID, from, to string) error {
+	return m.of(serverID).RenameSession(serverID, from, to)
+}
+func (m muxRouter) SendText(serverID, tgt, text string, pressEnter bool) error {
+	return m.of(serverID).SendText(serverID, tgt, text, pressEnter)
+}
+func (m muxRouter) SendKey(serverID, tgt, key string) error {
+	return m.of(serverID).SendKey(serverID, tgt, key)
+}
+func (m muxRouter) CapturePane(serverID, tgt string, lines int) (string, error) {
+	return m.of(serverID).CapturePane(serverID, tgt, lines)
+}
+
+// IsLocal reports whether a host is this computer's POSIX side. It reads one
+// column, and is asked before every command, terminal and file operation.
 func (c *Core) IsLocal(serverID string) bool {
 	return c.Store.ServerKindOf(serverID) == store.KindLocal
+}
+
+// IsLocalWin reports whether a host is this computer's native Windows side.
+func (c *Core) IsLocalWin(serverID string) bool {
+	return c.Store.ServerKindOf(serverID) == store.KindLocalWin
+}
+
+// IsLocalAny reports whether a host is this computer in either flavour.
+func (c *Core) IsLocalAny(serverID string) bool {
+	kind := c.Store.ServerKindOf(serverID)
+	return kind == store.KindLocal || kind == store.KindLocalWin
+}
+
+// IsSSHWin reports whether a host is a remote Windows machine.
+func (c *Core) IsSSHWin(serverID string) bool {
+	return c.Store.ServerKindOf(serverID) == store.KindSSHWin
+}
+
+// IsWinHost reports whether a host speaks PowerShell — this computer's native
+// side or a remote Windows machine. It is the question every dialect choice
+// asks: which shell a command line is composed for, which probe to run, which
+// session layer holds the agents.
+func (c *Core) IsWinHost(serverID string) bool {
+	kind := c.Store.ServerKindOf(serverID)
+	return kind == store.KindLocalWin || kind == store.KindSSHWin
+}
+
+// NatMuxFor returns the session daemon client for a Windows host: the local
+// one over its pipe, or a per-server client carried through an SSH forward.
+func (c *Core) NatMuxFor(serverID string) *natmux.Client {
+	if !c.IsSSHWin(serverID) {
+		return c.NatMux
+	}
+	c.remoteMuxMu.Lock()
+	defer c.remoteMuxMu.Unlock()
+	if c.remoteMux == nil {
+		c.remoteMux = map[string]*natmux.Client{}
+	}
+	if cl, ok := c.remoteMux[serverID]; ok {
+		return cl
+	}
+	cl := natmux.NewRemoteClient(&winhost.Transport{
+		ServerID: serverID,
+		Pool:     c.Pool,
+		Username: func() (string, error) {
+			s, err := c.Store.GetServer(serverID)
+			return s.Username, err
+		},
+		LocalExe: winDeployExe,
+	})
+	c.remoteMux[serverID] = cl
+	return cl
+}
+
+// winDeployExe locates the Windows AgentMux binary to install on a remote
+// Windows host. A Windows build deploys itself; any other build needs to be
+// told where a Windows build is.
+func winDeployExe() (string, error) {
+	if runtime.GOOS == "windows" {
+		return os.Executable()
+	}
+	if p := os.Getenv("AGENTMUX_WIN_EXE"); p != "" {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+		return "", fmt.Errorf("AGENTMUX_WIN_EXE points at %s, which does not exist", p)
+	}
+	return "", errors.New(
+		"deploying the session daemon to a remote Windows host needs a Windows build of AgentMux. " +
+			"Build one (GOOS=windows go build) and set AGENTMUX_WIN_EXE to its path, " +
+			"or copy agentmux.exe to the host as %LOCALAPPDATA%\\AgentMux\\agentmux-host.exe and run it once with --natmuxd")
 }
 
 // IsReachable reports whether work can be done on a host right now.
@@ -134,7 +306,7 @@ func (c *Core) IsLocal(serverID string) bool {
 // connect, which would otherwise make it the one host whose agents never got
 // polled.
 func (c *Core) IsReachable(serverID string) bool {
-	return c.IsLocal(serverID) || c.Pool.IsConnected(serverID)
+	return c.IsLocalAny(serverID) || c.Pool.IsConnected(serverID)
 }
 
 // Settings keys for the local model runtime.
@@ -216,7 +388,7 @@ func (c *Core) Resolve(serverID string) (sshx.Target, error) {
 	// The one guard that keeps the pool honest: a local host has no address, so
 	// every SSH path that could be reached with one — a pooled connection, a
 	// transfer, a probe — fails here with a sentence instead of dialling "".
-	if s.Kind == store.KindLocal {
+	if s.Kind == store.KindLocal || s.Kind == store.KindLocalWin {
 		return sshx.Target{}, fmt.Errorf(
 			"%s is this computer, which is not reached over SSH", s.Name)
 	}
@@ -276,8 +448,10 @@ func DefaultSessionName(projectName, agentName string) string {
 }
 
 // shellCommands are the process names that mean "the pane is sitting at a
-// prompt" rather than "an agent is working".
+// prompt" rather than "an agent is working". The Windows shells are here for
+// native sessions, whose panes report PowerShell the way tmux panes report bash.
 var shellCommands = map[string]bool{
 	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true,
 	"ksh": true, "csh": true, "tcsh": true, "ash": true, "login": true,
+	"powershell": true, "pwsh": true, "cmd": true,
 }

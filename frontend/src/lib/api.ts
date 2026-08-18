@@ -78,6 +78,12 @@ export const servers = {
   localSupport: () => call<LocalHost>('ServerService', 'LocalSupport'),
   /** Adds this computer as a host. Idempotent: there is only one of it. */
   addLocal: (name: string) => call<Server>('ServerService', 'AddLocal', name),
+  /** Whether this computer's native Windows side can be added as its own host. */
+  localWinSupport: () => call<LocalHost>('ServerService', 'LocalWinSupport'),
+  /** Adds the native Windows side of this computer as a host. Idempotent. */
+  addLocalWin: (name: string) => call<Server>('ServerService', 'AddLocalWin', name),
+  /** The OS this build runs on, for offering only the host flavours it has. */
+  platform: () => call<string>('ServerService', 'Platform'),
   remove: (id: string) => call<void>('ServerService', 'Delete', id),
   test: (id: string) => call<Probe>('ServerService', 'Test', id),
   connect: (id: string) => call<void>('ServerService', 'Connect', id),

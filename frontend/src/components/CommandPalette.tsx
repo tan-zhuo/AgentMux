@@ -191,7 +191,12 @@ export function CommandPalette() {
       out.push({
         id: `shell:${s.id}`,
         label: t('palette.shell', { name: s.name }),
-        hint: s.kind === 'local' ? t('tree.thisComputer') : `${s.username}@${s.host}`,
+        hint:
+          s.kind === 'local'
+            ? t('tree.thisComputer')
+            : s.kind === 'localwin'
+            ? t('tree.thisComputerWin')
+            : `${s.username}@${s.host}`,
         icon: Server,
         run: () => {
           openTab({

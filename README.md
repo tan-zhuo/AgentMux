@@ -51,9 +51,13 @@ rather than an exercise in window management.
 **This computer, as a host.** The machine AgentMux runs on is managed like any
 other: same tree, same shells, same file browser, and agents in a local `tmux`
 session — so quitting the application does not stop them there either. It needs no
-sshd, no account and no credentials, because nothing is dialled. On Windows a local
-host means WSL, since that is where `tmux` exists and therefore the only place on
-that platform where work outlives the window.
+sshd, no account and no credentials, because nothing is dialled. On Windows the
+same computer offers two hosts: its default WSL distribution, where `tmux` lives,
+and native Windows itself — PowerShell, Windows paths, Windows toolchains — for
+the work WSL cannot do: MSVC builds, WPF, running the `.exe` that was just built.
+Native sessions persist through AgentMux's own session daemon, a small detached
+broker that owns each session's terminal and scrollback, so closing the window
+does not stop native work either.
 
 **Coordinated dispatch with delivery receipts.** One instruction can be sent to
 any selection of agents, and each returns a receipt confirming whether it was
@@ -127,11 +131,12 @@ Stated plainly, because they decide whether this is the right tool:
 - **Model spend is out of scope.** Agent traffic goes from the host to whichever
   provider the agent CLI is configured for. AgentMux does not proxy it and does
   not read the keys — which also means it cannot report cost or enforce a budget.
-- **Targets are Unix-like.** A POSIX shell and `tmux` are required on every host,
-  and SSH on every remote one. This computer qualifies directly on Linux and
-  macOS, and through WSL on Windows: Windows itself has no `tmux`, so nothing
-  started there could survive the window closing, which is the guarantee the rest
-  of this rests on.
+- **Remote POSIX targets need `tmux`.** A POSIX shell and `tmux` are required
+  on every remote Unix-like host, plus SSH. Windows — this computer's native
+  side, or a remote machine running OpenSSH Server — is hosted through
+  AgentMux's own session daemon instead, since `tmux` cannot exist there; for a
+  remote Windows host the daemon is deployed over SFTP on first use and its
+  protocol rides an SSH port forward, never a remote shell.
 - **It does not decide what agents do.** Objectives, prompts and repository
   conventions remain the operator's; the orchestrator investigates and proposes,
   and needs approval to act.
@@ -154,8 +159,9 @@ Stated plainly, because they decide whether this is the right tool:
 ## Requirements
 
 Remote hosts need `tmux` and an SSH account; AgentMux can install `tmux` where it
-is missing. Managing this computer needs the same `tmux`, and on Windows a WSL
-distribution to provide it. Local orchestration and memory search additionally require
+is missing. Managing this computer needs the same `tmux` — on Windows a WSL
+distribution provides it, while the native Windows host needs nothing beyond
+PowerShell, which every Windows has. Local orchestration and memory search additionally require
 [Ollama](https://ollama.com) with a chat model and an embedding model; without it
 the rest of the application is fully functional.
 

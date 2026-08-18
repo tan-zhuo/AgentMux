@@ -33,6 +33,10 @@ type ShellOptions struct {
 	Cwd      string            `json:"cwd"`
 	Env      map[string]string `json:"env"`
 	Term     string            `json:"term"`
+	// WindowsHost marks a host whose shell is PowerShell rather than a POSIX
+	// sh, so the command line is composed in the right dialect. Set by the
+	// application layer, which knows the host's kind; never by the frontend.
+	WindowsHost bool `json:"-"`
 }
 
 // ShellInfo is the frontend-visible handle for an open PTY.
@@ -108,9 +112,9 @@ type ShellManager struct {
 	pool *Pool
 	emit func(name string, data any)
 
-	// local, when set, opens terminals for hosts isLocal reports as local.
-	local   Opener
-	isLocal func(serverID string) bool
+	// localFor, when set, picks a local transport for a host. Returning nil
+	// means the host is not local and is reached over SSH.
+	localFor func(serverID string) Opener
 
 	mu     sync.Mutex
 	shells map[string]*shell
@@ -121,12 +125,13 @@ func NewShellManager(pool *Pool, emit func(name string, data any)) *ShellManager
 	return &ShellManager{pool: pool, emit: emit, shells: map[string]*shell{}}
 }
 
-// UseLocal teaches the manager to open terminals on this machine for the hosts
-// isLocal claims. Called once at startup; without it every host is an SSH host,
-// which is what every build before local hosts existed did.
-func (m *ShellManager) UseLocal(isLocal func(serverID string) bool, open Opener) {
-	m.isLocal = isLocal
-	m.local = open
+// UseLocal teaches the manager to open terminals on this machine. The picker
+// answers per host — this machine has more than one local flavour on Windows,
+// where the same computer is both a WSL host and a native one. Called once at
+// startup; without it every host is an SSH host, which is what every build
+// before local hosts existed did.
+func (m *ShellManager) UseLocal(pick func(serverID string) Opener) {
+	m.localFor = pick
 }
 
 // Open starts a PTY session and begins streaming its output.
@@ -148,7 +153,20 @@ func (m *ShellManager) Open(opts ShellOptions) (ShellInfo, error) {
 	if err != nil {
 		return ShellInfo{}, err
 	}
+	return m.Adopt(opts, opened), nil
+}
 
+// Adopt registers a terminal some transport already opened and starts streaming
+// it, exactly as Open does for the transports the manager dials itself. It is
+// how a native session attach — opened against the local session daemon, not
+// through an Opener — joins the same scrollback and event machinery.
+func (m *ShellManager) Adopt(opts ShellOptions, opened Opened) ShellInfo {
+	if opts.Cols <= 0 {
+		opts.Cols = 120
+	}
+	if opts.Rows <= 0 {
+		opts.Rows = 32
+	}
 	sh := &shell{
 		id:       uuid.NewString(),
 		serverID: opts.ServerID,
@@ -173,13 +191,15 @@ func (m *ShellManager) Open(opts ShellOptions) (ShellInfo, error) {
 	return ShellInfo{
 		ID: sh.id, ServerID: sh.serverID, Cols: sh.cols, Rows: sh.rows,
 		OpenedAt: sh.openedAt, Alive: true,
-	}, nil
+	}
 }
 
 // open routes to the transport that owns this host.
 func (m *ShellManager) open(opts ShellOptions) (Opened, error) {
-	if m.local != nil && m.isLocal != nil && m.isLocal(opts.ServerID) {
-		return m.local.OpenTerminal(opts)
+	if m.localFor != nil {
+		if local := m.localFor(opts.ServerID); local != nil {
+			return local.OpenTerminal(opts)
+		}
 	}
 	return m.openSSH(opts)
 }
@@ -227,8 +247,13 @@ func (m *ShellManager) openSSH(opts ShellOptions) (Opened, error) {
 	}
 
 	// A login shell is asked for as a shell rather than as a command, because
-	// that is the request sshd handles best; anything else is a command line.
-	if line := CommandLine(opts); line == "" {
+	// that is the request sshd handles best; anything else is a command line —
+	// composed in the dialect the host's shell actually speaks.
+	line := CommandLine(opts)
+	if opts.WindowsHost {
+		line = WinCommandLine(opts)
+	}
+	if line == "" {
 		err = sess.Shell()
 	} else {
 		err = sess.Start(line)

@@ -108,6 +108,7 @@ export const en = {
   'tree.removeServer': 'Remove server',
   'tree.deleteServer': 'Delete server',
   'tree.thisComputer': 'this computer',
+  'tree.thisComputerWin': 'this computer · native Windows',
   'tree.newServer': 'Server',
   'tree.newProject': 'Project',
   'agent.start': 'Start',
@@ -171,6 +172,15 @@ export const en = {
   'server.kind.remoteTitle': 'Reached over SSH',
   'server.kind.local': 'This computer',
   'server.kind.localTitle': 'The machine AgentMux is running on',
+  'server.kind.sshwin': 'Remote Windows',
+  'server.kind.sshwinTitle': 'A Windows machine reached over SSH',
+  'server.kind.sshwinHint':
+    'A remote Windows machine over SSH (enable its built-in OpenSSH Server first). Agents run natively — PowerShell, MSVC, WPF — and persist through AgentMux’s session daemon, installed on the host automatically on first use.',
+  'server.kind.localWsl': 'This computer (WSL)',
+  'server.kind.localwin': 'This computer (Windows)',
+  'server.kind.localwinTitle': 'Native Windows: PowerShell, Windows toolchains',
+  'server.kind.localwinHint':
+    'The native Windows side of this machine, for the work WSL cannot do: MSVC builds, WPF, running the .exe you just built. Agents persist through AgentMux’s own session daemon, so closing AgentMux still does not stop them.',
   'server.alreadyInTree': 'This computer is already in the tree — saving will select it rather than adding a second one.',
   'server.name': 'Name',
   'server.tags': 'Tags',

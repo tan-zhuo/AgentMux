@@ -3,11 +3,15 @@
 // any other — same tree, same tmux sessions, same agents, no sshd and no
 // credentials in between.
 //
-// Everything here speaks POSIX, because everything above it does: tmux session
-// names, absolute paths, `sh -lc` command lines. On Linux and macOS that is the
-// machine itself. On Windows it is WSL, which is the only place on that platform
-// where tmux — and therefore the promise that closing the window does not stop
-// the work — actually exists.
+// The Runner/Files/Terminals trio speaks POSIX, because everything above it
+// does: tmux session names, absolute paths, `sh -lc` command lines. On Linux
+// and macOS that is the machine itself. On Windows it is WSL, which is where
+// tmux — and therefore the promise that closing the window does not stop the
+// work — lives on that platform.
+//
+// The Native* siblings in this package are the same machine's other face on
+// Windows: PowerShell, Windows paths, Windows toolchains, for the work WSL
+// cannot do. Their sessions persist through the natmux daemon instead of tmux.
 package localx
 
 import (

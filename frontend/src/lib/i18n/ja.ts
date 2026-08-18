@@ -104,6 +104,7 @@ export const ja: Messages = {
   'tree.removeServer': 'サーバーを削除',
   'tree.deleteServer': 'サーバーを削除',
   'tree.thisComputer': 'このコンピューター',
+  'tree.thisComputerWin': 'このコンピューター · ネイティブ Windows',
   'tree.newServer': 'サーバー',
   'tree.newProject': 'プロジェクト',
   'agent.start': '起動',
@@ -167,6 +168,15 @@ export const ja: Messages = {
   'server.kind.remoteTitle': 'SSH で接続します',
   'server.kind.local': 'このコンピューター',
   'server.kind.localTitle': 'AgentMux が動いているマシンです',
+  'server.kind.sshwin': 'リモート Windows',
+  'server.kind.sshwinTitle': 'SSH で接続する Windows マシン',
+  'server.kind.sshwinHint':
+    'SSH で接続するリモート Windows マシンです（内蔵の OpenSSH Server を先に有効化してください）。エージェントはネイティブに動きます — PowerShell、MSVC、WPF — そして初回使用時に自動配備される AgentMux のセッションデーモンが動かし続けます。',
+  'server.kind.localWsl': 'このコンピューター (WSL)',
+  'server.kind.localwin': 'このコンピューター (Windows)',
+  'server.kind.localwinTitle': 'ネイティブ Windows：PowerShell と Windows ツールチェーン',
+  'server.kind.localwinHint':
+    'このマシンのネイティブ Windows 側です。WSL ではできない仕事のために：MSVC ビルド、WPF、ビルドしたばかりの .exe の実行。エージェントは AgentMux 内蔵のセッションデーモンで動き続けるので、AgentMux を閉じても止まりません。',
   'server.alreadyInTree': 'このコンピューターはすでにツリーにあります。保存すると新しく追加せず、既存のものを選択します。',
   'server.name': '名前',
   'server.tags': 'タグ',
