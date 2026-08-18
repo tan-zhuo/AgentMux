@@ -5,6 +5,7 @@ import { errText, skills as skillApi } from '../lib/api'
 import type { Skill, SkillScope, SkillStep, SkillVersion, ToolMeta } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
+import { useFmt, useT } from '../store/useI18n'
 import { Badge, Button, Field, Modal, inputClass, textareaClass } from './ui'
 
 const blank: Partial<Skill> = {
@@ -32,6 +33,7 @@ export function SkillDialog() {
   const close = useDialogs((s) => s.close)
   const toast = useAppStore((s) => s.toast)
   const projects = useAppStore((s) => s.snapshot.projects)
+  const t = useT()
 
   const existing = dialog?.kind === 'skill' ? dialog.skill : undefined
   const [form, setForm] = useState<Partial<Skill>>(existing ?? blank)
@@ -57,12 +59,12 @@ export function SkillDialog() {
 
   return (
     <Modal
-      title={existing ? `Edit ${existing.name}` : 'New skill'}
+      title={existing ? t('skillDialog.edit', { name: existing.name }) : t('skill.new')}
       onClose={close}
       wide
       footer={
         <>
-          <Button onClick={close}>Cancel</Button>
+          <Button onClick={close}>{t('common.cancel')}</Button>
           <Button
             variant="primary"
             disabled={saving}
@@ -70,11 +72,14 @@ export function SkillDialog() {
               setSaving(true)
               try {
                 if (existing) {
-                  await skillApi.update({ ...existing, ...form } as Skill, note || 'edited')
-                  toast('ok', 'Skill updated')
+                  await skillApi.update(
+                    { ...existing, ...form } as Skill,
+                    note || t('skillDialog.edited'),
+                  )
+                  toast('ok', t('skillDialog.updated'))
                 } else {
                   await skillApi.create(form)
-                  toast('ok', 'Skill created')
+                  toast('ok', t('skillDialog.created'))
                 }
                 close()
               } catch (e) {
@@ -84,37 +89,41 @@ export function SkillDialog() {
               }
             }}
           >
-            {saving ? 'Saving…' : existing ? 'Save as a new version' : 'Create'}
+            {saving
+              ? t('common.saving')
+              : existing
+                ? t('skillDialog.saveVersion')
+                : t('skillDialog.create')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
         <div className="grid grid-cols-[2fr_1fr] gap-3">
-          <Field label="Name">
+          <Field label={t('skillDialog.name')}>
             <input
               autoFocus
               className={inputClass}
               value={form.name ?? ''}
               onChange={(e) => set('name', e.target.value)}
-              placeholder="Payment latency triage"
+              placeholder={t('skillDialog.name.placeholder')}
             />
           </Field>
-          <Field label="Scope">
+          <Field label={t('skillDialog.scope')}>
             <select
               className={inputClass}
               value={form.scope ?? 'global'}
               onChange={(e) => set('scope', e.target.value as SkillScope)}
             >
-              <option value="global">Everywhere</option>
-              <option value="project">One or more projects</option>
-              <option value="agent_type">Agent types</option>
+              <option value="global">{t('skillDialog.scope.global')}</option>
+              <option value="project">{t('skillDialog.scope.project')}</option>
+              <option value="agent_type">{t('skillDialog.scope.agentType')}</option>
             </select>
           </Field>
         </div>
 
         {form.scope === 'project' && (
-          <Field label="Projects" hint="A project-scoped skill is only offered inside these.">
+          <Field label={t('skillDialog.projects')} hint={t('skillDialog.projects.hint')}>
             <div className="flex flex-wrap gap-1.5">
               {projects.map((p) => {
                 const on = (form.projectIds ?? []).includes(p.id)
@@ -137,14 +146,14 @@ export function SkillDialog() {
                 )
               })}
               {projects.length === 0 && (
-                <span className="text-[11px] text-ink-500">No projects yet.</span>
+                <span className="text-[11px] text-ink-500">{t('skillDialog.noProjects')}</span>
               )}
             </div>
           </Field>
         )}
 
         {form.scope === 'agent_type' && (
-          <Field label="Agent types" hint="Comma separated, e.g. claude, codex">
+          <Field label={t('skillDialog.scope.agentType')} hint={t('skillDialog.agentTypes.hint')}>
             <input
               className={inputClass}
               value={(form.agentTypes ?? []).join(', ')}
@@ -153,7 +162,7 @@ export function SkillDialog() {
                   'agentTypes',
                   e.target.value
                     .split(',')
-                    .map((t) => t.trim())
+                    .map((type) => type.trim())
                     .filter(Boolean),
                 )
               }
@@ -161,20 +170,17 @@ export function SkillDialog() {
           </Field>
         )}
 
-        <Field
-          label="When it applies"
-          hint="This is what a situation gets matched against. Describe the situation, not the fix."
-        >
+        <Field label={t('skillDialog.trigger')} hint={t('skillDialog.trigger.hint')}>
           <textarea
             rows={2}
             className={textareaClass}
             value={form.trigger ?? ''}
             onChange={(e) => set('trigger', e.target.value)}
-            placeholder="the payment service slows down under load and latency alerts fire"
+            placeholder={t('skillDialog.trigger.placeholder')}
           />
         </Field>
 
-        <Field label="Description" hint="One line, for the list.">
+        <Field label={t('skillDialog.description')} hint={t('skillDialog.description.hint')}>
           <input
             className={inputClass}
             value={form.description ?? ''}
@@ -185,7 +191,7 @@ export function SkillDialog() {
         <div>
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[11px] font-semibold text-ink-300">
-              Steps
+              {t('skillDialog.steps')}
             </span>
             <Button
               size="sm"
@@ -197,7 +203,7 @@ export function SkillDialog() {
                 ])
               }
             >
-              <Plus size={11} /> Step
+              <Plus size={11} /> {t('skillDialog.addStep')}
             </Button>
           </div>
           <div className="space-y-2">
@@ -210,7 +216,7 @@ export function SkillDialog() {
                     className={inputClass}
                     value={s.description}
                     onChange={(e) => setStep(i, { description: e.target.value })}
-                    placeholder="What to do at this step"
+                    placeholder={t('skillDialog.step.placeholder')}
                   />
                   <Button
                     size="sm"
@@ -221,17 +227,20 @@ export function SkillDialog() {
                   </Button>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1 pl-6">
-                  {tools.map((t) => {
-                    const on = s.recommendedTools.includes(t.name)
+                  {tools.map((tool) => {
+                    const on = s.recommendedTools.includes(tool.name)
                     return (
                       <button
-                        key={t.name}
-                        title={`${t.description} (${t.risk})`}
+                        key={tool.name}
+                        title={t('skillDialog.tool.title', {
+                          description: tool.description,
+                          risk: tool.risk,
+                        })}
                         onClick={() =>
                           setStep(i, {
                             recommendedTools: on
-                              ? s.recommendedTools.filter((n) => n !== t.name)
-                              : [...s.recommendedTools, t.name],
+                              ? s.recommendedTools.filter((n) => n !== tool.name)
+                              : [...s.recommendedTools, tool.name],
                           })
                         }
                         className={clsx(
@@ -241,10 +250,10 @@ export function SkillDialog() {
                             : 'hairline bg-ink-850 text-ink-500 hover:text-ink-300',
                           // Risk is shown even unselected: recommending a
                           // destructive tool should never be a casual click.
-                          !on && t.risk === 'destructive' && 'border-danger/30 text-danger/70',
+                          !on && tool.risk === 'destructive' && 'border-danger/30 text-danger/70',
                         )}
                       >
-                        {t.name}
+                        {tool.name}
                       </button>
                     )
                   })}
@@ -253,12 +262,11 @@ export function SkillDialog() {
             ))}
           </div>
           <p className="mt-1 text-[10.5px] leading-relaxed text-ink-500">
-            Naming a tool is a recommendation, not permission. Whether it runs is still decided by
-            its own risk level and the server it would touch.
+            {t('skillDialog.toolsNote')}
           </p>
         </div>
 
-        <Field label="Constraints" hint="One per line. Things that must not happen.">
+        <Field label={t('skillDialog.constraints')} hint={t('skillDialog.constraints.hint')}>
           <textarea
             rows={2}
             className={textareaClass}
@@ -269,17 +277,17 @@ export function SkillDialog() {
                 e.target.value.split('\n').map((c) => c.trim()).filter(Boolean),
               )
             }
-            placeholder="never restart during business hours"
+            placeholder={t('skillDialog.constraints.placeholder')}
           />
         </Field>
 
         {existing && (
-          <Field label="What changed" hint="Kept with the previous version, for the history.">
+          <Field label={t('skillDialog.changed')} hint={t('skillDialog.changed.hint')}>
             <input
               className={inputClass}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="added the index check"
+              placeholder={t('skillDialog.changed.placeholder')}
             />
           </Field>
         )}
@@ -293,6 +301,8 @@ export function SkillHistoryDialog() {
   const dialog = useDialogs((s) => s.dialog)
   const close = useDialogs((s) => s.close)
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
+  const fmt = useFmt()
   const skill = dialog?.kind === 'skillHistory' ? dialog.skill : undefined
 
   const [versions, setVersions] = useState<SkillVersion[]>([])
@@ -310,13 +320,15 @@ export function SkillHistoryDialog() {
 
   return (
     <Modal
-      title={`${skill.name} — history`}
+      title={t('skillHistory.title', { name: skill.name })}
       onClose={close}
       wide
-      footer={<Button onClick={close}>Close</Button>}
+      footer={<Button onClick={close}>{t('common.close')}</Button>}
     >
       <div className="space-y-2">
-        {versions.length === 0 && <p className="text-[11px] text-ink-500">No history yet.</p>}
+        {versions.length === 0 && (
+          <p className="text-[11px] text-ink-500">{t('skillHistory.empty')}</p>
+        )}
         {versions.map((v) => (
           <div key={v.id} className="rounded-control border hairline bg-ink-800 p-2.5">
             <div className="flex items-center gap-2">
@@ -324,21 +336,21 @@ export function SkillHistoryDialog() {
               <Badge>{v.changedBy}</Badge>
               <span className="min-w-0 flex-1 truncate text-[11px] text-ink-400">{v.note}</span>
               <span className="shrink-0 text-[10px] text-ink-600">
-                {new Date(v.createdAt * 1000).toLocaleString()}
+                {fmt.dateTime(v.createdAt)}
               </span>
               <Button
                 size="sm"
                 disabled={busy || v.version === skill.version}
                 title={
                   v.version === skill.version
-                    ? 'This is the current content'
-                    : 'Restore this content as a new version'
+                    ? t('skillHistory.current')
+                    : t('skillHistory.restore.title')
                 }
                 onClick={async () => {
                   setBusy(true)
                   try {
                     await skillApi.rollback(skill.id, v.version)
-                    toast('ok', `Rolled back to v${v.version}`)
+                    toast('ok', t('skillHistory.rolledBack', { version: v.version }))
                     close()
                   } catch (e) {
                     toast('error', errText(e))
@@ -347,7 +359,7 @@ export function SkillHistoryDialog() {
                   }
                 }}
               >
-                <RotateCcw size={11} /> Restore
+                <RotateCcw size={11} /> {t('skillHistory.restore')}
               </Button>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-ink-400">{v.snapshot.trigger}</p>
@@ -360,10 +372,7 @@ export function SkillHistoryDialog() {
             </ol>
           </div>
         ))}
-        <p className="text-[10.5px] leading-relaxed text-ink-500">
-          Restoring adds a new version rather than erasing the ones after it, so a rollback can
-          itself be rolled back.
-        </p>
+        <p className="text-[10.5px] leading-relaxed text-ink-500">{t('skillHistory.note')}</p>
       </div>
     </Modal>
   )

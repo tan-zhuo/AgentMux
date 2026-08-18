@@ -7,10 +7,10 @@ import { FileBrowser } from './components/FileBrowser'
 import { TerminalPane } from './components/TerminalPane'
 import { Toasts } from './components/Toasts'
 import { Empty } from './components/ui'
-import { errText, terminal as termApi, windows } from './lib/api'
-import type { DetachedTab } from './lib/types'
+import { errText, on, terminal as termApi, windows } from './lib/api'
+import type { Agent, DetachedTab } from './lib/types'
 import { useAppStore, type Tab } from './store/useAppStore'
-import { useI18n } from './store/useI18n'
+import { useI18n, useT } from './store/useI18n'
 import { useTheme } from './store/useTheme'
 
 const lightColor = {
@@ -29,6 +29,7 @@ const lightColor = {
 export function DetachedApp({ token }: { token: string }) {
   const initTheme = useTheme((s) => s.init)
   const initI18n = useI18n((s) => s.init)
+  const t = useT()
   const [tab, setTab] = useState<Tab | null>(null)
   const [error, setError] = useState('')
   const [focused, setFocused] = useState(true)
@@ -96,6 +97,24 @@ export function DetachedApp({ token }: { token: string }) {
     return () => window.removeEventListener('pagehide', shutdown)
   }, [tab?.id])
 
+  // A rename in the main window has to reach this one too: the title came over
+  // with the tab and would otherwise keep naming an agent that no longer exists
+  // under that name. The window's own title follows, since that is what the
+  // taskbar and the window switcher show.
+  useEffect(() => {
+    if (!tab?.agentId) return
+    return on<Agent[]>('agents:updated', (list) => {
+      const agent = (list ?? []).find((a) => a.id === tab.agentId)
+      if (!agent?.name) return
+      const current = useAppStore.getState().tabs.find((t) => t.id === tab.id)
+      if (!current) return
+      const tmuxSession = agent.tmuxSession || current.tmuxSession
+      if (current.title === agent.name && current.tmuxSession === tmuxSession) return
+      useAppStore.getState().setTabState(tab.id, { title: agent.name, tmuxSession })
+      void Window.SetTitle(agent.name).catch(() => {})
+    })
+  }, [tab?.id, tab?.agentId])
+
   // The pane reports its state through the shared store, so mirror it back.
   const stored = useAppStore((s) => s.tabs.find((t) => t.id === tab?.id))
   useEffect(() => {
@@ -124,14 +143,14 @@ export function DetachedApp({ token }: { token: string }) {
         >
           {live?.title ?? 'AgentMux'}
         </span>
-        <span className="ml-auto text-[10px] text-ink-600">detached</span>
+        <span className="ml-auto text-[10px] text-ink-600">{t('detached.badge')}</span>
       </header>
 
       <div className="relative min-h-0 flex-1">
         {error ? (
-          <Empty title="Could not open this tab" hint={error} />
+          <Empty title={t('detached.cannotOpen')} hint={error} />
         ) : !live ? (
-          <Empty title="Opening" hint="Taking over the session from the main window." />
+          <Empty title={t('detached.opening')} hint={t('detached.opening.hint')} />
         ) : live.kind === 'files' ? (
           <FileBrowser tab={live} />
         ) : live.kind === 'editor' ? (

@@ -20,6 +20,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { MAX_PANES, useAppStore, type SplitAxis, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
+import { useT } from '../store/useI18n'
 import { useDialogs } from '../store/useDialogs'
 import { EditorPane } from './EditorPane'
 import { FileBrowser } from './FileBrowser'
@@ -164,6 +165,7 @@ function PaneSeams({
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
+  const t = useT()
 
   function startDrag(e: React.PointerEvent, axis: 'x' | 'y', boundary: number, key: string) {
     const rect = rootRef.current?.getBoundingClientRect()
@@ -211,7 +213,7 @@ function PaneSeams({
           key={`${key}-${row}`}
           onPointerDown={(e) => startDrag(e, 'x', b, key)}
           onDoubleClick={() => onCols(equalShares(grid.cols))}
-          title="Drag to resize · double-click to even them out"
+          title={t('area.splitter')}
           style={{
             left: `${sum(colShares.slice(0, b)) * 100}%`,
             top: `${sum(rowShares.slice(0, row)) * 100}%`,
@@ -233,7 +235,7 @@ function PaneSeams({
         key={key}
         onPointerDown={(e) => startDrag(e, 'y', b, key)}
         onDoubleClick={() => onRows(equalShares(grid.rows))}
-        title="Drag to resize · double-click to even them out"
+        title={t('area.splitter')}
         style={{ top: `${sum(rowShares.slice(0, b)) * 100}%` }}
         className={clsx(
           'pointer-events-auto absolute inset-x-0 -mt-[3px] h-[7px] cursor-row-resize touch-none',
@@ -280,6 +282,7 @@ interface DragState {
 }
 
 export function TerminalArea() {
+  const t = useT()
   const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
@@ -483,20 +486,20 @@ export function TerminalArea() {
                 onContextMenu={(e) =>
                   openContextMenu(e, [
                     {
-                      label: 'Show in its own pane',
+                      label: t('area.ownPane'),
                       icon: SplitSquareHorizontal,
                       hint: inPane
-                        ? 'already in the split'
+                        ? t('area.alreadySplit')
                         : panes.length >= MAX_PANES
-                          ? `${MAX_PANES} panes is the limit`
+                          ? t('area.paneLimit', { n: MAX_PANES })
                           : undefined,
                       disabled: inPane || panes.length >= MAX_PANES,
                       onSelect: () => splitWith(tab.id),
                     },
                     {
-                      label: zoomed && active ? 'Back to the split' : 'Fill the area with this pane',
+                      label: zoomed && active ? t('area.backToSplit') : t('area.fillWithThis'),
                       icon: zoomed && active ? Shrink : Expand,
-                      hint: '⇧⌘↵ · double-click the tab',
+                      hint: t('area.fill.hint'),
                       disabled: panes.length < 2 || !inPane,
                       onSelect: () => {
                         if (active && zoomed) {
@@ -508,15 +511,15 @@ export function TerminalArea() {
                       },
                     },
                     {
-                      label: 'Close this pane',
+                      label: t('area.closePane'),
                       icon: Minimize2,
-                      hint: 'the tab stays open',
+                      hint: t('area.closePane.hint'),
                       disabled: !inPane || panes.length < 2,
                       onSelect: () => closePane(tab.id),
                     },
                     separator,
                     {
-                      label: 'Open in new window',
+                      label: t('area.newWindow'),
                       icon: ExternalLink,
                       onSelect: () =>
                         void detachTab(
@@ -529,12 +532,12 @@ export function TerminalArea() {
                     },
                     separator,
                     {
-                      label: 'Close tab',
+                      label: t('area.closeTab'),
                       icon: X,
                       onSelect: () => void closeTab(tab.id),
                     },
                     {
-                      label: 'Close other tabs',
+                      label: t('area.closeOthers'),
                       icon: XCircle,
                       disabled: tabs.length < 2,
                       onSelect: () => {
@@ -544,7 +547,7 @@ export function TerminalArea() {
                       },
                     },
                     {
-                      label: 'Close tabs to the right',
+                      label: t('area.closeRight'),
                       icon: ChevronsRight,
                       disabled: index >= tabs.length - 1,
                       onSelect: () => {
@@ -587,7 +590,7 @@ export function TerminalArea() {
                     void closeTab(tab.id)
                   }}
                   className="ml-0.5 rounded-control p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-750 hover:text-ink-100"
-                  title="Close tab"
+                  title={t('area.closeTab')}
                 >
                   <X size={11} />
                 </button>
@@ -599,7 +602,9 @@ export function TerminalArea() {
             <span className="pointer-events-none relative -ml-px w-0.5 self-stretch rounded-control bg-accent" />
           )}
           {!tabs.length && (
-            <div className="flex items-center px-3 text-[11px] text-ink-500">No open terminals</div>
+            <div className="flex items-center px-3 text-[11px] text-ink-500">
+              {t('area.noTerminals')}
+            </div>
           )}
         </div>
 
@@ -610,8 +615,8 @@ export function TerminalArea() {
                 onClick={() => setSplitAxis(splitAxis === 'cols' ? 'rows' : 'cols')}
                 title={
                   splitAxis === 'cols'
-                    ? `Stack the panes instead — ${flipped.cols}×${flipped.rows}`
-                    : `Put the panes side by side — ${flipped.cols}×${flipped.rows}`
+                    ? t('area.stackPanes', { cols: flipped.cols, rows: flipped.rows })
+                    : t('area.sideBySide', { cols: flipped.cols, rows: flipped.rows })
                 }
                 className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
               >
@@ -622,9 +627,7 @@ export function TerminalArea() {
               <button
                 onClick={toggleZoom}
                 title={
-                  zoomed
-                    ? 'Back to the split — ⇧⌘↵'
-                    : 'Fill the area with the focused pane — ⇧⌘↵'
+                  zoomed ? t('area.unzoom') : t('area.zoom')
                 }
                 className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
               >
@@ -634,7 +637,7 @@ export function TerminalArea() {
             {panes.length > 1 && (
               <button
                 onClick={() => activeTabId && closePane(activeTabId)}
-                title="Close this pane — the tab and its shell stay open"
+                title={t('area.closePane.title')}
                 className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
               >
                 <Minimize2 size={13} />
@@ -648,8 +651,8 @@ export function TerminalArea() {
               disabled={panes.length >= MAX_PANES}
               title={
                 panes.length >= MAX_PANES
-                  ? `${MAX_PANES} panes is the limit — close one first`
-                  : 'Add a pane: a host, a workspace, an agent or an open tab (⌘\\ splits with the next tab)'
+                  ? t('area.paneLimit.title', { n: MAX_PANES })
+                  : t('area.addPane.title')
               }
               className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
             >
@@ -662,7 +665,7 @@ export function TerminalArea() {
       {tearing && (
         <div className="pointer-events-none absolute inset-x-0 top-9 z-20 flex justify-center">
           <span className="rounded-b-control border border-t-0 border-accent-dim bg-ink-850 px-3 py-1 text-[11px] text-accent shadow-lg">
-            Release to open in a new window
+            {t('area.releaseToDetach')}
           </span>
         </div>
       )}
@@ -670,8 +673,8 @@ export function TerminalArea() {
       <div ref={areaRef} className="relative min-h-0 flex-1 bg-ink-800">
         {tabs.length === 0 ? (
           <Empty
-            title="Nothing attached yet"
-            hint="Pick a server, workspace or agent on the left. Agent and tmux tabs reattach to work that is already running remotely."
+            title={t('area.empty')}
+            hint={t('area.empty.hint')}
           />
         ) : (
           // Every tab stays mounted as a sibling of every other, and a split

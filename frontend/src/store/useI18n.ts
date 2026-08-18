@@ -19,8 +19,6 @@ interface I18nState {
   lang: Lang
   /** Empty means "follow this computer" — the resolved zone lives on `fmt`. */
   tz: string
-  /** True until the persisted choice has been read, so nothing flashes. */
-  ready: boolean
   t: TFunc
   fmt: Fmt
   init: () => Promise<void>
@@ -33,7 +31,6 @@ const initialLang = detectLang()
 export const useI18n = create<I18nState>((set, get) => ({
   lang: initialLang,
   tz: SYSTEM_TZ,
-  ready: false,
   t: makeT(initialLang),
   fmt: makeFmt(initialLang, SYSTEM_TZ),
 
@@ -50,7 +47,7 @@ export const useI18n = create<I18nState>((set, get) => ({
       /* first run, or the store is unavailable — the defaults are fine */
     }
     document.documentElement.lang = lang
-    set({ lang, tz, ready: true, t: makeT(lang), fmt: makeFmt(lang, tz) })
+    set({ lang, tz, t: makeT(lang), fmt: makeFmt(lang, tz) })
   },
 
   setLang(lang) {

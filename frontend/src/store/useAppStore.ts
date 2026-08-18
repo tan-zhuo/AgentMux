@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
 import { confirmAction } from './useConfirm'
 import { useDialogs } from './useDialogs'
+import { t } from './useI18n'
 import type {
   Agent,
   BroadcastTarget,
@@ -568,11 +569,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (tab?.dirty) {
       set({ activeTabId: id })
       const ok = await confirmAction({
-        title: `Close ${tab.title.replace(/ •$/, '')} without saving`,
-        message: 'The changes you made here have not been written to the server.',
+        title: t('tab.closeUnsaved.title', { name: tab.title.replace(/ •$/, '') }),
+        message: t('tab.closeUnsaved.message'),
         tone: 'warning',
-        confirmLabel: 'Discard changes',
-        cancelLabel: 'Keep editing',
+        confirmLabel: t('tab.closeUnsaved.discard'),
+        cancelLabel: t('tab.closeUnsaved.keepEditing'),
       })
       if (!ok) return
     }

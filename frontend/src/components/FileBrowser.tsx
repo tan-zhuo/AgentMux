@@ -23,10 +23,12 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { errText, files as filesApi, on, tree as treeApi, windows as windowsApi } from '../lib/api'
+import type { MsgKey, TFunc } from '../lib/i18n'
 import type { FileEntry, Listing, Transfer } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
+import { useFmt, useT } from '../store/useI18n'
 import { AgentPicker, LaunchHere } from './LaunchHere'
 import { Button, Empty, iconButtonClass, inputClass } from './ui'
 
@@ -36,6 +38,19 @@ function bytes(n: number): string {
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
   const v = n / Math.pow(1024, i)
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
+}
+
+const transferStatusKey: Record<string, MsgKey> = {
+  done: 'files.transfer.done',
+  error: 'files.transfer.error',
+  cancelled: 'files.transfer.cancelled',
+  running: 'files.transfer.running',
+}
+
+/** A transfer's state in words; an unknown one is shown as it arrived. */
+function transferStatus(t: TFunc, status: string): string {
+  const key = transferStatusKey[status]
+  return key ? t(key) : status
 }
 
 /** Quotes a path for a /bin/sh command line on the host. */
@@ -65,6 +80,8 @@ function crumbs(p: string): Array<{ label: string; path: string }> {
 export function FileBrowser({ tab }: { tab: Tab }) {
   const toast = useAppStore((s) => s.toast)
   const setTabState = useAppStore((s) => s.setTabState)
+  const t = useT()
+  const fmt = useFmt()
 
   const [listing, setListing] = useState<Listing | null>(null)
   const [cwd, setCwd] = useState(tab.command ?? '')
@@ -201,7 +218,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   async function upload() {
     try {
       const picked = await Dialogs.OpenFile({
-        Title: `Upload to ${cwd}`,
+        Title: t('files.uploadTo', { path: cwd }),
         AllowsMultipleSelection: true,
         CanChooseFiles: true,
       })
@@ -209,7 +226,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       for (const local of list) {
         await filesApi.upload(tab.serverId, local, cwd)
       }
-      if (list.length) toast('info', `Uploading ${list.length} file(s) to ${cwd}`)
+      if (list.length) toast('info', t('files.uploading', { n: list.length, path: cwd }))
     } catch (e) {
       toast('error', errText(e))
     }
@@ -217,10 +234,13 @@ export function FileBrowser({ tab }: { tab: Tab }) {
 
   async function download(entry: FileEntry) {
     try {
-      const local = await Dialogs.SaveFile({ Title: `Save ${entry.name}`, Filename: entry.name })
+      const local = await Dialogs.SaveFile({
+        Title: t('files.saveAs', { name: entry.name }),
+        Filename: entry.name,
+      })
       if (!local) return
       await filesApi.download(tab.serverId, entry.path, local)
-      toast('info', `Downloading ${entry.name}`)
+      toast('info', t('files.downloading', { name: entry.name }))
     } catch (e) {
       toast('error', errText(e))
     }
@@ -257,7 +277,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
     )
     if (already) {
       select({ kind: 'workspace', id: already.id })
-      toast('info', `${already.name} already points at this folder`)
+      toast('info', t('files.alreadyProject', { name: already.name }))
       return
     }
     try {
@@ -288,8 +308,8 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       toast(
         'ok',
         twin
-          ? `${name} added to the project ${project.name} — add an agent to it on the left`
-          : `${name} is now a project — add an agent to it on the left`,
+          ? t('files.joinedProject', { name, project: project.name })
+          : t('files.newProject', { name }),
       )
     } catch (e) {
       toast('error', errText(e))
@@ -324,7 +344,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   function cancelRename() {
     if (!renaming) return
     if (renaming.name.trim() !== renaming.path.split('/').pop()) {
-      toast('info', `${renaming.path.split('/').pop()} was not renamed — Enter applies a new name`)
+      toast('info', t('files.notRenamed', { name: renaming.path.split('/').pop() ?? '' }))
     }
     setRenaming(null)
   }
@@ -332,12 +352,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   async function remove(entry: FileEntry) {
     const isDir = entry.isDir
     const ok = await confirmAction({
-      title: `Delete ${entry.name}`,
-      message: isDir
-        ? 'The directory and everything inside it is removed from the server.'
-        : 'The file is removed from the server.',
-      points: [`${entry.path} on this server`, 'There is no undo and no trash to recover it from'],
-      confirmLabel: isDir ? 'Delete directory' : 'Delete file',
+      title: t('files.delete.title', { name: entry.name }),
+      message: isDir ? t('files.delete.dirMessage') : t('files.delete.fileMessage'),
+      points: [t('files.delete.onServer', { path: entry.path }), t('files.delete.noUndo')],
+      confirmLabel: isDir ? t('files.deleteDir') : t('files.deleteFile'),
       requireText: isDir ? entry.name : undefined,
     })
     if (!ok) return
@@ -356,7 +374,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title="Home"
+          title={t('files.home')}
           onClick={() => void load('')}
         >
           <Home size={12} />
@@ -364,7 +382,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title="Up one level"
+          title={t('files.up')}
           disabled={!listing?.parent}
           onClick={() => listing?.parent && void load(listing.parent)}
         >
@@ -383,23 +401,25 @@ export function FileBrowser({ tab }: { tab: Tab }) {
             </span>
           ))}
         </div>
-        <Button size="sm" variant="subtle" title="New folder" onClick={() => setNewDir('')}>
+        <Button size="sm" variant="subtle" title={t('files.newFolder')} onClick={() => setNewDir('')}>
           <FolderPlus size={12} />
         </Button>
         <Button
           size="sm"
           variant="subtle"
-          title={`Add ${cwd.split('/').filter(Boolean).pop() || cwd} as a project — a project and a workspace, without the forms`}
+          title={t('files.addAsProject.title', {
+            name: cwd.split('/').filter(Boolean).pop() || cwd,
+          })}
           onClick={() => void addAsProject(cwd)}
         >
           <Boxes size={12} />
         </Button>
-        <Button size="sm" variant="subtle" title="Refresh" onClick={() => void load(cwd)} disabled={loading}>
+        <Button size="sm" variant="subtle" title={t('common.refresh')} onClick={() => void load(cwd)} disabled={loading}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : undefined} />
         </Button>
         {!isLocalHost && (
           <Button size="sm" onClick={() => void upload()}>
-            <Upload size={11} /> Upload
+            <Upload size={11} /> {t('files.upload')}
           </Button>
         )}
         <LaunchHere serverId={tab.serverId} dir={cwd} onLaunched={openAgentTab} />
@@ -411,7 +431,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
             autoFocus
             className={inputClass}
             value={newDir}
-            placeholder="new folder name"
+            placeholder={t('files.newFolder.placeholder')}
             onChange={(e) => setNewDir(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') setNewDir(null)
@@ -419,10 +439,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
             }}
           />
           <Button size="sm" variant="primary" onClick={() => void createDir()}>
-            Create
+            {t('files.create')}
           </Button>
           <Button size="sm" onClick={() => setNewDir(null)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
         </div>
       )}
@@ -447,7 +467,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
       {/* Listing */}
       <div className="min-h-0 flex-1 overflow-auto">
         {!error && entries.length === 0 && !loading && (
-          <Empty title="Empty directory" hint="Nothing here. Upload a file or go up a level." />
+          <Empty title={t('files.empty')} hint={t('files.empty.hint')} />
         )}
         <table className="w-full text-xs">
           <tbody>
@@ -465,33 +485,41 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     const at = { x: ev.clientX, y: ev.clientY }
                     openContextMenu(ev, [
                       isDir
-                        ? { label: 'Open', icon: Folder, onSelect: () => void load(e.path) }
-                        : { label: 'Edit', icon: FileCode2, onSelect: () => openEditor(e) },
+                        ? {
+                            label: t('files.menu.open'),
+                            icon: Folder,
+                            onSelect: () => void load(e.path),
+                          }
+                        : {
+                            label: t('files.menu.edit'),
+                            icon: FileCode2,
+                            onSelect: () => openEditor(e),
+                          },
                       isDir || isLocalHost
                         ? {}
                         : {
-                            label: 'Download',
+                            label: t('files.menu.download'),
                             icon: Download,
                             onSelect: () => void download(e),
                           },
                       isDir
                         ? {
-                            label: 'Run agent here',
+                            label: t('files.menu.runAgent'),
                             icon: Rocket,
                             onSelect: () => setLaunch({ dir: e.path, ...at }),
                           }
                         : {},
                       isDir
                         ? {
-                            label: 'Add as a project',
+                            label: t('files.menu.addProject'),
                             icon: Boxes,
-                            hint: 'project and workspace',
+                            hint: t('files.menu.addProject.hint'),
                             onSelect: () => void addAsProject(e.path),
                           }
                         : {},
                       isDir
                         ? {
-                            label: 'Open terminal here',
+                            label: t('files.menu.terminalHere'),
                             icon: TerminalSquare,
                             onSelect: () => {
                               openTab({
@@ -508,23 +536,23 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                         : {},
                       separator,
                       {
-                        label: 'Copy path',
+                        label: t('files.menu.copyPath'),
                         icon: ClipboardCopy,
                         onSelect: () => void Clipboard.SetText(e.path),
                       },
                       {
-                        label: 'Copy name',
+                        label: t('files.menu.copyName'),
                         icon: ClipboardCopy,
                         onSelect: () => void Clipboard.SetText(e.name),
                       },
                       separator,
                       {
-                        label: 'Rename',
+                        label: t('files.menu.rename'),
                         icon: Pencil,
                         onSelect: () => setRenaming({ path: e.path, name: e.name }),
                       },
                       {
-                        label: isDir ? 'Delete directory' : 'Delete file',
+                        label: isDir ? t('files.deleteDir') : t('files.deleteFile'),
                         icon: Trash2,
                         danger: true,
                         onSelect: () => void remove(e),
@@ -584,14 +612,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     {isDir ? '' : bytes(e.size)}
                   </td>
                   <td className="w-36 py-1 pr-2 text-right tabular-nums text-ink-600">
-                    {e.modTime ? new Date(e.modTime * 1000).toLocaleString() : ''}
+                    {e.modTime ? fmt.dateTime(e.modTime) : ''}
                   </td>
                   <td className="w-24 py-1 pr-2 font-mono text-[10.5px] text-ink-600">{e.mode}</td>
                   <td className="w-28 py-1 pr-3">
                     <span className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100">
                       {isDir && (
                         <button
-                          title={`Add ${e.name} as a project`}
+                          title={t('files.addProjectRow', { name: e.name })}
                           onClick={(ev) => {
                             ev.stopPropagation()
                             void addAsProject(e.path)
@@ -603,7 +631,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                       )}
                       {isDir && (
                         <button
-                          title={`Run an agent in ${e.name}`}
+                          title={t('files.runAgentRow', { name: e.name })}
                           onClick={(ev) => {
                             ev.stopPropagation()
                             setLaunch({ dir: e.path, x: ev.clientX, y: ev.clientY })
@@ -615,7 +643,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                       )}
                       {!isDir && (
                         <button
-                          title="Edit"
+                          title={t('files.menu.edit')}
                           onClick={(ev) => {
                             ev.stopPropagation()
                             openEditor(e)
@@ -627,7 +655,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                       )}
                       {!isDir && !isLocalHost && (
                         <button
-                          title="Download"
+                          title={t('files.menu.download')}
                           onClick={(ev) => {
                             ev.stopPropagation()
                             void download(e)
@@ -638,7 +666,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                         </button>
                       )}
                       <button
-                        title="Rename"
+                        title={t('files.rename')}
                         onClick={(ev) => {
                           ev.stopPropagation()
                           setRenaming({ path: e.path, name: e.name })
@@ -648,7 +676,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                         <Pencil size={12} />
                       </button>
                       <button
-                        title="Delete"
+                        title={t('files.delete')}
                         onClick={(ev) => {
                           ev.stopPropagation()
                           void remove(e)
@@ -671,7 +699,8 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <div className="max-h-40 shrink-0 overflow-y-auto border-t hairline bg-ink-900">
           <div className="flex items-center justify-between px-3 py-1.5">
             <span className="text-[11px] font-semibold text-ink-300">
-              Transfers {active.length > 0 && `(${active.length} running)`}
+              {t('files.transfers')}{' '}
+              {active.length > 0 && t('files.transfersRunning', { n: active.length })}
             </span>
             <Button
               size="sm"
@@ -681,52 +710,52 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                 setTransfers(await filesApi.transfers())
               }}
             >
-              Clear finished
+              {t('files.clearFinished')}
             </Button>
           </div>
-          {transfers.map((t) => {
-            const pct = t.size > 0 ? (100 * t.done) / t.size : 0
+          {transfers.map((tr) => {
+            const pct = tr.size > 0 ? (100 * tr.done) / tr.size : 0
             return (
-              <div key={t.id} className="px-3 py-1">
+              <div key={tr.id} className="px-3 py-1">
                 <div className="flex items-center gap-2 text-[11px]">
-                  {t.kind === 'upload' ? (
+                  {tr.kind === 'upload' ? (
                     <Upload size={11} className="shrink-0 text-ink-500" />
                   ) : (
                     <Download size={11} className="shrink-0 text-ink-500" />
                   )}
                   <span className="min-w-0 flex-1 truncate font-mono text-ink-300">
-                    {t.kind === 'upload' ? t.remote : t.local}
+                    {tr.kind === 'upload' ? tr.remote : tr.local}
                   </span>
                   <span className="shrink-0 tabular-nums text-ink-500">
-                    {bytes(t.done)} / {bytes(t.size)}
+                    {bytes(tr.done)} / {bytes(tr.size)}
                   </span>
                   <span
                     className={clsx(
                       'w-16 shrink-0 text-right',
-                      t.status === 'done' && 'text-ok',
-                      t.status === 'error' && 'text-danger',
-                      t.status === 'cancelled' && 'text-ink-500',
-                      t.status === 'running' && 'text-ink-300',
+                      tr.status === 'done' && 'text-ok',
+                      tr.status === 'error' && 'text-danger',
+                      tr.status === 'cancelled' && 'text-ink-500',
+                      tr.status === 'running' && 'text-ink-300',
                     )}
                   >
-                    {t.status === 'running' ? `${pct.toFixed(0)}%` : t.status}
+                    {tr.status === 'running' ? `${pct.toFixed(0)}%` : transferStatus(t, tr.status)}
                   </span>
-                  {t.status === 'running' && (
+                  {tr.status === 'running' && (
                     <button
-                      title="Cancel"
-                      onClick={() => void filesApi.cancel(t.id)}
+                      title={t('files.cancel')}
+                      onClick={() => void filesApi.cancel(tr.id)}
                       className={clsx(iconButtonClass, 'text-ink-500 hover:bg-ink-800 hover:text-danger')}
                     >
                       <X size={11} />
                     </button>
                   )}
                 </div>
-                {t.status === 'running' && (
+                {tr.status === 'running' && (
                   <div className="mt-1 h-1 w-full overflow-hidden rounded-capsule bg-accent/20">
                     <div className="h-full rounded-capsule bg-accent" style={{ width: `${pct}%` }} />
                   </div>
                 )}
-                {t.error && <p className="mt-0.5 text-[10.5px] text-danger">{t.error}</p>}
+                {tr.error && <p className="mt-0.5 text-[10.5px] text-danger">{tr.error}</p>}
               </div>
             )
           })}
@@ -735,7 +764,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
 
       <div className="flex shrink-0 items-center gap-2 border-t hairline bg-ink-900 px-3 py-1 text-[10.5px] text-ink-600">
         <CornerUpLeft size={10} />
-        Double-click a folder to open it. Drops and directory transfers are not supported yet.
+        {t('files.footer')}
       </div>
     </div>
   )

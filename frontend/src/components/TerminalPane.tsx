@@ -9,6 +9,7 @@ import { errText, on, terminal as termApi } from '../lib/api'
 import type { ShellInfo } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
+import { useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
 import { Button } from './ui'
 
@@ -34,6 +35,7 @@ function fromBase64(b64: string): Uint8Array {
  * scrollback or forces a reattach.
  */
 export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
+  const t = useT()
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -245,14 +247,14 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     const selection = term?.getSelection() ?? ''
     openContextMenu(e, [
       {
-        label: 'Copy',
+        label: t('term.copy'),
         icon: Copy,
         hint: 'Ctrl+Shift+C',
         disabled: !selection,
         onSelect: () => void Clipboard.SetText(selection),
       },
       {
-        label: 'Paste',
+        label: t('term.paste'),
         icon: ClipboardPaste,
         hint: 'Ctrl+Shift+V',
         disabled: !shellIdRef.current,
@@ -263,21 +265,21 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
         },
       },
       {
-        label: 'Select all',
+        label: t('term.selectAll'),
         icon: TextSelect,
         onSelect: () => term?.selectAll(),
       },
       separator,
       {
-        label: 'Clear scrollback',
+        label: t('term.clear'),
         icon: Eraser,
         onSelect: () => term?.clear(),
       },
       {
-        label: 'Find',
+        label: t('term.find'),
         icon: Search,
         onSelect: () => {
-          const needle = window.prompt('Find in terminal')
+          const needle = window.prompt(t('term.find.prompt'))
           if (needle) searchRef.current?.findNext(needle)
         },
       },
@@ -291,8 +293,8 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t hairline bg-ink-850 px-3 py-2">
           <span className="truncate text-[11px] text-ink-300">
             {tab.kind === 'shell'
-              ? 'Session ended.'
-              : 'Detached — the remote tmux session is still running.'}
+              ? t('term.sessionEnded')
+              : t('term.detached')}
             {tab.error ? ` ${tab.error}` : ''}
           </span>
           <Button
@@ -303,7 +305,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
               setTabState(tab.id, { status: 'pending', error: undefined })
             }}
           >
-            Reattach
+            {t('term.reattach')}
           </Button>
         </div>
       )}
