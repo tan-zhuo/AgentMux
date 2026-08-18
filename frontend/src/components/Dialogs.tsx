@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Check } from 'lucide-react'
+import { Check, Download, Upload } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   agents as agentApi,
@@ -36,6 +36,7 @@ import { useFmt, useI18n, useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
 import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
 import { SplitDialog } from './SplitDialog'
+import { TransferDialog } from './TransferDialog'
 import { Button, Field, Modal, Segmented, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
@@ -58,6 +59,8 @@ export function Dialogs() {
       return <SkillHistoryDialog />
     case 'split':
       return <SplitDialog />
+    case 'transfer':
+      return <TransferDialog mode={dialog.mode} />
   }
 }
 
@@ -885,6 +888,8 @@ function SettingsDialog() {
 
       <LocalModelSettings />
 
+      <TransferSettings />
+
       <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.diagnostics')}</p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
         <dt className="text-ink-500">{t('settings.version')}</dt>
@@ -902,6 +907,33 @@ function SettingsDialog() {
       </dl>
       <p className="mt-4 text-[11px] leading-relaxed text-ink-400">{t('settings.security.blurb')}</p>
     </Modal>
+  )
+}
+
+/**
+ * Moving this installation somewhere else.
+ *
+ * It sits in Settings rather than in the tree's own menus because it is about
+ * the installation rather than about any one host: what leaves here is every
+ * host at once, and where it lands is a machine that has none.
+ */
+function TransferSettings() {
+  const t = useT()
+  const open = useDialogs((s) => s.open)
+
+  return (
+    <div className="mb-5">
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.transfer')}</p>
+      <p className="mb-2 text-[11px] leading-relaxed text-ink-400">{t('settings.transfer.blurb')}</p>
+      <div className="flex gap-1.5">
+        <Button size="sm" onClick={() => open({ kind: 'transfer', mode: 'export' })}>
+          <Download size={11} /> {t('settings.transfer.export')}
+        </Button>
+        <Button size="sm" onClick={() => open({ kind: 'transfer', mode: 'import' })}>
+          <Upload size={11} /> {t('settings.transfer.import')}
+        </Button>
+      </div>
+    </div>
   )
 }
 

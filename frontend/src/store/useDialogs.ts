@@ -11,6 +11,8 @@ export type Dialog =
   | { kind: 'skillHistory'; skill: Skill }
   /** Asks what to put in a new terminal pane. */
   | { kind: 'split' }
+  /** Carries this installation to another machine, or brings one in. */
+  | { kind: 'transfer'; mode: 'export' | 'import' }
   | null
 
 interface DialogState {

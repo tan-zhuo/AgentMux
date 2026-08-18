@@ -40,7 +40,8 @@ type Bundle struct {
 // rather than guessed at.
 const BundleFormat = "agentmux.skills/v1"
 
-func toPortable(sk store.Skill) Portable {
+// ToPortable strips a skill down to the part worth carrying elsewhere.
+func ToPortable(sk store.Skill) Portable {
 	return Portable{
 		Name:        sk.Name,
 		Description: sk.Description,
@@ -78,7 +79,7 @@ func (m *Manager) ExportJSON(ids []string) (string, error) {
 
 	bundle := Bundle{Format: BundleFormat, Skills: make([]Portable, 0, len(skills))}
 	for _, sk := range skills {
-		bundle.Skills = append(bundle.Skills, toPortable(sk))
+		bundle.Skills = append(bundle.Skills, ToPortable(sk))
 	}
 	out, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
@@ -118,23 +119,7 @@ func (m *Manager) ImportJSON(ctx context.Context, data string) (ImportResult, er
 
 	res := ImportResult{Skipped: []string{}}
 	for _, p := range bundle.Skills {
-		sk := store.Skill{
-			Name:        p.Name,
-			Description: p.Description,
-			Trigger:     p.Trigger,
-			Scope:       p.Scope,
-			ProjectIDs:  p.ProjectIDs,
-			AgentTypes:  p.AgentTypes,
-			Steps:       p.Steps,
-			Constraints: p.Constraints,
-			Examples:    p.Examples,
-			Status:      p.Status,
-			CreatedBy:   p.CreatedBy,
-			Confidence:  p.Confidence,
-		}
-		if sk.Status == "" {
-			sk.Status = store.SkillDraft
-		}
+		sk := p.Skill()
 		// Create() forces orchestrator-authored skills to draft. An import is a
 		// human action, so authorship of the file is not authority here: the
 		// status in the file stands, but a skill the file says a model wrote
@@ -150,6 +135,30 @@ func (m *Manager) ImportJSON(ctx context.Context, data string) (ImportResult, er
 		res.Imported++
 	}
 	return res, nil
+}
+
+// Skill turns a carried skill back into one this library can store. The status
+// in the file stands — it came from a library somebody curated — but a skill
+// with no status at all is a draft rather than something active by default.
+func (p Portable) Skill() store.Skill {
+	sk := store.Skill{
+		Name:        p.Name,
+		Description: p.Description,
+		Trigger:     p.Trigger,
+		Scope:       p.Scope,
+		ProjectIDs:  p.ProjectIDs,
+		AgentTypes:  p.AgentTypes,
+		Steps:       p.Steps,
+		Constraints: p.Constraints,
+		Examples:    p.Examples,
+		Status:      p.Status,
+		CreatedBy:   p.CreatedBy,
+		Confidence:  p.Confidence,
+	}
+	if sk.Status == "" {
+		sk.Status = store.SkillDraft
+	}
+	return sk
 }
 
 // ExportMarkdown renders skills for people: a pull request, a wiki, a review.

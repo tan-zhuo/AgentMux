@@ -731,3 +731,41 @@ export interface OrchStatus {
   patrolMinutes: number
   pending: Approval[]
 }
+
+/** What an encrypted configuration file should be asked to carry. */
+export interface ExportOptions {
+  includeSecrets: boolean
+  includeLibrary: boolean
+}
+
+/** What a configuration file holds, in counts. */
+export interface ConfigManifest {
+  format: string
+  exportedAt: number
+  hasSecrets: boolean
+  hosts: number
+  folders: number
+  projects: number
+  workspaces: number
+  agents: number
+  skills: number
+  settings: number
+}
+
+/** How one kind of row fared on the way in. */
+export interface ImportTally {
+  added: number
+  skipped: number
+}
+
+/** What an import did. Skipped means "already here", never "failed". */
+export interface ConfigImport {
+  hosts: ImportTally
+  folders: ImportTally
+  projects: ImportTally
+  workspaces: ImportTally
+  agents: ImportTally
+  skills: ImportTally
+  settings: ImportTally
+  notes: string[]
+}

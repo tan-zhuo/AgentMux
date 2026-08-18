@@ -1,8 +1,11 @@
 import { Call, Events } from '@wailsio/runtime'
 import type {
   Agent,
+  ConfigImport,
+  ConfigManifest,
   ConnStatus,
   Diagnostics,
+  ExportOptions,
   Folder,
   LocalHost,
   Probe,
@@ -204,6 +207,25 @@ export const agents = {
     call<QuickLaunch>('AgentService', 'LaunchInDir', serverId, dir, command),
   refresh: (serverId: string) => call<Agent[]>('AgentService', 'Refresh', serverId),
   refreshAll: () => call<Agent[]>('AgentService', 'RefreshAll'),
+}
+
+/**
+ * Carrying this installation to another machine.
+ *
+ * The file is written by the backend rather than assembled here: the secrets it
+ * holds are decrypted for exactly as long as it takes to seal them under the
+ * passphrase, and that moment belongs on the side of the app that already holds
+ * them.
+ */
+export const config = {
+  suggestFilename: () => call<string>('ConfigService', 'SuggestFilename'),
+  peek: (path: string) => call<{ recognised: boolean; exportedAt: number }>('ConfigService', 'Peek', path),
+  export: (path: string, passphrase: string, options: ExportOptions) =>
+    call<ConfigManifest>('ConfigService', 'Export', path, passphrase, options),
+  inspect: (path: string, passphrase: string) =>
+    call<ConfigManifest>('ConfigService', 'Inspect', path, passphrase),
+  import: (path: string, passphrase: string) =>
+    call<ConfigImport>('ConfigService', 'Import', path, passphrase),
 }
 
 export const llm = {
