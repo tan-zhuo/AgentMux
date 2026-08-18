@@ -52,8 +52,7 @@ func startTCPDaemon(t *testing.T) (string, string) {
 	addr := probe.Addr().String()
 	_ = probe.Close()
 
-	sock := filepath.Join(t.TempDir(), "natmux.sock")
-	t.Setenv("AGENTMUX_NATMUX_SOCKET", sock)
+	t.Setenv("AGENTMUX_NATMUX_SOCKET", filepath.Join(t.TempDir(), "natmux.sock"))
 	t.Setenv("AGENTMUX_NATMUX_TCP", addr)
 	go DaemonMain()
 
@@ -61,7 +60,9 @@ func startTCPDaemon(t *testing.T) (string, string) {
 	for {
 		if conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond); err == nil {
 			_ = conn.Close()
-			return addr, sock + ".token"
+			// Asked for rather than assembled: where the token lands is the
+			// daemon's business, and the two must not guess at it separately.
+			return addr, tokenPath()
 		}
 		if time.Now().After(deadline) {
 			t.Fatal("tcp daemon did not come up")
