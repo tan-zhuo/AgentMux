@@ -56,10 +56,23 @@ func (c *Core) StartPoller(svc *AgentService, interval time.Duration) {
 // agentsSignature captures the fields the UI renders. LastSeen is deliberately
 // excluded: the poller rewrites it every cycle by definition, so including it
 // would make every tick look like a change and defeat the whole comparison.
+//
+// The definition fields are in here as well as the runtime ones. An edit
+// publishes itself, so this is the backstop for a change that arrives some
+// other way — a second window, a restored database — and leaving it out meant
+// a rename could sit unnoticed for as long as the agent's status held still.
 func agentsSignature(agents []store.Agent) string {
 	var b strings.Builder
 	for _, a := range agents {
 		b.WriteString(a.ID)
+		b.WriteByte('\x1f')
+		b.WriteString(a.Name)
+		b.WriteByte('\x1f')
+		b.WriteString(a.Command)
+		b.WriteByte('\x1f')
+		b.WriteString(a.TmuxSession)
+		b.WriteByte('\x1f')
+		b.WriteString(a.WorkspaceID)
 		b.WriteByte('\x1f')
 		b.WriteString(string(a.Status))
 		b.WriteByte('\x1f')

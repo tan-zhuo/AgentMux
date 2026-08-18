@@ -660,6 +660,24 @@ function AgentDialog() {
 
   // Keep the suggested session name in step with the name until the user edits it.
   const [sessionTouched, setSessionTouched] = useState(!!existing?.tmuxSession)
+
+  // A session the app named itself goes on following the agent's name: the save
+  // renames the live tmux session to match, so watching the field change as the
+  // name is typed is the truth rather than a suggestion. A session the user
+  // typed is theirs and stays where it is.
+  useEffect(() => {
+    if (!existing?.tmuxSession) return
+    let cancelled = false
+    agentApi
+      .suggestSession(existing.workspaceId, existing.name)
+      .then((s) => {
+        if (!cancelled && s === existing.tmuxSession) setSessionTouched(false)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [existing?.workspaceId, existing?.name, existing?.tmuxSession])
   useEffect(() => {
     if (sessionTouched || !form.workspaceId || !form.name.trim()) return
     let cancelled = false

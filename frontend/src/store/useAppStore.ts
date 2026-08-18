@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
 import { confirmAction } from './useConfirm'
 import { useDialogs } from './useDialogs'
-import { t } from './useI18n'
 import type {
   Agent,
   BroadcastTarget,
@@ -178,6 +177,34 @@ function sameAgents(a: Agent[], b: Agent[]): boolean {
   return true
 }
 
+/**
+ * Brings the tabs attached to an agent back in step with it, so a rename reaches
+ * the tab strip and the torn-out windows instead of stopping at the tree. Only
+ * agent tabs are touched: an editor tab titles itself from its file, and a shell
+ * from nothing anyone can rename.
+ *
+ * The session travels with the title. It is what a tab reattaches to, and a tab
+ * left holding the name a session used to have would open a second, empty one
+ * beside the work.
+ *
+ * Returns the same array when nothing moved, so callers can compare by
+ * reference and skip both the re-render and the layout write.
+ */
+function syncAgentTabs(tabs: Tab[], agents: Agent[]): Tab[] {
+  let changed = false
+  const next = tabs.map((t) => {
+    if (t.kind !== 'agent' || !t.agentId) return t
+    const agent = agents.find((a) => a.id === t.agentId)
+    if (!agent) return t
+    const title = agent.name || t.title
+    const tmuxSession = agent.tmuxSession || t.tmuxSession
+    if (title === t.title && tmuxSession === t.tmuxSession) return t
+    changed = true
+    return { ...t, title, tmuxSession }
+  })
+  return changed ? next : tabs
+}
+
 interface AppState {
   snapshot: Snapshot
   connections: Record<string, ConnStatus>
@@ -320,7 +347,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async refreshSnapshot() {
     try {
-      set({ snapshot: await tree.snapshot() })
+      const snapshot = await tree.snapshot()
+      let synced = false
+      set((s) => {
+        const tabs = syncAgentTabs(s.tabs, snapshot.agents)
+        synced = tabs !== s.tabs
+        return { snapshot, tabs }
+      })
+      if (synced) void get().persistTabs()
     } catch (e) {
       get().toast('error', errText(e))
     }
@@ -338,12 +372,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applyAgents(list) {
+    let synced = false
     set((s) => {
+      const tabs = syncAgentTabs(s.tabs, list)
+      synced = tabs !== s.tabs
       // Replacing the array unconditionally would hand every subscriber a new
       // snapshot object on each poll, even when nothing about the agents moved.
-      if (sameAgents(s.snapshot.agents, list)) return s
-      return { snapshot: { ...s.snapshot, agents: list } }
+      if (!synced && sameAgents(s.snapshot.agents, list)) return s
+      return { snapshot: { ...s.snapshot, agents: list }, tabs }
     })
+    if (synced) void get().persistTabs()
   },
 
   applyConnState(cs) {
@@ -530,11 +568,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (tab?.dirty) {
       set({ activeTabId: id })
       const ok = await confirmAction({
-        title: t('tab.closeUnsaved.title', { name: tab.title.replace(/ •$/, '') }),
-        message: t('tab.closeUnsaved.message'),
+        title: `Close ${tab.title.replace(/ •$/, '')} without saving`,
+        message: 'The changes you made here have not been written to the server.',
         tone: 'warning',
-        confirmLabel: t('tab.closeUnsaved.discard'),
-        cancelLabel: t('tab.closeUnsaved.keepEditing'),
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
       })
       if (!ok) return
     }
@@ -681,25 +719,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       ])
       const panes = Math.min(Math.max(Number(count) || 1, 1), MAX_PANES)
 
-      set({
-        tabs: restorable.map((t) => ({
-          id: t.id,
-          title: t.title,
-          kind: t.kind as TabKind,
-          serverId: t.serverId,
-          workspaceId: t.workspaceId,
-          agentId: t.agentId,
-          tmuxSession: t.tmuxSession,
-          command: t.command,
-          status: 'pending' as TabStatus,
-        })),
+      set((s) => ({
+        // The saved title and session are what the tab held when it was
+        // written; the agent may have been renamed since, and the tree is the
+        // authority on both.
+        tabs: syncAgentTabs(
+          restorable.map((t) => ({
+            id: t.id,
+            title: t.title,
+            kind: t.kind as TabKind,
+            serverId: t.serverId,
+            workspaceId: t.workspaceId,
+            agentId: t.agentId,
+            tmuxSession: t.tmuxSession,
+            command: t.command,
+            status: 'pending' as TabStatus,
+          })),
+          s.snapshot.agents,
+        ),
         activeTabId: restorable[0].id,
         // The split comes back with the same shape, filled by whatever
         // reattached. Restoring which tab was in which pane would be restoring
         // a snapshot of attention, which nobody misses.
         paneIds: restorable.slice(0, panes).map((t) => t.id),
         splitAxis: axis === 'rows' ? 'rows' : 'cols',
-      })
+      }))
     } catch {
       /* nothing to restore */
     }

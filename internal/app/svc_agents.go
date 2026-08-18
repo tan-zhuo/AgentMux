@@ -34,7 +34,8 @@ func (a *AgentService) List() ([]store.Agent, error) { return a.core.Store.ListA
 func (a *AgentService) Store() *store.Store { return a.core.Store }
 
 // Save creates or updates an agent. A blank tmux session name is filled in with
-// the agentmux/{project}/{agent} convention.
+// the agentmux/{project}/{agent} convention, and a session still carrying that
+// convention follows the agent when it is renamed — see sessionAfterRename.
 func (a *AgentService) Save(ag store.Agent) (store.Agent, error) {
 	if strings.TrimSpace(ag.TmuxSession) == "" {
 		projectName, err := a.projectNameFor(ag.WorkspaceID)
@@ -46,12 +47,97 @@ func (a *AgentService) Save(ag store.Agent) (store.Agent, error) {
 	if strings.ContainsAny(ag.TmuxSession, ":.") {
 		return store.Agent{}, fmt.Errorf("tmux session name %q cannot contain ':' or '.'", ag.TmuxSession)
 	}
-	return a.core.Store.SaveAgent(ag)
+	ag.TmuxSession = a.sessionAfterRename(ag)
+	saved, err := a.core.Store.SaveAgent(ag)
+	if err != nil {
+		return store.Agent{}, err
+	}
+	a.publish()
+	return saved, nil
 }
 
 // Delete removes an agent definition. The remote tmux session is left running
 // on purpose — deleting a row in the desktop app must never kill remote work.
-func (a *AgentService) Delete(id string) error { return a.core.Store.DeleteAgent(id) }
+func (a *AgentService) Delete(id string) error {
+	if err := a.core.Store.DeleteAgent(id); err != nil {
+		return err
+	}
+	a.publish()
+	return nil
+}
+
+// publish pushes the agent list to every window. Renaming an agent is a change
+// only the window that did it would otherwise see: the poller compares runtime
+// state, and a detached terminal never asks for the tree at all. Both keep
+// showing the old name until something else happens to them.
+func (a *AgentService) publish() {
+	agents, err := a.core.Store.ListAgents()
+	if err != nil {
+		return
+	}
+	a.core.Emit("agents:updated", agents)
+}
+
+// sessionAfterRename keeps a conventional session name in step with the agent's
+// name, and returns the session the save should store.
+//
+// Only a session the app named itself moves: one the user typed is theirs, and
+// renaming the agent is not permission to rewrite it. A session that is running
+// is renamed on the server first — the stored name is how the agent finds its
+// pane again, so pointing it at a name that exists nowhere would strand the
+// work. Anything that stops us from confirming the move (an unreachable host,
+// no tmux, a rename that fails) keeps the old name, which is wrong on screen
+// but still attached to the right session.
+func (a *AgentService) sessionAfterRename(ag store.Agent) string {
+	if ag.ID == "" {
+		return ag.TmuxSession
+	}
+	prev, err := a.core.Store.GetAgent(ag.ID)
+	if err != nil || prev.Name == ag.Name {
+		return ag.TmuxSession
+	}
+	oldProject, err := a.projectNameFor(prev.WorkspaceID)
+	if err != nil || prev.TmuxSession != DefaultSessionName(oldProject, prev.Name) {
+		return ag.TmuxSession
+	}
+	newProject, err := a.projectNameFor(ag.WorkspaceID)
+	if err != nil {
+		return ag.TmuxSession
+	}
+	want := DefaultSessionName(newProject, ag.Name)
+	if want == prev.TmuxSession || strings.ContainsAny(want, ":.") {
+		return ag.TmuxSession
+	}
+	// The dialog either left the old session in the field or filled in the
+	// conventional new one as the name was typed. Any third answer is a name
+	// the user chose, and it wins.
+	if ag.TmuxSession != prev.TmuxSession && ag.TmuxSession != want {
+		return ag.TmuxSession
+	}
+
+	ws, err := a.core.Store.GetWorkspace(prev.WorkspaceID)
+	if err != nil {
+		return prev.TmuxSession
+	}
+	// An offline host is not asked, and nothing is stranded by that: whatever is
+	// running there still answers to the old name, which is the name we keep.
+	if !a.core.IsReachable(ws.ServerID) {
+		return prev.TmuxSession
+	}
+	if info := a.core.Tmux.Available(ws.ServerID); !info.Available {
+		return prev.TmuxSession
+	}
+	exists, err := a.core.Tmux.HasSession(ws.ServerID, prev.TmuxSession)
+	if err != nil {
+		return prev.TmuxSession
+	}
+	if exists {
+		if err := a.core.Tmux.RenameSession(ws.ServerID, prev.TmuxSession, want); err != nil {
+			return prev.TmuxSession
+		}
+	}
+	return want
+}
 
 // SuggestSession returns the conventional session name for a workspace/agent
 // pair so the UI can prefill the field.
