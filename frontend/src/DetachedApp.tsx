@@ -10,6 +10,7 @@ import { Empty } from './components/ui'
 import { errText, terminal as termApi, windows } from './lib/api'
 import type { DetachedTab } from './lib/types'
 import { useAppStore, type Tab } from './store/useAppStore'
+import { useI18n } from './store/useI18n'
 import { useTheme } from './store/useTheme'
 
 const lightColor = {
@@ -27,6 +28,7 @@ const lightColor = {
  */
 export function DetachedApp({ token }: { token: string }) {
   const initTheme = useTheme((s) => s.init)
+  const initI18n = useI18n((s) => s.init)
   const [tab, setTab] = useState<Tab | null>(null)
   const [error, setError] = useState('')
   const [focused, setFocused] = useState(true)
@@ -34,7 +36,8 @@ export function DetachedApp({ token }: { token: string }) {
   useEffect(() => {
     useAppStore.setState({ detached: true })
     void initTheme()
-  }, [initTheme])
+    void initI18n()
+  }, [initTheme, initI18n])
 
   // Same reasoning as the main window: the webview's own menu offers Reload,
   // which would throw away this window's adopted session.

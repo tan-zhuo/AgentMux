@@ -5,6 +5,7 @@ import type { Probe, Server } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
 import { confirmAction } from '../../store/useConfirm'
 import { useDialogs } from '../../store/useDialogs'
+import { useT } from '../../store/useI18n'
 import { Badge, Button, Empty } from '../ui'
 import { TmuxPanel } from './TmuxPanel'
 
@@ -15,6 +16,7 @@ export function ServerDetail({ server }: { server: Server }) {
   const refreshSnapshot = useAppStore((s) => s.refreshSnapshot)
   const toast = useAppStore((s) => s.toast)
   const openDialog = useDialogs((s) => s.open)
+  const t = useT()
 
   const [probe, setProbe] = useState<Probe | null>(null)
   const [busy, setBusy] = useState(false)
@@ -57,12 +59,12 @@ export function ServerDetail({ server }: { server: Server }) {
             <h3 className="truncate text-sm font-semibold text-ink-100">{server.name}</h3>
             <p className="truncate font-mono text-[11px] text-ink-400">
               {server.kind === 'local'
-                ? 'this computer'
+                ? t('tree.thisComputer')
                 : `${server.username}@${server.host}:${server.port}`}
             </p>
           </div>
           <Button size="sm" onClick={() => openDialog({ kind: 'server', server })}>
-            <Pencil size={11} /> Edit
+            <Pencil size={11} /> {t('serverDetail.edit')}
           </Button>
         </div>
 
@@ -70,18 +72,20 @@ export function ServerDetail({ server }: { server: Server }) {
           {server.kind === 'local' ? (
             // A local host is either usable or the platform cannot host anything;
             // "connected" would be describing a connection that does not exist.
-            <Badge tone={connected ? 'ok' : 'warn'}>{connected ? 'ready' : 'unavailable'}</Badge>
+            <Badge tone={connected ? 'ok' : 'warn'}>
+              {connected ? t('serverDetail.ready') : t('serverDetail.unavailable')}
+            </Badge>
           ) : (
             <>
               <Badge tone={connected ? 'ok' : 'neutral'}>
-                {connected ? 'connected' : 'disconnected'}
+                {connected ? t('serverDetail.connected') : t('serverDetail.disconnected')}
               </Badge>
               <Badge tone="accent">{server.authType}</Badge>
             </>
           )}
-          {server.jumpServerId && <Badge tone="warn">via jump host</Badge>}
-          {server.tags.map((t) => (
-            <Badge key={t}>{t}</Badge>
+          {server.jumpServerId && <Badge tone="warn">{t('serverDetail.viaJump')}</Badge>}
+          {server.tags.map((tag) => (
+            <Badge key={tag}>{tag}</Badge>
           ))}
         </div>
 
@@ -93,7 +97,7 @@ export function ServerDetail({ server }: { server: Server }) {
 
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           <Button size="sm" variant="primary" disabled={busy} onClick={test}>
-            <Zap size={11} /> Test
+            <Zap size={11} /> {t('serverDetail.test')}
           </Button>
           {connected ? (
             <Button
@@ -103,7 +107,7 @@ export function ServerDetail({ server }: { server: Server }) {
                 await refreshConnections()
               }}
             >
-              <Link2Off size={11} /> Disconnect
+              <Link2Off size={11} /> {t('serverDetail.disconnect')}
             </Button>
           ) : (
             <Button
@@ -111,64 +115,63 @@ export function ServerDetail({ server }: { server: Server }) {
               onClick={async () => {
                 try {
                   await serverApi.connect(server.id)
-                  toast('ok', `Connected to ${server.name}`)
+                  toast('ok', t('toast.connectedTo', { name: server.name }))
                 } catch (e) {
                   toast('error', errText(e))
                 }
                 await refreshConnections()
               }}
             >
-              <Link2 size={11} /> Connect
+              <Link2 size={11} /> {t('serverDetail.connect')}
             </Button>
           )}
           <Button
             size="sm"
-            title="Detect and install agent CLIs on this server"
+            title={t('serverDetail.installAgents.title')}
             onClick={() => useAppStore.getState().setRightPanel('toolkit')}
           >
-            <Sparkles size={11} /> Install agents
+            <Sparkles size={11} /> {t('serverDetail.installAgents')}
           </Button>
           {server.hostKey && (
             <Button
               size="sm"
               variant="danger"
-              title="Forget the pinned host key so the next connection trusts a new one"
+              title={t('serverDetail.clearPin.title')}
               onClick={async () => {
                 const ok = await confirmAction({
-                  title: 'Forget the pinned host key',
-                  message:
-                    'The next connection will trust whatever key the server offers, and pin that one instead.',
+                  title: t('serverDetail.clearPin.confirmTitle'),
+                  message: t('serverDetail.clearPin.message'),
                   points: [
-                    'Only do this if you rotated the key yourself',
-                    'If you did not, a mismatch may mean someone is intercepting the connection',
+                    t('serverDetail.clearPin.rotated'),
+                    t('serverDetail.clearPin.intercepted'),
                   ],
                   tone: 'warning',
-                  confirmLabel: 'Clear pinned key',
+                  confirmLabel: t('serverDetail.clearPin.confirm'),
                 })
                 if (!ok) return
                 await serverApi.clearHostKey(server.id)
                 await refreshSnapshot()
-                toast('warn', 'Host key pin cleared')
+                toast('warn', t('serverDetail.clearPin.done'))
               }}
             >
-              <ShieldAlert size={11} /> Clear pin
+              <ShieldAlert size={11} /> {t('serverDetail.clearPin')}
             </Button>
           )}
         </div>
 
         {probe && probe.ok && (
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-            <dt className="text-ink-500">Latency</dt>
-            <dd className="text-ink-200">{probe.latencyMs} ms</dd>
-            <dt className="text-ink-500">OS</dt>
-            <dd className="truncate text-ink-200">{probe.os || '—'}</dd>
-            <dt className="text-ink-500">Uptime</dt>
-            <dd className="truncate text-ink-200">{probe.uptime || '—'}</dd>
-            <dt className="text-ink-500">Load</dt>
-            <dd className="truncate text-ink-200">{probe.load || '—'}</dd>
-            <dt className="text-ink-500">tmux</dt>
+            <dt className="text-ink-500">{t('serverDetail.latency')}</dt>
+            <dd className="text-ink-200">{t('serverDetail.ms', { n: probe.latencyMs })}</dd>
+            <dt className="text-ink-500">{t('serverDetail.os')}</dt>
+            <dd className="truncate text-ink-200">{probe.os || t('common.none')}</dd>
+            <dt className="text-ink-500">{t('serverDetail.uptime')}</dt>
+            <dd className="truncate text-ink-200">{probe.uptime || t('common.none')}</dd>
+            <dt className="text-ink-500">{t('serverDetail.load')}</dt>
+            <dd className="truncate text-ink-200">{probe.load || t('common.none')}</dd>
+            <dt className="text-ink-500">{t('panel.tmux')}</dt>
             <dd className={probe.hasTmux ? 'text-ok' : 'text-danger'}>
-              {probe.hasTmux ? probe.tmuxVersion : 'not installed'}
+              {probe.hasTmux ? probe.tmuxVersion : t('serverDetail.tmuxMissing')}
             </dd>
           </dl>
         )}
@@ -179,8 +182,8 @@ export function ServerDetail({ server }: { server: Server }) {
           <TmuxPanel serverId={server.id} />
         ) : (
           <Empty
-            title="Not connected"
-            hint="Connect or test the server to list its tmux sessions."
+            title={t('serverDetail.notConnected')}
+            hint={t('serverDetail.notConnected.hint')}
           />
         )}
       </div>

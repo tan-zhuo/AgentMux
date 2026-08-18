@@ -2,7 +2,9 @@ import clsx from 'clsx'
 import { Activity, RefreshCw, Table2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errText, metrics as metricsApi } from '../../lib/api'
+import type { TFunc } from '../../lib/i18n'
 import type { MetricSample } from '../../lib/types'
+import { useFmt, useT } from '../../store/useI18n'
 import { Button, Empty } from '../ui'
 
 const POLL_MS = 3000
@@ -34,13 +36,13 @@ function rate(n: number): string {
   return `${bytes(n)}/s`
 }
 
-function duration(seconds: number): string {
+function duration(t: TFunc, seconds: number): string {
   const d = Math.floor(seconds / 86400)
   const h = Math.floor((seconds % 86400) / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  if (d > 0) return `${d}d ${h}h`
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
+  if (d > 0) return t('metrics.dh', { d, h })
+  if (h > 0) return t('metrics.hm', { h, m })
+  return t('metrics.m', { m })
 }
 
 /**
@@ -53,10 +55,13 @@ function duration(seconds: number): string {
 function Sparkline({
   values,
   color,
+  label,
   height = 34,
 }: {
   values: number[]
   color: string
+  /** Shown until there are two points to draw a line between. */
+  label: string
   height?: number
 }) {
   const [hover, setHover] = useState<number | null>(null)
@@ -65,7 +70,11 @@ function Sparkline({
   const h = height
 
   if (values.length < 2) {
-    return <div style={{ height }} className="flex items-end text-[10px] text-ink-600">collecting…</div>
+    return (
+      <div style={{ height }} className="flex items-end text-[10px] text-ink-600">
+        {label}
+      </div>
+    )
   }
 
   // Percentages share a fixed 0-100 domain so the line's height means the same
@@ -173,6 +182,8 @@ function Tile({
 }
 
 export function MetricsPanel({ serverId }: { serverId: string }) {
+  const t = useT()
+  const fmt = useFmt()
   const [sample, setSample] = useState<MetricSample | null>(null)
   const [cpuHistory, setCpuHistory] = useState<number[]>([])
   const [memHistory, setMemHistory] = useState<number[]>([])
@@ -188,7 +199,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
       const s = await metricsApi.sample(serverId)
       if (!alive.current) return
       if (!s.ok) {
-        setError(s.error || 'could not read host metrics')
+        setError(s.error || t('metrics.readFailed'))
         return
       }
       setError('')
@@ -203,7 +214,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
     } finally {
       if (alive.current) setBusy(false)
     }
-  }, [serverId])
+  }, [serverId, t])
 
   useEffect(() => {
     alive.current = true
@@ -241,18 +252,18 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b hairline px-3 py-2">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-300">
-          <Activity size={11} /> Host metrics
+          <Activity size={11} /> {t('metrics.title')}
         </span>
         <div className="flex gap-1">
           <Button
             size="sm"
             variant="subtle"
             onClick={() => setShowTable((v) => !v)}
-            title="Table view"
+            title={t('metrics.tableView')}
           >
             <Table2 size={11} />
           </Button>
-          <Button size="sm" variant="subtle" onClick={() => void poll()} disabled={busy} title="Refresh now">
+          <Button size="sm" variant="subtle" onClick={() => void poll()} disabled={busy} title={t('status.refreshNow')}>
             <RefreshCw size={11} className={busy ? 'animate-spin' : undefined} />
           </Button>
         </div>
@@ -263,7 +274,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
       )}
 
       {!sample && !error ? (
-        <Empty title="Reading host" hint="Sampling CPU, memory, disks, I/O and processes." />
+        <Empty title={t('metrics.reading')} hint={t('metrics.reading.hint')} />
       ) : (
         sample && (
           <div className={clsx('min-h-0 flex-1 overflow-y-auto px-3 py-2.5', busy && 'opacity-95')}>
@@ -274,23 +285,40 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
             )}
             <div className="grid grid-cols-2 gap-2">
               <Tile
-                label="CPU"
+                label={t('metrics.cpu')}
                 value={`${sample.cpuPercent.toFixed(0)}%`}
-                sub={`usr ${sample.cpuUser.toFixed(0)} · sys ${sample.cpuSystem.toFixed(0)} · io ${sample.cpuIowait.toFixed(0)}${
-                  sample.cpuSteal >= 1 ? ` · steal ${sample.cpuSteal.toFixed(0)}` : ''
-                }`}
+                sub={t(
+                  sample.cpuSteal >= 1 ? 'metrics.cpu.subSteal' : 'metrics.cpu.sub',
+                  {
+                    usr: sample.cpuUser.toFixed(0),
+                    sys: sample.cpuSystem.toFixed(0),
+                    io: sample.cpuIowait.toFixed(0),
+                    steal: sample.cpuSteal.toFixed(0),
+                  },
+                )}
               >
                 <div className="mt-1.5">
-                  <Sparkline values={cpuHistory} color={severityVar[severity(sample.cpuPercent)]} />
+                  <Sparkline
+                    values={cpuHistory}
+                    color={severityVar[severity(sample.cpuPercent)]}
+                    label={t('metrics.collecting')}
+                  />
                 </div>
               </Tile>
               <Tile
-                label="Memory"
+                label={t('metrics.memory')}
                 value={`${sample.memPercent.toFixed(0)}%`}
-                sub={`${bytes(sample.memUsedBytes)} of ${bytes(sample.memTotalBytes)}`}
+                sub={t('metrics.usedOf', {
+                  used: bytes(sample.memUsedBytes),
+                  total: bytes(sample.memTotalBytes),
+                })}
               >
                 <div className="mt-1.5">
-                  <Sparkline values={memHistory} color={severityVar[severity(sample.memPercent)]} />
+                  <Sparkline
+                    values={memHistory}
+                    color={severityVar[severity(sample.memPercent)]}
+                    label={t('metrics.collecting')}
+                  />
                 </div>
               </Tile>
             </div>
@@ -301,10 +329,10 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
               <div className="mt-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px] font-medium text-ink-500">
-                    Per core ({sample.perCore.length})
+                    {t('metrics.perCore', { n: sample.perCore.length })}
                   </span>
                   <span className="text-[10.5px] tabular-nums text-ink-500">
-                    busiest {Math.max(...sample.perCore).toFixed(0)}%
+                    {t('metrics.busiest', { pct: Math.max(...sample.perCore).toFixed(0) })}
                   </span>
                 </div>
                 {/* A hairline baseline so an idle machine reads as bars at zero
@@ -313,7 +341,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
                   {sample.perCore.map((v, i) => (
                     <span
                       key={i}
-                      title={`core ${i}: ${v.toFixed(0)}%`}
+                      title={t('metrics.core', { i, pct: v.toFixed(0) })}
                       className="min-w-0 flex-1 rounded-t-[2px] bg-accent"
                       style={{ height: `${Math.max(3, v)}%` }}
                     />
@@ -323,45 +351,79 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
             )}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <Tile label="Uptime" value={duration(sample.uptimeSeconds)} sub={`${sample.processes} processes`} />
               <Tile
-                label="Network"
+                label={t('metrics.uptime')}
+                value={duration(t, sample.uptimeSeconds)}
+                sub={t('metrics.processes', { n: sample.processes })}
+              />
+              <Tile
+                label={t('metrics.network')}
                 value={rate(sample.nets.reduce((a, n) => a + n.rxps, 0))}
-                sub={`up ${rate(sample.nets.reduce((a, n) => a + n.txps, 0))}`}
+                sub={t('metrics.upRate', {
+                  rate: rate(sample.nets.reduce((a, n) => a + n.txps, 0)),
+                })}
               />
               <Tile
-                label="Disk I/O"
+                label={t('metrics.diskIo')}
                 value={rate(sample.blockIo.reduce((a, d) => a + d.readps, 0))}
-                sub={`write ${rate(sample.blockIo.reduce((a, d) => a + d.writeps, 0))}`}
+                sub={t('metrics.writeRate', {
+                  rate: rate(sample.blockIo.reduce((a, d) => a + d.writeps, 0)),
+                })}
               />
               <Tile
-                label="Load"
+                label={t('metrics.load')}
                 value={sample.load1.toFixed(2)}
-                sub={`${sample.load5.toFixed(2)} · ${sample.load15.toFixed(2)} · ${sample.loadPerCore.toFixed(2)}/core`}
+                sub={t('metrics.load.sub', {
+                  l5: sample.load5.toFixed(2),
+                  l15: sample.load15.toFixed(2),
+                  perCore: sample.loadPerCore.toFixed(2),
+                })}
               />
             </div>
 
             {/* Facts that are one number each, so they belong in a row rather
                 than in tiles of their own. */}
             <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-card border hairline bg-ink-850 px-2.5 py-2 text-[11px]">
-              <Fact k="Run / block" v={`${sample.procsRunning} / ${sample.procsBlocked}`} />
-              <Fact k="Context sw" v={`${Math.round(sample.contextRate).toLocaleString()}/s`} />
-              <Fact k="Connections" v={`${sample.connections} established`} />
-              <Fact k="Logged in" v={`${sample.users} user${sample.users === 1 ? '' : 's'}`} />
               <Fact
-                k="Open files"
-                v={sample.maxFds > 0
-                  ? `${sample.openFds.toLocaleString()} of ${sample.maxFds.toLocaleString()}`
-                  : sample.openFds.toLocaleString()}
+                k={t('metrics.runBlock')}
+                v={`${sample.procsRunning} / ${sample.procsBlocked}`}
               />
-              {sample.tempC > 0 && <Fact k="Temperature" v={`${sample.tempC.toFixed(0)} °C`} />}
-              <Fact k="Cached" v={bytes(sample.memCachedBytes)} />
+              <Fact
+                k={t('metrics.contextSw')}
+                v={t('metrics.perSecond', { n: fmt.number(Math.round(sample.contextRate)) })}
+              />
+              <Fact
+                k={t('metrics.connections')}
+                v={t('metrics.established', { n: sample.connections })}
+              />
+              <Fact
+                k={t('metrics.loggedIn')}
+                v={sample.users === 1 ? t('metrics.user') : t('metrics.users', { n: sample.users })}
+              />
+              <Fact
+                k={t('metrics.openFiles')}
+                v={
+                  sample.maxFds > 0
+                    ? t('metrics.usedOf', {
+                        used: fmt.number(sample.openFds),
+                        total: fmt.number(sample.maxFds),
+                      })
+                    : fmt.number(sample.openFds)
+                }
+              />
+              {sample.tempC > 0 && (
+                <Fact
+                  k={t('metrics.temperature')}
+                  v={t('metrics.degrees', { n: sample.tempC.toFixed(0) })}
+                />
+              )}
+              <Fact k={t('metrics.cached')} v={bytes(sample.memCachedBytes)} />
             </dl>
 
             {sample.swapTotalBytes > 0 && (
               <div className="mt-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] font-medium text-ink-500">Swap</span>
+                  <span className="text-[10px] font-medium text-ink-500">{t('metrics.swap')}</span>
                   <span className="text-[11px] tabular-nums text-ink-300">
                     {bytes(sample.swapUsedBytes)} / {bytes(sample.swapTotalBytes)}
                   </span>
@@ -372,7 +434,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
               </div>
             )}
 
-            <Section title={`Disks (${sample.disks.length})`} />
+            <Section title={t('metrics.disks', { n: sample.disks.length })} />
             {sample.disks.map((d) => (
               <div key={d.mount} className="mb-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                 <div className="flex items-baseline justify-between gap-2">
@@ -385,17 +447,22 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
                   <Meter pct={d.usePercent} />
                 </div>
                 <p className="mt-1 text-[10px] text-ink-600">
-                  {bytes(d.usedBytes)} of {bytes(d.totalBytes)} · {d.type}
-                  {d.inodePercent > 0 && ` · inodes ${d.inodePercent.toFixed(0)}%`}
+                  {t('metrics.disk.sub', {
+                    used: bytes(d.usedBytes),
+                    total: bytes(d.totalBytes),
+                    type: d.type,
+                  })}
+                  {d.inodePercent > 0 &&
+                    ` · ${t('metrics.disk.inodes', { pct: d.inodePercent.toFixed(0) })}`}
                 </p>
               </div>
             ))}
 
             {sample.blockIo.length > 0 && (
               <>
-                <Section title="Disk activity" />
+                <Section title={t('metrics.diskActivity')} />
                 <ProcTable
-                  head={['Device', 'Read', 'Write']}
+                  head={[t('metrics.col.device'), t('metrics.col.read'), t('metrics.col.write')]}
                   rows={sample.blockIo.map((d) => [d.name, rate(d.readps), rate(d.writeps)])}
                 />
               </>
@@ -403,9 +470,9 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {sample.nets.length > 0 && (
               <>
-                <Section title="Interfaces" />
+                <Section title={t('metrics.interfaces')} />
                 <ProcTable
-                  head={['Interface', 'Down', 'Up']}
+                  head={[t('metrics.col.interface'), t('metrics.col.down'), t('metrics.col.up')]}
                   rows={sample.nets.map((n) => [n.name, rate(n.rxps), rate(n.txps)])}
                 />
               </>
@@ -413,9 +480,9 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {sample.topCpu.length > 0 && (
               <>
-                <Section title="Top by CPU" />
+                <Section title={t('metrics.topCpu')} />
                 <ProcTable
-                  head={['Process', 'CPU', 'Mem']}
+                  head={[t('metrics.col.process'), t('metrics.col.cpu'), t('metrics.col.mem')]}
                   rows={sample.topCpu.map((p) => [
                     `${p.command}  ${p.pid}`,
                     `${p.cpu.toFixed(1)}%`,
@@ -427,9 +494,9 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {sample.topMem.length > 0 && (
               <>
-                <Section title="Top by memory" />
+                <Section title={t('metrics.topMem')} />
                 <ProcTable
-                  head={['Process', 'CPU', 'Mem']}
+                  head={[t('metrics.col.process'), t('metrics.col.cpu'), t('metrics.col.mem')]}
                   rows={sample.topMem.map((p) => [
                     `${p.command}  ${p.pid}`,
                     `${p.cpu.toFixed(1)}%`,
@@ -441,7 +508,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {sample.gpus.length > 0 && (
               <>
-                <Section title={`GPUs (${sample.gpus.length})`} />
+                <Section title={t('metrics.gpus', { n: sample.gpus.length })} />
                 {sample.gpus.map((g) => (
                   <div key={g.index} className="mb-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
                     <div className="flex items-baseline justify-between gap-2">
@@ -456,8 +523,12 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
                       <Meter pct={g.utilPercent} />
                     </div>
                     <p className="mt-1 text-[10px] text-ink-600">
-                      {Math.round(g.memUsedMb)} / {Math.round(g.memTotalMb)} MB · {g.tempC.toFixed(0)}°C ·{' '}
-                      {g.powerW.toFixed(0)} W
+                      {t('metrics.gpu.sub', {
+                        used: Math.round(g.memUsedMb),
+                        total: Math.round(g.memTotalMb),
+                        temp: g.tempC.toFixed(0),
+                        power: g.powerW.toFixed(0),
+                      })}
                     </p>
                   </div>
                 ))}
@@ -466,19 +537,19 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
 
             {showTable && (
               <>
-                <Section title="Recent samples" />
+                <Section title={t('metrics.recentSamples')} />
                 <table className="w-full text-[10.5px] tabular-nums">
                   <thead>
                     <tr className="text-ink-500">
-                      <th className="py-0.5 text-left font-medium">Time</th>
-                      <th className="py-0.5 text-right font-medium">CPU</th>
-                      <th className="py-0.5 text-right font-medium">Memory</th>
+                      <th className="py-0.5 text-left font-medium">{t('metrics.col.time')}</th>
+                      <th className="py-0.5 text-right font-medium">{t('metrics.cpu')}</th>
+                      <th className="py-0.5 text-right font-medium">{t('metrics.memory')}</th>
                     </tr>
                   </thead>
                   <tbody className="text-ink-300">
                     {[...rows].reverse().map((r, i) => (
                       <tr key={`${r.at}-${i}`}>
-                        <td className="py-0.5">{new Date(r.at * 1000).toLocaleTimeString()}</td>
+                        <td className="py-0.5">{fmt.time(r.at)}</td>
                         <td className="py-0.5 text-right">{r.cpu.toFixed(1)}%</td>
                         <td className="py-0.5 text-right">{r.mem.toFixed(1)}%</td>
                       </tr>

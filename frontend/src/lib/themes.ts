@@ -1,3 +1,5 @@
+import type { MsgKey } from './i18n'
+
 /**
  * Theme definitions.
  *
@@ -71,8 +73,10 @@ export interface ThemeColors {
 
 export interface Theme {
   id: string
+  /** A proper name — Nord is Nord in every language, so this is not a key. */
   name: string
-  blurb: string
+  /** A message key: the one line under the name is prose, and prose translates. */
+  blurb: MsgKey
   mode: ThemeMode
   colors: ThemeColors
   terminal: TerminalPalette
@@ -84,7 +88,7 @@ export const themes: Theme[] = [
   {
     id: 'macos-dark',
     name: 'macOS Dark',
-    blurb: "Apple's system palette. The default.",
+    blurb: 'theme.macosDark.blurb',
     mode: 'dark',
     window: '#1c1c1e',
     colors: {
@@ -138,7 +142,7 @@ export const themes: Theme[] = [
   {
     id: 'macos-light',
     name: 'macOS Light',
-    blurb: "Apple's system palette, for bright rooms.",
+    blurb: 'theme.macosLight.blurb',
     mode: 'light',
     window: '#f2f2f7',
     colors: {
@@ -190,7 +194,7 @@ export const themes: Theme[] = [
   {
     id: 'midnight',
     name: 'Midnight',
-    blurb: 'Cool blue-grey.',
+    blurb: 'theme.midnight.blurb',
     mode: 'dark',
     window: '#0b0d12',
     colors: {
@@ -242,7 +246,7 @@ export const themes: Theme[] = [
   {
     id: 'graphite',
     name: 'Graphite',
-    blurb: 'Neutral true grey, no colour cast.',
+    blurb: 'theme.graphite.blurb',
     mode: 'dark',
     window: '#101010',
     colors: {
@@ -294,7 +298,7 @@ export const themes: Theme[] = [
   {
     id: 'nord',
     name: 'Nord',
-    blurb: 'Arctic blue, low contrast.',
+    blurb: 'theme.nord.blurb',
     mode: 'dark',
     window: '#2e3440',
     colors: {
@@ -346,7 +350,7 @@ export const themes: Theme[] = [
   {
     id: 'solarized-dark',
     name: 'Solarized Dark',
-    blurb: 'Ethan Schoonover’s classic.',
+    blurb: 'theme.solarizedDark.blurb',
     mode: 'dark',
     window: '#002b36',
     colors: {
@@ -398,7 +402,7 @@ export const themes: Theme[] = [
   {
     id: 'gruvbox-dark',
     name: 'Gruvbox Dark',
-    blurb: 'Warm retro, easy on the eyes.',
+    blurb: 'theme.gruvboxDark.blurb',
     mode: 'dark',
     window: '#282828',
     colors: {
@@ -450,7 +454,7 @@ export const themes: Theme[] = [
   {
     id: 'daylight',
     name: 'Daylight',
-    blurb: 'Light theme for bright rooms.',
+    blurb: 'theme.daylight.blurb',
     mode: 'light',
     window: '#f7f8fa',
     colors: {

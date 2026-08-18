@@ -288,7 +288,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     <div className="relative h-full w-full bg-ink-950" onContextMenu={terminalMenu}>
       <div ref={hostRef} className="h-full w-full px-2 py-1.5" />
       {dead && (
-        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t hairline bg-ink-850/95 px-3 py-2">
+        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t hairline bg-ink-850 px-3 py-2">
           <span className="truncate text-[11px] text-ink-300">
             {tab.kind === 'shell'
               ? 'Session ended.'

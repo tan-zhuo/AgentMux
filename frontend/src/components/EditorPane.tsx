@@ -6,6 +6,7 @@ import { errText, files as filesApi } from '../lib/api'
 import type { FileContent } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
+import { t as tr, useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
 import { Button, Empty } from './ui'
 
@@ -38,6 +39,7 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
   const theme = useTheme((s) => s.theme)
   const toast = useAppStore((s) => s.toast)
   const setTabState = useAppStore((s) => s.setTabState)
+  const t = useT()
 
   const [mod, setMod] = useState<EditorModule | null>(null)
   const [file, setFile] = useState<FileContent | null>(null)
@@ -69,7 +71,7 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
         prev ? { ...prev, size: written.size, modTime: written.modTime, mode: written.mode } : prev,
       )
       setDirty(false)
-      toast('ok', `Saved ${baseName(saved.path)}`)
+      toast('ok', t('editor.saved', { name: baseName(saved.path) }))
     } catch (e) {
       const msg = errText(e)
       // A conflict is not a failure to write, it is a decision to make.
@@ -78,15 +80,12 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
         return
       }
       const overwrite = await confirmAction({
-        title: `${baseName(saved.path)} changed on the server`,
-        message: 'Something edited this file after you opened it — another window, or an agent working in the same directory.',
-        points: [
-          'Saving now replaces their version with yours',
-          'Reloading throws away your edits and shows theirs',
-        ],
+        title: t('editor.conflict.title', { name: baseName(saved.path) }),
+        message: t('editor.conflict.message'),
+        points: [t('editor.conflict.save'), t('editor.conflict.reload')],
         tone: 'warning',
-        confirmLabel: 'Overwrite theirs',
-        cancelLabel: 'Keep editing',
+        confirmLabel: t('editor.conflict.overwrite'),
+        cancelLabel: t('editor.conflict.keepEditing'),
       })
       if (!overwrite) return
       try {
@@ -98,14 +97,14 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
           prev ? { ...prev, size: forced.size, modTime: forced.modTime, mode: forced.mode } : prev,
         )
         setDirty(false)
-        toast('warn', `Overwrote ${baseName(saved.path)}`)
+        toast('warn', t('editor.overwrote', { name: baseName(saved.path) }))
       } catch (e2) {
         toast('error', errText(e2))
       }
     } finally {
       setSaving(false)
     }
-  }, [tab.serverId, toast])
+  }, [tab.serverId, toast, t])
 
   // The save closure changes as state does, so the keybinding reads it from a
   // ref rather than being torn down and rebuilt on every render.
@@ -162,7 +161,9 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
     // are looking at and only while the caret is in it.
     editor.addAction({
       id: 'agentmux.save',
-      label: 'Save file',
+      // Read once, when the editor is built: Monaco keeps its own copy of the
+      // action, and a language change re-labels it on the next open.
+      label: tr('editor.saveAction'),
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
       run: () => void saveRef.current(),
     })
@@ -220,10 +221,10 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
   async function reload() {
     if (dirty) {
       const ok = await confirmAction({
-        title: `Discard changes to ${name}`,
-        message: 'Reloading replaces what you have here with the version on the server.',
+        title: t('editor.discard.title', { name }),
+        message: t('editor.discard.message'),
         tone: 'warning',
-        confirmLabel: 'Discard and reload',
+        confirmLabel: t('editor.discard.confirm'),
       })
       if (!ok) return
     }
@@ -242,7 +243,7 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
   if (error) {
     return (
       <div className="flex h-full w-full flex-col bg-ink-950">
-        <Empty title={`Could not open ${name}`} hint={error} />
+        <Empty title={t('editor.cannotOpen', { name })} hint={error} />
       </div>
     )
   }
@@ -258,21 +259,21 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
         </span>
         {ready && (
           <span className="hidden shrink-0 text-[10.5px] text-ink-600 lg:block">
-            {mod.languageFor(path)} · {lines} lines · {file.mode}
+            {mod.languageFor(path)} · {t('editor.lines', { n: lines })} · {file.mode}
             {file.crlf && ' · CRLF'}
           </span>
         )}
-        <Button size="sm" onClick={() => void reload()} title="Read the file again from the server">
-          <RotateCcw size={11} /> Reload
+        <Button size="sm" onClick={() => void reload()} title={t('editor.reload.title')}>
+          <RotateCcw size={11} /> {t('editor.reload')}
         </Button>
         <Button
           size="sm"
           variant="primary"
           disabled={!dirty || saving}
           onClick={() => void save()}
-          title="Save (Ctrl+S)"
+          title={t('editor.save.title')}
         >
-          <Save size={11} /> {saving ? 'Saving' : 'Save'}
+          <Save size={11} /> {saving ? t('common.saving') : t('common.save')}
         </Button>
       </div>
 
@@ -280,7 +281,7 @@ export function EditorPane({ tab, active }: { tab: Tab; active: boolean }) {
         <div ref={hostRef} className={clsx('h-full w-full', !ready && 'invisible')} />
         {!ready && (
           <div className="absolute inset-0 flex items-center justify-center text-[11px] text-ink-500">
-            Opening {name}
+            {t('editor.opening', { name })}
           </div>
         )}
       </div>

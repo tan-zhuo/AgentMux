@@ -13,16 +13,19 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errText, memory as memoryApi, on } from '../../lib/api'
 import type { Memory, MemoryKind, MemoryStats, ReindexStatus } from '../../lib/types'
+import type { MsgKey } from '../../lib/i18n'
 import { useAppStore } from '../../store/useAppStore'
 import { confirmAction } from '../../store/useConfirm'
-import { Badge, Button, Empty, Segmented, inputClass, textareaClass } from '../ui'
+import { useFmt, useT } from '../../store/useI18n'
+import { Badge, Button, Empty, Segmented, iconButtonClass, inputClass, textareaClass } from '../ui'
 
-const kindLabels: Record<MemoryKind, string> = {
-  project_fact: 'project',
-  agent_event: 'agent',
-  user_pref: 'preference',
-  session_ctx: 'session',
-  system_log: 'log',
+/** The backend's enum, in words — the list is also the order of the picker. */
+const kindKeys: Record<MemoryKind, MsgKey> = {
+  project_fact: 'memory.kind.project',
+  agent_event: 'memory.kind.agent',
+  user_pref: 'memory.kind.preference',
+  session_ctx: 'memory.kind.session',
+  system_log: 'memory.kind.log',
 }
 
 /**
@@ -35,6 +38,7 @@ const kindLabels: Record<MemoryKind, string> = {
  */
 export function MemoryPanel() {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
 
   const [rows, setRows] = useState<Memory[]>([])
   const [scores, setScores] = useState<Record<string, number>>({})
@@ -101,21 +105,21 @@ export function MemoryPanel() {
       setReindex(s?.running ? s : null)
       if (s && !s.running) {
         if (s.error) toast('error', s.error)
-        else toast('ok', 'Memory index rebuilt')
+        else toast('ok', t('memory.rebuilt'))
         void load()
       }
     })
     return off
-  }, [load, toast])
+  }, [load, toast, t])
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b hairline px-3 py-2">
         <span className="text-[11px] font-semibold text-ink-300">
-          Memory {stats ? `(${stats.total})` : ''}
+          {t('panel.memory')} {stats ? `(${stats.total})` : ''}
         </span>
         <div className="flex gap-1">
-          <Button size="sm" variant="subtle" onClick={() => setAdding((v) => !v)} title="Add a memory">
+          <Button size="sm" variant="subtle" onClick={() => setAdding((v) => !v)} title={t('memory.add')}>
             <Plus size={11} />
           </Button>
           <Button
@@ -123,7 +127,7 @@ export function MemoryPanel() {
             variant="subtle"
             onClick={() => void load()}
             disabled={loading}
-            title="Refresh"
+            title={t('common.refresh')}
           >
             <RefreshCw size={11} className={loading ? 'animate-spin' : undefined} />
           </Button>
@@ -143,7 +147,7 @@ export function MemoryPanel() {
               if (e.key === 'Enter' && semantic) void runSemantic()
               if (e.key === 'Escape') setQuery('')
             }}
-            placeholder={semantic ? 'Describe it, then press Enter' : 'Find text…'}
+            placeholder={semantic ? t('memory.search.meaning') : t('memory.search.text')}
             className={`${inputClass} pl-6`}
           />
         </div>
@@ -158,15 +162,19 @@ export function MemoryPanel() {
             if (!on) void load()
           }}
           options={[
-            { value: 'text', label: 'Text', title: 'Find these exact characters' },
+            {
+              value: 'text',
+              label: t('memory.mode.text'),
+              title: t('memory.mode.text.title'),
+            },
             {
               value: 'meaning',
               label: (
                 <>
-                  <Sparkles size={10} /> Meaning
+                  <Sparkles size={10} /> {t('memory.mode.meaning')}
                 </>
               ),
-              title: 'Find memories about this, using the embedding model',
+              title: t('memory.mode.meaning.title'),
             },
           ]}
         />
@@ -177,9 +185,11 @@ export function MemoryPanel() {
           <AlertTriangle size={12} className="mt-0.5 shrink-0 text-warn" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] leading-relaxed text-ink-200">
-              {stats.pending} of {stats.total} memories have no vector for{' '}
-              <span className="font-mono">{stats.model || 'the current model'}</span>. They cannot be
-              found by meaning until the index is rebuilt.
+              {t('memory.needsRebuild', {
+                pending: stats.pending,
+                total: stats.total,
+                model: stats.model || t('memory.currentModel'),
+              })}
             </p>
             <Button
               size="sm"
@@ -194,7 +204,7 @@ export function MemoryPanel() {
                 }
               }}
             >
-              Rebuild index
+              {t('memory.rebuild')}
             </Button>
           </div>
         </div>
@@ -204,10 +214,10 @@ export function MemoryPanel() {
         <div className="border-b hairline px-3 py-2">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 text-[11px] text-ink-300">
-              Rebuilding {reindex.done}/{reindex.total}
+              {t('memory.rebuilding', { done: reindex.done, total: reindex.total })}
             </span>
             <Button size="sm" variant="subtle" onClick={() => void memoryApi.cancelReindex()}>
-              <X size={11} /> Stop
+              <X size={11} /> {t('memory.stop')}
             </Button>
           </div>
           <div className="mt-1.5 h-1 overflow-hidden rounded-capsule bg-ink-800">
@@ -226,12 +236,8 @@ export function MemoryPanel() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {rows.length === 0 && !loading && (
           <Empty
-            title={query ? 'Nothing matched' : 'No memories yet'}
-            hint={
-              query
-                ? 'Try fewer words, or switch between text and meaning.'
-                : 'Facts about a project, preferences you have stated, and what agents did are remembered here.'
-            }
+            title={query ? t('memory.noMatch') : t('memory.empty')}
+            hint={query ? t('memory.noMatch.hint') : t('memory.empty.hint')}
           />
         )}
         {rows.map((m) => (
@@ -252,6 +258,8 @@ function Row({
   onDeleted: () => void
 }) {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
+  const fmt = useFmt()
   const [open, setOpen] = useState(false)
 
   return (
@@ -265,24 +273,24 @@ function Row({
           {memory.title || memory.body.slice(0, 80)}
         </button>
         {score !== undefined && <Badge tone="accent">{score.toFixed(2)}</Badge>}
-        <Badge>{kindLabels[memory.kind] ?? memory.kind}</Badge>
+        <Badge>{kindKeys[memory.kind] ? t(kindKeys[memory.kind]) : memory.kind}</Badge>
         {!memory.hasVector && (
-          <span title="Not embedded — this memory cannot be found by meaning yet">
-            <Badge tone="warn">no vector</Badge>
+          <span title={t('memory.noVector.title')}>
+            <Badge tone="warn">{t('memory.noVector')}</Badge>
           </span>
         )}
         {memory.redacted && (
-          <span title="A secret was removed from this text before it was stored">
+          <span title={t('memory.redacted.title')}>
             <ShieldCheck size={11} className="shrink-0 text-ok" />
           </span>
         )}
         <button
-          title="Forget this"
+          title={t('memory.forget')}
           onClick={async () => {
             const ok = await confirmAction({
-              title: 'Forget this memory',
-              message: 'It is removed from the library and will not be retrieved again.',
-              confirmLabel: 'Forget',
+              title: t('memory.forget.title'),
+              message: t('memory.forget.message'),
+              confirmLabel: t('memory.forget.confirm'),
             })
             if (!ok) return
             try {
@@ -292,7 +300,7 @@ function Row({
               toast('error', errText(e))
             }
           }}
-          className="rounded-control p-1 text-ink-400 hover:bg-ink-750 hover:text-danger"
+          className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-750 hover:text-danger')}
         >
           <Trash2 size={12} />
         </button>
@@ -307,9 +315,9 @@ function Row({
       </p>
       {open && (
         <p className="mt-1 pl-4 text-[10px] text-ink-600">
-          {new Date(memory.createdAt * 1000).toLocaleString()}
+          {fmt.dateTime(memory.createdAt)}
           {memory.source && ` · ${memory.source}`}
-          {memory.useCount > 0 && ` · used ${memory.useCount}×`}
+          {memory.useCount > 0 && ` · ${t('memory.used', { n: memory.useCount })}`}
           {memory.embeddingModel && ` · ${memory.embeddingModel}`}
         </p>
       )}
@@ -319,6 +327,7 @@ function Row({
 
 function AddForm({ onDone }: { onDone: () => void }) {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [kind, setKind] = useState<MemoryKind>('user_pref')
@@ -332,9 +341,9 @@ function AddForm({ onDone }: { onDone: () => void }) {
           onChange={(e) => setKind(e.target.value as MemoryKind)}
           className={`${inputClass} w-32 shrink-0`}
         >
-          {Object.entries(kindLabels).map(([k, label]) => (
+          {Object.entries(kindKeys).map(([k, key]) => (
             <option key={k} value={k}>
-              {label}
+              {t(key)}
             </option>
           ))}
         </select>
@@ -342,7 +351,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title"
+          placeholder={t('memory.form.title')}
           className={inputClass}
         />
       </div>
@@ -350,12 +359,12 @@ function AddForm({ onDone }: { onDone: () => void }) {
         value={body}
         onChange={(e) => setBody(e.target.value)}
         rows={3}
-        placeholder="What should be remembered?"
+        placeholder={t('memory.form.body')}
         className={textareaClass}
       />
       <div className="flex justify-end gap-1.5">
         <Button size="sm" onClick={onDone}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button
           size="sm"
@@ -368,9 +377,9 @@ function AddForm({ onDone }: { onDone: () => void }) {
               // Stored but unsearchable is a real state worth naming, not a
               // silent success: it happens whenever Ollama is not running.
               if (res.embedError) {
-                toast('error', `Saved, but not embedded: ${res.embedError}`)
+                toast('error', t('memory.savedNotEmbedded', { error: res.embedError }))
               } else {
-                toast('ok', 'Remembered')
+                toast('ok', t('memory.saved'))
               }
               onDone()
             } catch (e) {
@@ -380,7 +389,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
             }
           }}
         >
-          Remember
+          {t('memory.form.save')}
         </Button>
       </div>
     </div>

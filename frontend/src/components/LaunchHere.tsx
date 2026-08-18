@@ -2,9 +2,11 @@ import clsx from 'clsx'
 import { Bot, Rocket, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { agents as agentApi, errText, toolkit } from '../lib/api'
+import { tAround } from '../lib/i18n'
 import type { AgentChoice } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
-import { Button, inputClass } from './ui'
+import { useT } from '../store/useI18n'
+import { Button, iconButtonClass, inputClass } from './ui'
 
 /** The panel's fixed width, needed before it is measured to keep the first
  *  frame from being drawn off the edge of the window. */
@@ -38,6 +40,7 @@ export function AgentPicker({
   onLaunched: (session: string, title: string) => void
 }) {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
   const [choices, setChoices] = useState<AgentChoice[] | null>(null)
   const [custom, setCustom] = useState('')
   const [busy, setBusy] = useState(false)
@@ -106,9 +109,9 @@ export function AgentPicker({
       onClose()
       onLaunched(r.session, folder)
       if (r.reusedSession) {
-        toast('info', `${r.session} already had something running — attached to it instead`)
+        toast('info', t('launch.reused', { session: r.session }))
       } else {
-        toast('ok', `${cmd} started in ${r.session}`)
+        toast('ok', t('launch.started', { command: cmd, session: r.session }))
       }
     } catch (e) {
       toast('error', errText(e))
@@ -118,6 +121,9 @@ export function AgentPicker({
   }
 
   const list = choices ?? []
+  // The session name is set in mono inside the sentence, so it is split rather
+  // than interpolated — where a language puts it is the translation's business.
+  const creates = tAround(t('launch.creates'), 'session')
 
   return (
     <div
@@ -145,16 +151,17 @@ export function AgentPicker({
     >
       <div className="flex items-start justify-between gap-2 border-b hairline px-3 py-2">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-ink-100">Run an agent in {folder}</p>
+          <p className="text-xs font-semibold text-ink-100">{t('launch.title', { folder })}</p>
           <p className="mt-0.5 truncate font-mono text-[10.5px] text-ink-500">{dir}</p>
           <p className="mt-1 text-[10.5px] text-ink-500">
-            Creates the tmux session{' '}
+            {creates[0]}
             <span className="font-mono text-ink-400">agentmux/{slug(folder)}</span>
+            {creates[1]}
           </p>
         </div>
         <button
           onClick={onClose}
-          className="rounded-control p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
+          className={clsx(iconButtonClass, 'text-ink-500 hover:bg-ink-800 hover:text-ink-100')}
         >
           <X size={12} />
         </button>
@@ -162,12 +169,11 @@ export function AgentPicker({
 
       <div className="max-h-56 overflow-y-auto py-1">
         {choices === null && (
-          <p className="px-3 py-2 text-[11px] text-ink-500">Checking what this server has…</p>
+          <p className="px-3 py-2 text-[11px] text-ink-500">{t('launch.detecting')}</p>
         )}
         {choices?.length === 0 && (
           <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-500">
-            No agent CLI detected on this server. Type a command below, or install one from the
-            Install panel.
+            {t('launch.none')}
           </p>
         )}
         {list.map((c, i) => (
@@ -196,7 +202,7 @@ export function AgentPicker({
       </div>
 
       <div className="border-t hairline px-3 py-2">
-        <label className="mb-1 block text-[10.5px] text-ink-500">Or run something else</label>
+        <label className="mb-1 block text-[10.5px] text-ink-500">{t('launch.other')}</label>
         <div className="flex gap-1.5">
           <input
             value={custom}
@@ -213,7 +219,7 @@ export function AgentPicker({
             disabled={busy || !custom.trim()}
             onClick={() => void launch(custom)}
           >
-            Run
+            {t('launch.run')}
           </Button>
         </div>
       </div>
@@ -236,6 +242,7 @@ export function LaunchHere({
   dir: string
   onLaunched: (session: string, title: string) => void
 }) {
+  const t = useT()
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
   const anchorRef = useRef<HTMLSpanElement | null>(null)
   const folder = dir.split('/').filter(Boolean).pop() || dir
@@ -259,9 +266,9 @@ export function LaunchHere({
             const r = anchorRef.current?.getBoundingClientRect()
             setAt({ x: (r?.right ?? PANEL_W) - PANEL_W, y: (r?.bottom ?? 0) + 4 })
           }}
-          title={`Start an agent in ${folder}`}
+          title={t('launch.here.title', { folder })}
         >
-          <Rocket size={11} /> Run agent here
+          <Rocket size={11} /> {t('launch.here')}
         </Button>
       </span>
 

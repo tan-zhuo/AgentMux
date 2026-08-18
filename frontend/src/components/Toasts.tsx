@@ -1,15 +1,18 @@
 import clsx from 'clsx'
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react'
 import { useAppStore, type Toast } from '../store/useAppStore'
+import { useT } from '../store/useI18n'
+import { iconButtonClass } from './ui'
+import type { MsgKey } from '../lib/i18n'
 
 const toneStyle: Record<
   Toast['tone'],
-  { icon: typeof Info; accent: string; label: string }
+  { icon: typeof Info; accent: string; label: MsgKey }
 > = {
-  ok: { icon: CheckCircle2, accent: 'text-ok', label: 'Done' },
-  error: { icon: XCircle, accent: 'text-danger', label: 'Failed' },
-  warn: { icon: AlertTriangle, accent: 'text-warn', label: 'Warning' },
-  info: { icon: Info, accent: 'text-accent', label: 'Note' },
+  ok: { icon: CheckCircle2, accent: 'text-ok', label: 'toast.done' },
+  error: { icon: XCircle, accent: 'text-danger', label: 'toast.failed' },
+  warn: { icon: AlertTriangle, accent: 'text-warn', label: 'toast.warning' },
+  info: { icon: Info, accent: 'text-accent', label: 'toast.note' },
 }
 
 /**
@@ -20,18 +23,19 @@ const toneStyle: Record<
  * narrow ragged column beside the glyph.
  */
 export function Toasts() {
+  const t = useT()
   const toasts = useAppStore((s) => s.toasts)
   const dismiss = useAppStore((s) => s.dismissToast)
 
   if (!toasts.length) return null
   return (
     <div className="pointer-events-none fixed right-4 bottom-10 z-70 flex w-[22rem] flex-col gap-2">
-      {toasts.map((t) => {
-        const style = toneStyle[t.tone]
+      {toasts.map((toast) => {
+        const style = toneStyle[toast.tone]
         const Icon = style.icon
         return (
           <div
-            key={t.id}
+            key={toast.id}
             role="status"
             className={clsx(
               'material pointer-events-auto overflow-hidden rounded-card shadow-sheet',
@@ -41,14 +45,14 @@ export function Toasts() {
               <Icon size={14} className={clsx('mt-px shrink-0', style.accent)} />
               <div className="min-w-0 flex-1">
                 <p className={clsx('text-[11px] font-semibold', style.accent)}>
-                  {style.label}
+                  {t(style.label)}
                 </p>
-                <p className="mt-1 text-xs leading-relaxed break-words text-ink-200">{t.text}</p>
+                <p className="mt-1 text-xs leading-relaxed break-words text-ink-200">{toast.text}</p>
               </div>
               <button
-                onClick={() => dismiss(t.id)}
-                aria-label="Dismiss"
-                className="-mr-1 shrink-0 rounded-control p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
+                onClick={() => dismiss(toast.id)}
+                aria-label={t('toast.dismiss')}
+                className={clsx(iconButtonClass, '-mr-1 text-ink-500 hover:bg-ink-800 hover:text-ink-100')}
               >
                 <X size={12} />
               </button>

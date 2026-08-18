@@ -24,7 +24,7 @@ import { useDialogs } from '../store/useDialogs'
 import { EditorPane } from './EditorPane'
 import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
-import { Empty } from './ui'
+import { Empty, iconButtonClass } from './ui'
 
 /** The narrowest and shortest a pane is worth being, in CSS pixels: roughly
  *  forty columns and a dozen rows at the terminal's own type size. Below that a
@@ -613,7 +613,7 @@ export function TerminalArea() {
                     ? `Stack the panes instead — ${flipped.cols}×${flipped.rows}`
                     : `Put the panes side by side — ${flipped.cols}×${flipped.rows}`
                 }
-                className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
               >
                 {splitAxis === 'cols' ? <Rows2 size={13} /> : <Columns2 size={13} />}
               </button>
@@ -626,7 +626,7 @@ export function TerminalArea() {
                     ? 'Back to the split — ⇧⌘↵'
                     : 'Fill the area with the focused pane — ⇧⌘↵'
                 }
-                className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
               >
                 {zoomed ? <Shrink size={13} /> : <Expand size={13} />}
               </button>
@@ -635,7 +635,7 @@ export function TerminalArea() {
               <button
                 onClick={() => activeTabId && closePane(activeTabId)}
                 title="Close this pane — the tab and its shell stay open"
-                className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+                className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
               >
                 <Minimize2 size={13} />
               </button>
@@ -651,7 +651,7 @@ export function TerminalArea() {
                   ? `${MAX_PANES} panes is the limit — close one first`
                   : 'Add a pane: a host, a workspace, an agent or an open tab (⌘\\ splits with the next tab)'
               }
-              className="rounded-control p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-100 disabled:pointer-events-none disabled:opacity-30"
+              className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
             >
               <SplitSquareHorizontal size={13} />
             </button>
@@ -724,7 +724,11 @@ export function TerminalArea() {
                         ? 'Back to the split — ⇧⌘↵, or double-click the tab'
                         : 'Fill the area with this pane — ⇧⌘↵, or double-click the tab'
                     }
-                    className="absolute top-1 right-1 rounded-control bg-ink-900/80 p-1 text-ink-400 opacity-0 backdrop-blur-sm transition-opacity group-hover/pane:opacity-100 hover:text-ink-100 focus-visible:opacity-100"
+                    className={clsx(
+                      iconButtonClass,
+                      'absolute top-1 right-1 bg-ink-900/80 text-ink-400 opacity-0 backdrop-blur-sm',
+                      'group-hover/pane:opacity-100 hover:text-ink-100 focus-visible:opacity-100',
+                    )}
                   >
                     {zoomed ? <Shrink size={12} /> : <Expand size={12} />}
                   </button>

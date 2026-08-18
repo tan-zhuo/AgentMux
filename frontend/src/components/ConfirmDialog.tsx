@@ -1,7 +1,9 @@
 import clsx from 'clsx'
 import { AlertTriangle, Info, ShieldAlert } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { tAround } from '../lib/i18n'
 import { useConfirm, type ConfirmTone } from '../store/useConfirm'
+import { useT } from '../store/useI18n'
 import { Button, inputClass } from './ui'
 
 const toneStyle: Record<
@@ -37,6 +39,7 @@ const toneStyle: Record<
  * remote state can require the name to be typed.
  */
 export function ConfirmDialog() {
+  const t = useT()
   const request = useConfirm((s) => s.request)
   const settle = useConfirm((s) => s.settle)
 
@@ -74,6 +77,10 @@ export function ConfirmDialog() {
   }, [request, ready, settle])
 
   if (!request) return null
+
+  // Split rather than interpolated: the name is set in mono inside the sentence,
+  // and where that sentence puts it differs by language.
+  const typePrompt = tAround(t('confirm.typeToConfirm'), 'text')
 
   return (
     <div
@@ -125,7 +132,9 @@ export function ConfirmDialog() {
             {needsText && (
               <label className="mt-3 block">
                 <span className="mb-1 block text-[11px] text-ink-400">
-                  Type <span className="font-mono text-ink-200">{request.requireText}</span> to confirm
+                  {typePrompt[0]}
+                  <span className="font-mono text-ink-200">{request.requireText}</span>
+                  {typePrompt[1]}
                 </span>
                 <input
                   ref={inputRef}
@@ -147,14 +156,16 @@ export function ConfirmDialog() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2 border-t hairline bg-ink-900/60 px-4 py-3">
-          <Button onClick={() => settle(false)}>{request.cancelLabel ?? 'Cancel'}</Button>
+        <div className="mt-4 flex items-center justify-end gap-2 border-t hairline bg-ink-900 px-4 py-3">
+          <Button onClick={() => settle(false)}>
+            {request.cancelLabel ?? t('common.cancel')}
+          </Button>
           <Button
             variant={tone === 'info' ? 'primary' : 'danger'}
             disabled={!ready}
             onClick={() => settle(true)}
           >
-            {request.confirmLabel ?? 'Confirm'}
+            {request.confirmLabel ?? t('confirm.confirm')}
           </Button>
         </div>
       </div>

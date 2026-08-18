@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { agents as agentApi, errText } from '../../lib/api'
 import type { BroadcastTarget, Receipt } from '../../lib/types'
 import { targetKey, useAppStore } from '../../store/useAppStore'
-import { Button, Empty, StatusDot, textareaClass } from '../ui'
+import { useT } from '../../store/useI18n'
+import { Button, Empty, StatusDot, iconButtonClass, textareaClass } from '../ui'
 
 /** Sends one instruction to many recipients and shows a receipt for each, so a
  *  fan-out is verifiable instead of hopeful. */
@@ -14,6 +15,7 @@ export function BroadcastPanel() {
   const setTargets = useAppStore((s) => s.setBroadcastTargets)
   const toggleTarget = useAppStore((s) => s.toggleBroadcastTarget)
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
 
   const [message, setMessage] = useState('')
   const [execute, setExecute] = useState(true)
@@ -31,12 +33,12 @@ export function BroadcastPanel() {
    * each target carries its own server — and without it a list of sessions from
    * two hosts is indistinguishable from a list from one.
    */
-  function describe(t: BroadcastTarget) {
-    if (t.agentId) {
-      const a = agentById.get(t.agentId)
+  function describe(target: BroadcastTarget) {
+    if (target.agentId) {
+      const a = agentById.get(target.agentId)
       const ws = a ? snapshot.workspaces.find((w) => w.id === a.workspaceId) : undefined
       return {
-        name: a?.name ?? t.agentId,
+        name: a?.name ?? target.agentId,
         server: (ws ? serverById.get(ws.serverId)?.name : '') ?? '',
         session: a?.tmuxSession ?? '',
         status: a?.status,
@@ -44,9 +46,9 @@ export function BroadcastPanel() {
       }
     }
     return {
-      name: t.session,
-      server: serverById.get(t.serverId)?.name ?? t.serverId,
-      session: t.session,
+      name: target.session,
+      server: serverById.get(target.serverId)?.name ?? target.serverId,
+      session: target.session,
       status: undefined,
       isAgent: false,
     }
@@ -55,9 +57,9 @@ export function BroadcastPanel() {
   // How many machines this broadcast would reach, which is the thing worth
   // knowing before sending to a mixed list.
   const serverCount = new Set(
-    targets.map((t) => {
-      if (!t.agentId) return t.serverId
-      const a = agentById.get(t.agentId)
+    targets.map((target) => {
+      if (!target.agentId) return target.serverId
+      const a = agentById.get(target.agentId)
       const ws = a ? snapshot.workspaces.find((w) => w.id === a.workspaceId) : undefined
       return ws?.serverId ?? ''
     }),
@@ -72,8 +74,9 @@ export function BroadcastPanel() {
       const rs = await agentApi.broadcastTo(targets, text, execute)
       setReceipts(rs)
       const failed = rs.filter((r) => !r.ok).length
-      if (failed) toast('warn', `${rs.length - failed}/${rs.length} received the message`)
-      else toast('ok', `All ${rs.length} received the message`)
+      if (failed)
+        toast('warn', t('broadcast.someReceived', { n: rs.length - failed, total: rs.length }))
+      else toast('ok', t('broadcast.allReceived', { n: rs.length }))
       setMessage('')
     } catch (e) {
       toast('error', errText(e))
@@ -86,7 +89,7 @@ export function BroadcastPanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b hairline px-3 py-2">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-300">
-          <Radio size={11} /> Broadcast
+          <Radio size={11} /> {t('panel.broadcast')}
         </span>
         {/* The count is a label, not a control. Giving it a pill made it a
             short box sitting in a row of taller buttons, which is what read as
@@ -98,7 +101,7 @@ export function BroadcastPanel() {
               targets.length ? 'text-accent' : 'text-ink-500',
             )}
           >
-            {targets.length} selected
+            {t('broadcast.selected', { n: targets.length })}
           </span>
           <Button
             size="sm"
@@ -107,10 +110,10 @@ export function BroadcastPanel() {
               setTargets(snapshot.agents.map((a) => ({ agentId: a.id, serverId: '', session: '' })))
             }
           >
-            All agents
+            {t('broadcast.allAgents')}
           </Button>
           <Button size="sm" disabled={!targets.length} onClick={() => setTargets([])}>
-            None
+            {t('broadcast.none')}
           </Button>
         </div>
       </div>
@@ -118,27 +121,24 @@ export function BroadcastPanel() {
       <div className="max-h-44 min-h-0 overflow-y-auto border-b hairline">
         {targets.length === 0 ? (
           <div className="px-3 py-3 text-[11px] leading-relaxed text-ink-500">
-            <p>Nothing selected yet. You can pick either:</p>
+            <p>{t('broadcast.empty')}</p>
             <ul className="mt-1.5 space-y-1">
               <li className="flex gap-2">
                 <Bot size={12} className="mt-px shrink-0" />
-                <span>agents in the tree, using the checkbox on each row</span>
+                <span>{t('broadcast.empty.agents')}</span>
               </li>
               <li className="flex gap-2">
                 <Layers size={12} className="mt-px shrink-0" />
-                <span>
-                  tmux sessions in the tmux panel — use these when you started work from the file
-                  browser and never registered an agent
-                </span>
+                <span>{t('broadcast.empty.sessions')}</span>
               </li>
             </ul>
           </div>
         ) : (
-          targets.map((t) => {
-            const d = describe(t)
+          targets.map((target) => {
+            const d = describe(target)
             return (
               <div
-                key={targetKey(t)}
+                key={targetKey(target)}
                 title={`${d.server} · ${d.session}`}
                 className="flex items-center gap-2 px-3 py-1 text-[11px]"
               >
@@ -152,9 +152,9 @@ export function BroadcastPanel() {
                   <span className="max-w-[40%] shrink-0 truncate text-ink-500">{d.server}</span>
                 )}
                 <button
-                  onClick={() => toggleTarget(t)}
-                  className="shrink-0 text-ink-600 hover:text-danger"
-                  title="Remove from broadcast"
+                  onClick={() => toggleTarget(target)}
+                  className={clsx(iconButtonClass, 'text-ink-600 hover:bg-ink-800 hover:text-danger')}
+                  title={t('broadcast.remove')}
                 >
                   <XCircle size={12} />
                 </button>
@@ -172,7 +172,7 @@ export function BroadcastPanel() {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send()
           }}
           rows={3}
-          placeholder="Instruction for everything selected…  (Ctrl+Enter to send)"
+          placeholder={t('broadcast.placeholder')}
           className={clsx(textareaClass, 'resize-none font-mono')}
         />
         <div className="mt-1.5 flex items-center justify-between">
@@ -183,7 +183,7 @@ export function BroadcastPanel() {
               onChange={(e) => setExecute(e.target.checked)}
               className="h-3 w-3 accent-[#4c8dff]"
             />
-            Press Enter after sending
+            {t('broadcast.pressEnter')}
           </label>
           <Button
             variant="primary"
@@ -193,21 +193,21 @@ export function BroadcastPanel() {
           >
             <Radio size={11} />{' '}
             {sending
-              ? 'Sending…'
+              ? t('broadcast.sending')
               : serverCount > 1
-                ? `Send to ${targets.length} on ${serverCount} servers`
-                : `Send to ${targets.length}`}
+                ? t('broadcast.sendAcross', { n: targets.length, servers: serverCount })
+                : t('broadcast.send', { n: targets.length })}
           </Button>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {receipts.length === 0 ? (
-          <Empty title="No receipts yet" hint="Every delivery is confirmed individually." />
+          <Empty title={t('broadcast.noReceipts')} hint={t('broadcast.noReceipts.hint')} />
         ) : (
           <>
             <p className="px-3 py-1.5 text-[11px] font-semibold text-ink-300">
-              Receipts — {okCount}/{receipts.length} delivered
+              {t('broadcast.receipts', { ok: okCount, total: receipts.length })}
             </p>
             {receipts.map((r, i) => (
               <div key={`${r.agentId}-${r.agentName}-${i}`} className="flex items-start gap-2 px-3 py-1 text-[11px]">

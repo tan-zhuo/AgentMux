@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import { agents as agentApi, errText } from '../lib/api'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
+import { useT } from '../store/useI18n'
 
 export function StatusBar() {
+  const t = useT()
   const snapshot = useAppStore((s) => s.snapshot)
   const connections = useAppStore((s) => s.connections)
   const diagnostics = useAppStore((s) => s.diagnostics)
@@ -43,11 +45,11 @@ export function StatusBar() {
     <footer className="flex h-7 shrink-0 items-center gap-3 border-t hairline bg-ink-900 px-2.5 text-[11px] text-ink-400">
       <span className="flex items-center gap-1.5">
         <Server size={12} className="opacity-60" />
-        {connected}/{snapshot.servers.length} connected
+        {t('status.connected', { n: connected, total: snapshot.servers.length })}
       </span>
       <span className="flex items-center gap-1.5">
         <Bot size={12} className="opacity-60" />
-        {running}/{snapshot.agents.length} running
+        {t('status.running', { n: running, total: snapshot.agents.length })}
       </span>
 
       <span className="flex-1" />
@@ -56,19 +58,24 @@ export function StatusBar() {
         <button
           onClick={() => openDialog({ kind: 'settings' })}
           className="flex items-center gap-1.5 text-warn hover:underline"
-          title="The OS keychain was unavailable, so the master key lives in a 0600 file"
+          title={t('status.keyInFile.title')}
         >
-          <ShieldAlert size={12} /> key in file
+          <ShieldAlert size={12} /> {t('status.keyInFile')}
         </button>
       )}
 
-      <span className="text-ink-600">refreshed {ago}s ago</span>
-      <button onClick={refresh} disabled={busy} title="Refresh now" className="hover:text-ink-100">
+      <span className="text-ink-600">{t('status.refreshedAgo', { n: ago })}</span>
+      <button
+        onClick={refresh}
+        disabled={busy}
+        title={t('status.refreshNow')}
+        className="hover:text-ink-100"
+      >
         <RefreshCw size={12} className={busy ? 'animate-spin' : undefined} />
       </button>
       <button
         onClick={() => openDialog({ kind: 'settings' })}
-        title="Settings"
+        title={t('settings.title')}
         className="hover:text-ink-100"
       >
         <Settings size={12} />

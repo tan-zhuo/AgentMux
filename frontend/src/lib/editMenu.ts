@@ -1,6 +1,7 @@
 import { Clipboard } from '@wailsio/runtime'
 import { ClipboardPaste, Copy, Scissors, TextCursorInput } from 'lucide-react'
 import { useContextMenu } from '../store/useContextMenu'
+import { t } from '../store/useI18n'
 
 /**
  * The editing menu for text fields.
@@ -31,7 +32,7 @@ export async function showEditMenu(e: MouseEvent, target: HTMLElement) {
 
   useContextMenu.getState().show(e.clientX, e.clientY, [
     {
-      label: 'Cut',
+      label: t('edit.cut'),
       icon: Scissors,
       hint: 'Ctrl+X',
       disabled: !selected || readOnly,
@@ -41,14 +42,14 @@ export async function showEditMenu(e: MouseEvent, target: HTMLElement) {
       },
     },
     {
-      label: 'Copy',
+      label: t('edit.copy'),
       icon: Copy,
       hint: 'Ctrl+C',
       disabled: !selected,
       onSelect: () => void Clipboard.SetText(selected),
     },
     {
-      label: 'Paste',
+      label: t('edit.paste'),
       icon: ClipboardPaste,
       hint: 'Ctrl+V',
       disabled: readOnly,
@@ -59,7 +60,7 @@ export async function showEditMenu(e: MouseEvent, target: HTMLElement) {
     },
     {},
     {
-      label: 'Select all',
+      label: t('edit.selectAll'),
       icon: TextCursorInput,
       hint: 'Ctrl+A',
       onSelect: () => {

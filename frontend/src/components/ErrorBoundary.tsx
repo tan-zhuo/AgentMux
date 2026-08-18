@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { t } from '../store/useI18n'
+import { Button } from './ui'
 
 interface State {
   error: Error | null
@@ -32,11 +34,8 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
     return (
       <div className="flex h-full w-full flex-col bg-ink-900 p-6 text-ink-200">
-        <h1 className="text-sm font-semibold text-danger">Something in the interface crashed</h1>
-        <p className="mt-1 max-w-2xl text-xs leading-relaxed text-ink-400">
-          Your servers and agents are unaffected — everything long-lived runs in tmux on the remote
-          side and is still going. Reloading rebuilds this view and reattaches.
-        </p>
+        <h1 className="text-sm font-semibold text-danger">{t('crash.title')}</h1>
+        <p className="mt-1 max-w-2xl text-xs leading-relaxed text-ink-400">{t('crash.body')}</p>
 
         <pre className="mt-4 max-h-40 shrink-0 overflow-auto rounded-card border border-danger/30 bg-danger/5 px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-danger">
           {error.message || String(error)}
@@ -49,18 +48,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
         )}
 
         <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-control border border-accent-dim bg-accent/15 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/25"
-          >
-            Reload the interface
-          </button>
-          <button
-            onClick={() => this.setState({ error: null, stack: '' })}
-            className="rounded-control border hairline bg-ink-800 px-3 py-1.5 text-xs font-medium text-ink-200 hover:bg-ink-750"
-          >
-            Try to continue
-          </button>
+          <Button variant="primary" onClick={() => window.location.reload()}>
+            {t('crash.reload')}
+          </Button>
+          <Button onClick={() => this.setState({ error: null, stack: '' })}>
+            {t('crash.continue')}
+          </Button>
         </div>
       </div>
     )

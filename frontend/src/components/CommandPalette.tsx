@@ -21,6 +21,7 @@ import { agents as agentApi, errText } from '../lib/api'
 import { themes } from '../lib/themes'
 import { MAX_PANES, refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
+import { useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
 
 interface Command {
@@ -43,6 +44,7 @@ export function CommandPalette() {
   const toast = useAppStore((s) => s.toast)
   const openDialog = useDialogs((s) => s.open)
   const setTheme = useTheme((s) => s.setTheme)
+  const t = useT()
 
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -60,40 +62,45 @@ export function CommandPalette() {
     const out: Command[] = [
       {
         id: 'new-server',
-        label: 'Add host',
-        hint: 'a machine over SSH, or this computer',
+        label: t('server.addHost'),
+        hint: t('palette.addHost.hint'),
         icon: Plus,
         run: () => openDialog({ kind: 'server' }),
       },
       {
         id: 'new-project',
-        label: 'New project',
+        label: t('project.new'),
         icon: Plus,
         run: () => openDialog({ kind: 'project' }),
       },
       {
         id: 'new-workspace',
-        label: 'New workspace',
+        label: t('workspace.new'),
         icon: Plus,
         run: () => openDialog({ kind: 'workspace' }),
       },
-      { id: 'new-agent', label: 'New agent', icon: Plus, run: () => openDialog({ kind: 'agent' }) },
+      {
+        id: 'new-agent',
+        label: t('agent.new'),
+        icon: Plus,
+        run: () => openDialog({ kind: 'agent' }),
+      },
       {
         id: 'add-local-host',
-        label: 'Add this computer as a host',
-        hint: 'agents in a local tmux session',
+        label: t('palette.addLocalHost'),
+        hint: t('palette.addLocalHost.hint'),
         icon: Laptop,
         run: () => openDialog({ kind: 'server' }),
       },
       {
         id: 'split-pane',
-        label: 'Add a pane',
-        hint: '⌘\\ — a host, a workspace, an agent or an open tab',
+        label: t('palette.addPane'),
+        hint: t('palette.addPane.hint', { key: '⌘\\' }),
         icon: SplitSquareHorizontal,
         run: () => {
           const s = useAppStore.getState()
           if (s.paneIds.length >= MAX_PANES) {
-            s.toast('info', `${MAX_PANES} panes is the limit — close one before adding another`)
+            s.toast('info', t('toast.paneLimit', { n: MAX_PANES }))
           } else {
             openDialog({ kind: 'split' })
           }
@@ -101,7 +108,7 @@ export function CommandPalette() {
       },
       {
         id: 'close-pane',
-        label: 'Close this pane',
+        label: t('palette.closePane'),
         hint: '⇧⌘\\',
         icon: Minimize2,
         run: () => {
@@ -111,14 +118,14 @@ export function CommandPalette() {
       },
       {
         id: 'zoom-pane',
-        label: 'Fill the area with the focused pane',
-        hint: '⇧⌘↵ — or double-click its tab',
+        label: t('palette.zoomPane'),
+        hint: t('palette.zoomPane.hint', { key: '⇧⌘↵' }),
         icon: Expand,
         run: () => useAppStore.getState().toggleZoom(),
       },
       {
         id: 'flip-split',
-        label: 'Flip the split between rows and columns',
+        label: t('palette.flipSplit'),
         icon: Rows2,
         run: () => {
           const s = useAppStore.getState()
@@ -127,27 +134,27 @@ export function CommandPalette() {
       },
       {
         id: 'broadcast',
-        label: 'Open broadcast panel',
+        label: t('palette.broadcast'),
         icon: Radio,
         run: () => setRightPanel('broadcast'),
       },
     ]
 
-    for (const t of themes) {
+    for (const theme of themes) {
       out.push({
-        id: `theme:${t.id}`,
-        label: `Theme: ${t.name}`,
-        hint: t.blurb,
+        id: `theme:${theme.id}`,
+        label: t('palette.theme', { name: theme.name }),
+        hint: t(theme.blurb),
         icon: Palette,
-        run: () => setTheme(t.id),
+        run: () => setTheme(theme.id),
       })
     }
 
     for (const s of snapshot.servers) {
       out.push({
         id: `toolkit:${s.id}`,
-        label: `Install agent CLIs on ${s.name}`,
-        hint: 'detect and install claude, codex, opencode',
+        label: t('palette.toolkit', { name: s.name }),
+        hint: t('palette.toolkit.hint'),
         icon: Sparkles,
         run: () => {
           select({ kind: 'server', id: s.id })
@@ -156,8 +163,8 @@ export function CommandPalette() {
       })
       out.push({
         id: `files:${s.id}`,
-        label: `Browse files on ${s.name}`,
-        hint: 'SFTP: upload, download, rename, delete',
+        label: t('palette.files', { name: s.name }),
+        hint: t('palette.files.hint'),
         icon: FolderTree,
         run: () => {
           openTab({
@@ -173,8 +180,8 @@ export function CommandPalette() {
       })
       out.push({
         id: `metrics:${s.id}`,
-        label: `Metrics for ${s.name}`,
-        hint: 'CPU, memory, disks, network, GPU',
+        label: t('palette.metrics', { name: s.name }),
+        hint: t('palette.metrics.hint'),
         icon: Activity,
         run: () => {
           select({ kind: 'server', id: s.id })
@@ -183,8 +190,8 @@ export function CommandPalette() {
       })
       out.push({
         id: `shell:${s.id}`,
-        label: `Shell on ${s.name}`,
-        hint: s.kind === 'local' ? 'this computer' : `${s.username}@${s.host}`,
+        label: t('palette.shell', { name: s.name }),
+        hint: s.kind === 'local' ? t('tree.thisComputer') : `${s.username}@${s.host}`,
         icon: Server,
         run: () => {
           openTab({
@@ -204,7 +211,7 @@ export function CommandPalette() {
       if (!ws) continue
       out.push({
         id: `attach:${a.id}`,
-        label: `Attach ${a.name}`,
+        label: t('palette.attach', { name: a.name }),
         hint: a.tmuxSession,
         icon: TerminalSquare,
         run: () => {
@@ -220,14 +227,14 @@ export function CommandPalette() {
       })
       out.push({
         id: `start:${a.id}`,
-        label: `Start ${a.name}`,
+        label: t('palette.start', { name: a.name }),
         hint: a.command,
         icon: Play,
         run: async () => {
           try {
             await agentApi.start(a.id)
             await refreshServerAgents(ws.serverId)
-            toast('ok', `${a.name} started`)
+            toast('ok', t('toast.agentStartedShort', { name: a.name }))
           } catch (e) {
             toast('error', errText(e))
           }
@@ -235,7 +242,7 @@ export function CommandPalette() {
       })
       out.push({
         id: `select:${a.id}`,
-        label: `Go to ${a.name}`,
+        label: t('palette.goto', { name: a.name }),
         hint: ws.name,
         icon: Bot,
         run: () => select({ kind: 'agent', id: a.id }),
@@ -243,7 +250,7 @@ export function CommandPalette() {
     }
 
     return out
-  }, [snapshot, openDialog, openTab, select, setRightPanel, setTheme, toast])
+  }, [snapshot, openDialog, openTab, select, setRightPanel, setTheme, toast, t])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -294,7 +301,7 @@ export function CommandPalette() {
               setOpen(false)
             }
           }}
-          placeholder="Run a command, attach an agent, open a shell"
+          placeholder={t('palette.placeholder')}
           className="border-b hairline bg-transparent px-4 py-3 text-sm text-ink-100 outline-none placeholder:text-ink-500"
         />
         <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1">
@@ -331,7 +338,7 @@ export function CommandPalette() {
               </button>
             )
           })}
-          {!filtered.length && <p className="px-4 py-3 text-xs text-ink-500">No matches.</p>}
+          {!filtered.length && <p className="px-4 py-3 text-xs text-ink-500">{t('palette.noMatches')}</p>}
         </div>
       </div>
     </div>

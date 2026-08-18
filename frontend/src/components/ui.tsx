@@ -107,6 +107,22 @@ export const inputClass = `${controlBase} h-[22px]`
 export const textareaClass = `${controlBase} py-1.5 leading-relaxed`
 
 /**
+ * Icon-only buttons — the ones in toolbars, panel headers and the right end of
+ * a list row.
+ *
+ * Square, and exactly as tall as a small Button and a field, for the same
+ * reason those two agree: they share rows. Left to size themselves, each came
+ * out as tall as its own glyph plus whatever padding that surface happened to
+ * use, so the same button was 19px in the tree, 20px in the file list and 21px
+ * in the terminal toolbar. Colour stays with the caller — the same box is quiet
+ * on a toolbar and destructive at the end of a row.
+ */
+export const iconButtonClass =
+  'inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-control ' +
+  'transition-colors duration-100 focus-visible:focus-ring ' +
+  'disabled:pointer-events-none disabled:opacity-40'
+
+/**
  * The iOS switch, for a setting that takes effect the moment it is flipped.
  *
  * A switch and a checkbox are not interchangeable: a switch says "this is on

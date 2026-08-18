@@ -11,8 +11,10 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { errText, on, orch as orchApi } from '../../lib/api'
+import type { MsgKey, TFunc } from '../../lib/i18n'
 import type { Approval, OrchStatus, Run, Step } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
+import { useFmt, useT } from '../../store/useI18n'
 import { Badge, Button, Empty, Switch, inputClass, textareaClass } from '../ui'
 
 const runTone: Record<string, 'ok' | 'warn' | 'danger' | 'accent' | 'neutral'> = {
@@ -21,6 +23,20 @@ const runTone: Record<string, 'ok' | 'warn' | 'danger' | 'accent' | 'neutral'> =
   succeeded: 'ok',
   failed: 'danger',
   cancelled: 'neutral',
+}
+
+const runStatusKey: Record<string, MsgKey> = {
+  running: 'orch.status.running',
+  waiting_approval: 'orch.status.waiting',
+  succeeded: 'orch.status.succeeded',
+  failed: 'orch.status.failed',
+  cancelled: 'orch.status.cancelled',
+}
+
+/** A status the backend may extend: an unknown one is shown as it arrived. */
+function runStatus(t: TFunc, status: string): string {
+  const key = runStatusKey[status]
+  return key ? t(key) : status.replace('_', ' ')
 }
 
 /**
@@ -33,6 +49,7 @@ const runTone: Record<string, 'ok' | 'warn' | 'danger' | 'accent' | 'neutral'> =
  */
 export function OrchestratorPanel() {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
 
   const [status, setStatus] = useState<OrchStatus | null>(null)
   const [runs, setRuns] = useState<Run[]>([])
@@ -75,7 +92,7 @@ export function OrchestratorPanel() {
     })
     const offApproval = on<Approval>('orch:approval', () => void refresh())
     const offDraft = on<unknown>('orch:draft', () =>
-      toast('ok', 'A skill was proposed — it is waiting in Skills → Draft'),
+      toast('ok', t('orch.draftProposed')),
     )
     return () => {
       offRun()
@@ -83,7 +100,7 @@ export function OrchestratorPanel() {
       offApproval()
       offDraft()
     }
-  }, [refresh, toast])
+  }, [refresh, toast, t])
 
   async function start() {
     if (!goal.trim()) return
@@ -107,12 +124,12 @@ export function OrchestratorPanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b hairline px-3 py-2">
         <span className="text-[11px] font-semibold text-ink-300">
-          Orchestrator
+          {t('orch.title')}
         </span>
         <div className="flex items-center gap-1.5">
           {status?.running && (
             <Button size="sm" variant="danger" onClick={() => void orchApi.stop()}>
-              <Square size={11} /> Stop
+              <Square size={11} /> {t('orch.stop')}
             </Button>
           )}
           {/* A switch, because it takes effect the moment it moves. There is
@@ -120,9 +137,7 @@ export function OrchestratorPanel() {
           <Switch
             checked={!!status?.enabled}
             title={
-              status?.enabled
-                ? 'On. It acts only when you ask, and only with permission.'
-                : 'Off. Nothing runs until you turn this on.'
+              status?.enabled ? t('orch.on.title') : t('orch.off.title')
             }
             onChange={async (next) => {
               if (!status) return
@@ -131,7 +146,7 @@ export function OrchestratorPanel() {
                   enabled: next,
                   patrolMinutes: status.patrolMinutes,
                 })
-                toast('ok', cfg.enabled ? 'Orchestrator on' : 'Orchestrator off')
+                toast('ok', cfg.enabled ? t('orch.turnedOn') : t('orch.turnedOff'))
                 await refresh()
               } catch (e) {
                 toast('error', errText(e))
@@ -143,11 +158,7 @@ export function OrchestratorPanel() {
 
       {status && !status.enabled && (
         <div className="border-b hairline px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-ink-400">
-            The orchestrator is off. Turned on, it can look at your fleet and — with your
-            permission on each step — act on it. It is off by default because a thing that acts on
-            its own should not start doing so because it was installed.
-          </p>
+          <p className="text-[11px] leading-relaxed text-ink-400">{t('orch.disabled')}</p>
         </div>
       )}
 
@@ -165,7 +176,7 @@ export function OrchestratorPanel() {
           onChange={(e) => setGoal(e.target.value)}
           rows={2}
           disabled={!status?.enabled || status?.running}
-          placeholder="What should it do? e.g. check every agent and tell me which are stuck"
+          placeholder={t('orch.goalPlaceholder')}
           className={textareaClass}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void start()
@@ -178,7 +189,7 @@ export function OrchestratorPanel() {
             disabled={busy || !goal.trim() || !status?.enabled || status?.running}
             onClick={() => void start()}
           >
-            <Play size={11} /> Run
+            <Play size={11} /> {t('orch.run')}
           </Button>
           <PatrolControl status={status} onSaved={refresh} />
         </div>
@@ -188,8 +199,8 @@ export function OrchestratorPanel() {
         {current && <RunView run={current} steps={steps} />}
         {!current && runs.length === 0 && (
           <Empty
-            title="Nothing has run yet"
-            hint="Give it a goal above. Every step it takes is written down here, including the ones it was refused."
+            title={t('orch.empty')}
+            hint={t('orch.empty.hint')}
           />
         )}
         {runs
@@ -204,12 +215,13 @@ export function OrchestratorPanel() {
 
 function PatrolControl({ status, onSaved }: { status: OrchStatus | null; onSaved: () => void }) {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
   if (!status?.enabled) return null
 
   return (
     <label className="flex items-center gap-1.5 text-[10.5px] text-ink-500">
       <Clock size={11} />
-      patrol every
+      {t('orch.patrolEvery')}
       <input
         type="number"
         min={0}
@@ -226,9 +238,9 @@ function PatrolControl({ status, onSaved }: { status: OrchStatus | null; onSaved
           }
         }}
         className={`${inputClass} w-14`}
-        title="0 turns patrols off. A patrol may only read — it can report a problem, never act on one."
+        title={t('orch.patrol.title')}
       />
-      min
+      {t('orch.patrolMinutes')}
     </label>
   )
 }
@@ -236,6 +248,7 @@ function PatrolControl({ status, onSaved }: { status: OrchStatus | null; onSaved
 /** One request for permission, with everything needed to answer it in a glance. */
 function ApprovalCard({ approval, onDone }: { approval: Approval; onDone: () => void }) {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
 
@@ -277,14 +290,13 @@ function ApprovalCard({ approval, onDone }: { approval: Approval; onDone: () => 
       </dl>
 
       <p className="mt-1.5 text-[11px] leading-relaxed text-ink-200">
-        {approval.rationale || 'It gave no reason.'}
+        {approval.rationale || t('orch.noReason')}
       </p>
 
       {approval.injectionFlag && (
         <p className="mt-1.5 flex items-start gap-1.5 text-[10.5px] leading-relaxed text-warn">
           <AlertTriangle size={11} className="mt-0.5 shrink-0" />
-          Text shaped like an instruction appeared in what it read before proposing this. Worth a
-          second look.
+          {t('orch.injection')}
         </p>
       )}
 
@@ -292,14 +304,14 @@ function ApprovalCard({ approval, onDone }: { approval: Approval; onDone: () => 
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
+          placeholder={t('orch.notePlaceholder')}
           className={inputClass}
         />
         <Button size="sm" variant="primary" disabled={busy} onClick={() => void decide(true)}>
-          <Check size={11} /> Allow
+          <Check size={11} /> {t('orch.allow')}
         </Button>
         <Button size="sm" disabled={busy} onClick={() => void decide(false)}>
-          <X size={11} /> Refuse
+          <X size={11} /> {t('orch.refuse')}
         </Button>
       </div>
     </div>
@@ -307,14 +319,15 @@ function ApprovalCard({ approval, onDone }: { approval: Approval; onDone: () => 
 }
 
 function RunView({ run, steps }: { run: Run; steps: Step[] }) {
+  const t = useT()
   return (
     <div className="border-b hairline px-3 py-2">
       <div className="flex items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-100">
           {run.goal}
         </span>
-        <Badge tone={runTone[run.status] ?? 'neutral'}>{run.status.replace('_', ' ')}</Badge>
-        {run.trigger === 'schedule' && <Badge>patrol</Badge>}
+        <Badge tone={runTone[run.status] ?? 'neutral'}>{runStatus(t, run.status)}</Badge>
+        {run.trigger === 'schedule' && <Badge>{t('orch.patrol')}</Badge>}
       </div>
       <StepList steps={steps} />
       {run.summary && (
@@ -326,6 +339,7 @@ function RunView({ run, steps }: { run: Run; steps: Step[] }) {
 }
 
 function StepList({ steps }: { steps: Step[] }) {
+  const t = useT()
   if (steps.length === 0) return null
   return (
     <ol className="mt-1.5 space-y-1">
@@ -339,15 +353,17 @@ function StepList({ steps }: { steps: Step[] }) {
               ) : (
                 <span className="text-ink-500">{s.phase}</span>
               )}
-              {s.outcome.startsWith('denied') && <Badge tone="danger">refused</Badge>}
-              {s.outcome === 'rejected' && <Badge tone="warn">you said no</Badge>}
-              {s.outcome === 'failed' && <Badge tone="danger">failed</Badge>}
+              {s.outcome.startsWith('denied') && (
+                <Badge tone="danger">{t('orch.step.refused')}</Badge>
+              )}
+              {s.outcome === 'rejected' && <Badge tone="warn">{t('orch.step.youSaidNo')}</Badge>}
+              {s.outcome === 'failed' && <Badge tone="danger">{t('orch.step.failed')}</Badge>}
               {s.injectionFlag && (
                 <span title={s.outcome}>
-                  <Badge tone="warn">suspicious input</Badge>
+                  <Badge tone="warn">{t('orch.step.suspicious')}</Badge>
                 </span>
               )}
-              {s.skillId && <Badge tone="accent">skill</Badge>}
+              {s.skillId && <Badge tone="accent">{t('orch.step.skill')}</Badge>}
             </span>
             {s.reasoning && <span className="block text-ink-400">{s.reasoning}</span>}
             {s.result && (
@@ -362,6 +378,8 @@ function StepList({ steps }: { steps: Step[] }) {
 
 function PastRun({ run }: { run: Run }) {
   const toast = useAppStore((s) => s.toast)
+  const t = useT()
+  const fmt = useFmt()
   const [open, setOpen] = useState(false)
   const [steps, setSteps] = useState<Step[]>([])
 
@@ -387,7 +405,7 @@ function PastRun({ run }: { run: Run }) {
         />
         <span className="min-w-0 flex-1 truncate text-[11px] text-ink-200">{run.goal}</span>
         {run.status === 'cancelled' && <CircleSlash size={11} className="shrink-0 text-ink-600" />}
-        <Badge tone={runTone[run.status] ?? 'neutral'}>{run.status.replace('_', ' ')}</Badge>
+        <Badge tone={runTone[run.status] ?? 'neutral'}>{runStatus(t, run.status)}</Badge>
       </button>
       {open && (
         <div className="pl-4">
@@ -397,8 +415,8 @@ function PastRun({ run }: { run: Run }) {
           )}
           {run.error && <p className="mt-1.5 text-[11px] text-danger">{run.error}</p>}
           <p className="mt-1 text-[10px] text-ink-600">
-            {new Date(run.startedAt * 1000).toLocaleString()} · {run.model}
-            {run.trigger === 'schedule' && ' · patrol'}
+            {fmt.dateTime(run.startedAt)} · {run.model}
+            {run.trigger === 'schedule' && ` · ${t('orch.patrol')}`}
           </p>
         </div>
       )}

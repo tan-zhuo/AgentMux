@@ -156,14 +156,11 @@
   }
 }
 
-/* Vibrancy. Apple's materials are a blur plus a saturation lift, not a flat
-   translucent fill — the saturation is what makes colour show through as
-   colour rather than as grey. Only surfaces that sit above content get it;
-   applied to everything it costs compositing for no perceptible gain. */
+/* The surface every floating thing sits on: sheets, menus, toasts, the palette.
+   Opaque on purpose. Translucency let terminal text crawl under a dialog, which
+   made the thing you were meant to read the hardest thing on screen. */
 @utility material {
-  background: color-mix(in srgb, var(--color-ink-850) 78%, transparent);
-  backdrop-filter: saturate(180%) blur(30px);
-  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  background: var(--color-ink-850);
 }
 
 /* The hairline separator. macOS draws these at well under full contrast; a

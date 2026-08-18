@@ -27,25 +27,29 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
+import { agentStatusLabel } from '../lib/agentStatus'
+import type { MsgKey } from '../lib/i18n'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useDialogs } from '../store/useDialogs'
-import { Button, ConnDot, StatusDot } from './ui'
+import { useT } from '../store/useI18n'
+import { Button, ConnDot, StatusDot, iconButtonClass } from './ui'
 
 const ROW_H = 26
 const OVERSCAN = 8
 
 type Row =
-  | { key: string; kind: 'section'; label: string; depth: 0; onAdd?: () => void }
+  | { key: string; kind: 'section'; section: 'projects' | 'servers'; depth: 0; onAdd?: () => void }
   | { key: string; kind: 'project'; depth: number; project: Project; childCount: number }
   | { key: string; kind: 'workspace'; depth: number; workspace: Workspace; server?: Server }
   | { key: string; kind: 'agent'; depth: number; agent: Agent; workspace: Workspace }
   | { key: string; kind: 'server'; depth: number; server: Server }
-  | { key: string; kind: 'hint'; depth: number; text: string }
+  | { key: string; kind: 'hint'; depth: number; text: MsgKey }
 
 export function Sidebar() {
+  const t = useT()
   const snapshot = useAppStore((s) => s.snapshot)
   const connections = useAppStore((s) => s.connections)
   const search = useAppStore((s) => s.search)
@@ -99,7 +103,7 @@ export function Sidebar() {
     out.push({
       key: 'sec-projects',
       kind: 'section',
-      label: 'Projects',
+      section: 'projects',
       depth: 0,
       onAdd: () => openDialog({ kind: 'project' }),
     })
@@ -125,7 +129,7 @@ export function Sidebar() {
 
       const shown = q ? visibleWss : wss
       if (!shown.length) {
-        out.push({ key: `p:${p.id}:empty`, kind: 'hint', depth: 1, text: 'No workspaces yet' })
+        out.push({ key: `p:${p.id}:empty`, kind: 'hint', depth: 1, text: 'tree.noWorkspaces' })
       }
       for (const w of shown) {
         out.push({
@@ -148,7 +152,7 @@ export function Sidebar() {
     out.push({
       key: 'sec-servers',
       kind: 'section',
-      label: 'Servers',
+      section: 'servers',
       depth: 0,
       onAdd: () => openDialog({ kind: 'server' }),
     })
@@ -161,7 +165,7 @@ export function Sidebar() {
         key: 'servers-empty',
         kind: 'hint',
         depth: 0,
-        text: 'Add a server to get started',
+        text: 'tree.getStarted',
       })
     }
 
@@ -176,8 +180,8 @@ export function Sidebar() {
   async function startAgent(a: Agent, ws: Workspace) {
     try {
       const res = await agentApi.start(a.id)
-      if (res.alreadyRunning) toast('info', `${a.name} is already running`)
-      else toast('ok', `${a.name} started in ${res.session}`)
+      if (res.alreadyRunning) toast('info', t('toast.agentAlreadyRunning', { name: a.name }))
+      else toast('ok', t('toast.agentStarted', { name: a.name, session: res.session }))
       await refreshServerAgents(ws.serverId)
     } catch (e) {
       toast('error', errText(e))
@@ -187,7 +191,7 @@ export function Sidebar() {
   async function stopAgent(a: Agent, ws: Workspace) {
     try {
       await agentApi.stop(a.id)
-      toast('ok', `Sent Ctrl-C to ${a.name}`)
+      toast('ok', t('toast.sentCtrlC', { name: a.name }))
       await refreshServerAgents(ws.serverId)
     } catch (e) {
       toast('error', errText(e))
@@ -196,20 +200,17 @@ export function Sidebar() {
 
   async function deleteServer(s: Server) {
     const ok = await confirmAction({
-      title: `Remove ${s.name}`,
-      message: 'This removes the server from AgentMux, along with the workspaces and agent definitions that point at it.',
-      points: [
-        'Stored credentials and the pinned host key are deleted',
-        'Any open terminals for this server will disconnect',
-      ],
-      reassurance: 'Nothing on the server itself is touched. tmux sessions and the agents inside them keep running.',
-      confirmLabel: 'Remove server',
+      title: t('confirm.removeServer.title', { name: s.name }),
+      message: t('confirm.removeServer.message'),
+      points: [t('confirm.removeServer.credentials'), t('confirm.removeServer.terminals')],
+      reassurance: t('confirm.removeServer.reassurance'),
+      confirmLabel: t('tree.removeServer'),
     })
     if (!ok) return
     try {
       await serverApi.remove(s.id)
       await refreshSnapshot()
-      toast('ok', `Removed ${s.name}`)
+      toast('ok', t('toast.removed', { name: s.name }))
     } catch (e) {
       toast('error', errText(e))
     }
@@ -217,10 +218,10 @@ export function Sidebar() {
 
   async function deleteProject(p: Project) {
     const ok = await confirmAction({
-      title: `Delete ${p.name}`,
-      message: 'The project and its workspaces and agent definitions are removed from AgentMux.',
-      reassurance: 'Remote tmux sessions keep running, and no files on any server are deleted.',
-      confirmLabel: 'Delete project',
+      title: t('confirm.deleteProject.title', { name: p.name }),
+      message: t('confirm.deleteProject.message'),
+      reassurance: t('confirm.deleteProject.reassurance'),
+      confirmLabel: t('tree.deleteProject'),
     })
     if (!ok) return
     try {
@@ -238,7 +239,7 @@ export function Sidebar() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter projects, agents, servers…"
+          placeholder={t('tree.filter')}
           className="w-full bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500"
         />
         {search && (
@@ -246,7 +247,7 @@ export function Sidebar() {
             onClick={() => setSearch('')}
             className="text-[10px] text-ink-500 hover:text-ink-200"
           >
-            clear
+            {t('tree.clear')}
           </button>
         )}
       </div>
@@ -269,14 +270,14 @@ export function Sidebar() {
                   className="flex items-center justify-between px-2.5 text-[11px] font-semibold text-ink-300"
                 >
                   <span className="flex items-center gap-1.5">
-                    {row.label === 'Projects' ? <FolderTree size={11} /> : <ServerIcon size={11} />}
-                    {row.label}
+                    {row.section === 'projects' ? <FolderTree size={11} /> : <ServerIcon size={11} />}
+                    {row.section === 'projects' ? t('tree.projects') : t('tree.servers')}
                   </span>
                   {row.onAdd && (
                     <button
                       onClick={row.onAdd}
-                      title={`Add ${row.label.slice(0, -1).toLowerCase()}`}
-                      className="rounded-control p-0.5 text-ink-500 hover:bg-ink-800 hover:text-ink-100"
+                      title={row.section === 'projects' ? t('tree.addProject') : t('tree.addServer')}
+                      className={clsx(iconButtonClass, 'text-ink-500 hover:bg-ink-800 hover:text-ink-100')}
                     >
                       <Plus size={12} />
                     </button>
@@ -292,7 +293,7 @@ export function Sidebar() {
                   style={style}
                   className="flex items-center px-2.5 text-[11px] text-ink-600"
                 >
-                  <span style={{ paddingLeft: row.depth * 14 + 16 }}>{row.text}</span>
+                  <span style={{ paddingLeft: row.depth * 14 + 16 }}>{t(row.text)}</span>
                 </div>
               )
             }
@@ -311,18 +312,18 @@ export function Sidebar() {
                     select({ kind: 'project', id: row.project.id })
                     openContextMenu(e, [
                       {
-                        label: 'Add workspace',
+                        label: t('tree.addWorkspace'),
                         icon: Plus,
                         onSelect: () => openDialog({ kind: 'workspace', projectId: row.project.id }),
                       },
                       separator,
                       {
-                        label: 'Edit project',
+                        label: t('tree.editProject'),
                         icon: Pencil,
                         onSelect: () => openDialog({ kind: 'project', project: row.project }),
                       },
                       {
-                        label: 'Delete project',
+                        label: t('tree.deleteProject'),
                         icon: Trash2,
                         danger: true,
                         onSelect: () => void deleteProject(row.project),
@@ -337,17 +338,17 @@ export function Sidebar() {
                     <>
                       <RowBtn
                         icon={<Plus size={11} />}
-                        title="Add workspace"
+                        title={t('tree.addWorkspace')}
                         onClick={() => openDialog({ kind: 'workspace', projectId: row.project.id })}
                       />
                       <RowBtn
                         icon={<Pencil size={11} />}
-                        title="Edit project"
+                        title={t('tree.editProject')}
                         onClick={() => openDialog({ kind: 'project', project: row.project })}
                       />
                       <RowBtn
                         icon={<Trash2 size={11} />}
-                        title="Delete project"
+                        title={t('tree.deleteProject')}
                         danger
                         onClick={() => void deleteProject(row.project)}
                       />
@@ -371,7 +372,7 @@ export function Sidebar() {
                     select({ kind: 'workspace', id: row.workspace.id })
                     openContextMenu(e, [
                       {
-                        label: 'Open shell here',
+                        label: t('tree.openShellHere'),
                         icon: TerminalSquare,
                         onSelect: () => {
                           openTab({
@@ -385,7 +386,7 @@ export function Sidebar() {
                         },
                       },
                       {
-                        label: 'Browse files',
+                        label: t('tree.browseFiles'),
                         icon: FolderTree,
                         onSelect: () => {
                           openTab({
@@ -401,33 +402,31 @@ export function Sidebar() {
                       },
                       separator,
                       {
-                        label: 'Add agent',
+                        label: t('tree.addAgent'),
                         icon: Bot,
                         onSelect: () => openDialog({ kind: 'agent', workspaceId: row.workspace.id }),
                       },
                       {
-                        label: 'Copy remote path',
+                        label: t('tree.copyRemotePath'),
                         icon: ClipboardCopy,
                         onSelect: () => void Clipboard.SetText(row.workspace.remotePath),
                       },
                       separator,
                       {
-                        label: 'Edit workspace',
+                        label: t('tree.editWorkspace'),
                         icon: Pencil,
                         onSelect: () => openDialog({ kind: 'workspace', workspace: row.workspace }),
                       },
                       {
-                        label: 'Delete workspace',
+                        label: t('tree.deleteWorkspace'),
                         icon: Trash2,
                         danger: true,
                         onSelect: async () => {
                           const ok = await confirmAction({
-                            title: `Delete ${row.workspace.name}`,
-                            message:
-                              'The workspace and its agent definitions are removed from AgentMux.',
-                            reassurance:
-                              'No files are deleted and remote tmux sessions keep running.',
-                            confirmLabel: 'Delete workspace',
+                            title: t('confirm.deleteWorkspace.title', { name: row.workspace.name }),
+                            message: t('confirm.deleteWorkspace.message'),
+                            reassurance: t('confirm.deleteWorkspace.reassurance'),
+                            confirmLabel: t('tree.deleteWorkspace'),
                           })
                           if (!ok) return
                           await treeApi.deleteWorkspace(row.workspace.id)
@@ -440,12 +439,12 @@ export function Sidebar() {
                   onChevron={() => toggleExpanded(`w:${row.workspace.id}`)}
                   icon={<ConnDot connected={!!connections[row.workspace.serverId]?.connected} />}
                   label={row.workspace.name}
-                  meta={row.server?.name ?? 'missing server'}
+                  meta={row.server?.name ?? t('tree.missingServer')}
                   actions={
                     <>
                       <RowBtn
                         icon={<TerminalSquare size={11} />}
-                        title="Open shell in workspace"
+                        title={t('tree.openShellInWorkspace')}
                         onClick={() =>
                           openTab({
                             title: row.workspace.name,
@@ -459,7 +458,7 @@ export function Sidebar() {
                       />
                       <RowBtn
                         icon={<FolderTree size={11} />}
-                        title="Browse files in this workspace"
+                        title={t('tree.browseFilesInWorkspace')}
                         onClick={() =>
                           openTab({
                             title: row.workspace.name,
@@ -474,12 +473,12 @@ export function Sidebar() {
                       />
                       <RowBtn
                         icon={<Bot size={11} />}
-                        title="Add agent"
+                        title={t('tree.addAgent')}
                         onClick={() => openDialog({ kind: 'agent', workspaceId: row.workspace.id })}
                       />
                       <RowBtn
                         icon={<Pencil size={11} />}
-                        title="Edit workspace"
+                        title={t('tree.editWorkspace')}
                         onClick={() => openDialog({ kind: 'workspace', workspace: row.workspace })}
                       />
                     </>
@@ -512,27 +511,27 @@ export function Sidebar() {
                       })
                     }
                     openContextMenu(e, [
-                      { label: 'Attach terminal', icon: TerminalSquare, onSelect: attach },
+                      { label: t('tree.attachTerminal'), icon: TerminalSquare, onSelect: attach },
                       separator,
                       {
-                        label: 'Start',
+                        label: t('agent.start'),
                         icon: Play,
                         disabled: a.status === 'running',
                         onSelect: () => void startAgent(a, row.workspace),
                       },
                       {
-                        label: 'Stop (Ctrl-C)',
+                        label: t('agent.stopCtrlC'),
                         icon: Square,
                         disabled: a.status !== 'running',
                         onSelect: () => void stopAgent(a, row.workspace),
                       },
                       {
-                        label: 'Restart',
+                        label: t('agent.restart'),
                         icon: RotateCw,
                         onSelect: async () => {
                           try {
                             await agentApi.restart(a.id)
-                            toast('ok', `${a.name} restarted`)
+                            toast('ok', t('toast.agentRestarted', { name: a.name }))
                             await refreshServerAgents(row.workspace.serverId)
                           } catch (err) {
                             toast('error', errText(err))
@@ -541,35 +540,34 @@ export function Sidebar() {
                       },
                       separator,
                       {
-                        label: checked ? 'Remove from broadcast' : 'Add to broadcast',
+                        label: checked ? t('tree.removeFromBroadcast') : t('tree.addToBroadcast'),
                         icon: Radio,
                         onSelect: () => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' }),
                       },
                       {
-                        label: 'Copy session name',
+                        label: t('tree.copySessionName'),
                         icon: ClipboardCopy,
                         onSelect: () => void Clipboard.SetText(a.tmuxSession),
                       },
                       separator,
                       {
-                        label: 'Edit agent',
+                        label: t('tree.editAgent'),
                         icon: Pencil,
                         onSelect: () => openDialog({ kind: 'agent', agent: a }),
                       },
                       {
-                        label: 'Kill session',
+                        label: t('agent.killSession'),
                         icon: Skull,
                         danger: true,
                         onSelect: async () => {
                           const ok = await confirmAction({
-                            title: `Kill ${a.tmuxSession}`,
-                            message:
-                              'The tmux session is destroyed along with everything running inside it.',
+                            title: t('confirm.killSession.title', { session: a.tmuxSession }),
+                            message: t('confirm.killSession.message'),
                             points: [
-                              'The agent is terminated, not asked to stop',
-                              'The pane and all of its scrollback are lost',
+                              t('confirm.killSession.terminated'),
+                              t('confirm.killSession.scrollback'),
                             ],
-                            confirmLabel: 'Kill session',
+                            confirmLabel: t('agent.killSession'),
                             requireText: a.name,
                           })
                           if (!ok) return
@@ -582,15 +580,17 @@ export function Sidebar() {
                         },
                       },
                       {
-                        label: 'Delete agent',
+                        label: t('tree.deleteAgent'),
                         icon: Trash2,
                         danger: true,
                         onSelect: async () => {
                           const ok = await confirmAction({
-                            title: `Delete ${a.name}`,
-                            message: 'The agent definition is removed from AgentMux.',
-                            reassurance: `Its tmux session ${a.tmuxSession} keeps running on the server.`,
-                            confirmLabel: 'Delete agent',
+                            title: t('confirm.deleteAgent.title', { name: a.name }),
+                            message: t('confirm.deleteAgent.message'),
+                            reassurance: t('confirm.deleteAgent.reassurance', {
+                              session: a.tmuxSession,
+                            }),
+                            confirmLabel: t('tree.deleteAgent'),
                           })
                           if (!ok) return
                           await agentApi.remove(a.id)
@@ -611,7 +611,11 @@ export function Sidebar() {
                   }
                   icon={<StatusDot status={a.status} pulse />}
                   label={a.name}
-                  meta={a.status === 'running' ? a.progressText || 'running' : a.status}
+                  meta={
+                    a.status === 'running'
+                      ? a.progressText || t('agent.status.running')
+                      : agentStatusLabel(t, a.status)
+                  }
                   metaDim
                   leading={
                     <input
@@ -619,7 +623,7 @@ export function Sidebar() {
                       checked={checked}
                       onChange={() => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' })}
                       onClick={(e) => e.stopPropagation()}
-                      title="Include in broadcast"
+                      title={t('tree.includeInBroadcast')}
                       className="h-3 w-3 shrink-0 accent-[#4c8dff]"
                     />
                   }
@@ -628,19 +632,19 @@ export function Sidebar() {
                       {a.status === 'running' ? (
                         <RowBtn
                           icon={<Square size={11} />}
-                          title="Stop agent (Ctrl-C)"
+                          title={t('tree.stopAgent')}
                           onClick={() => void stopAgent(a, row.workspace)}
                         />
                       ) : (
                         <RowBtn
                           icon={<Play size={11} />}
-                          title="Start agent"
+                          title={t('tree.startAgent')}
                           onClick={() => void startAgent(a, row.workspace)}
                         />
                       )}
                       <RowBtn
                         icon={<TerminalSquare size={11} />}
-                        title="Attach terminal"
+                        title={t('tree.attachTerminal')}
                         onClick={() =>
                           openTab({
                             title: a.name,
@@ -654,7 +658,7 @@ export function Sidebar() {
                       />
                       <RowBtn
                         icon={<Pencil size={11} />}
-                        title="Edit agent"
+                        title={t('tree.editAgent')}
                         onClick={() => openDialog({ kind: 'agent', agent: a })}
                       />
                     </>
@@ -677,7 +681,7 @@ export function Sidebar() {
                   select({ kind: 'server', id: s.id })
                   openContextMenu(e, [
                     {
-                      label: 'Open shell',
+                      label: t('tree.openShell'),
                       icon: TerminalSquare,
                       onSelect: () => {
                         openTab({
@@ -691,7 +695,7 @@ export function Sidebar() {
                       },
                     },
                     {
-                      label: 'Browse files',
+                      label: t('tree.browseFiles'),
                       icon: FolderTree,
                       onSelect: () => {
                         openTab({
@@ -706,10 +710,18 @@ export function Sidebar() {
                       },
                     },
                     separator,
-                    { label: 'Metrics', icon: Activity, onSelect: () => setRightPanel('metrics') },
-                    { label: 'tmux sessions', icon: Layers, onSelect: () => setRightPanel('tmux') },
                     {
-                      label: 'Install agents',
+                      label: t('tree.metrics'),
+                      icon: Activity,
+                      onSelect: () => setRightPanel('metrics'),
+                    },
+                    {
+                      label: t('tree.tmuxSessions'),
+                      icon: Layers,
+                      onSelect: () => setRightPanel('tmux'),
+                    },
+                    {
+                      label: t('tree.installAgents'),
                       icon: Sparkles,
                       onSelect: () => setRightPanel('toolkit'),
                     },
@@ -719,7 +731,7 @@ export function Sidebar() {
                       ? {}
                       : conn?.connected
                       ? {
-                          label: 'Disconnect',
+                          label: t('tree.disconnect'),
                           icon: Link2Off,
                           onSelect: async () => {
                             await serverApi.disconnect(s.id)
@@ -727,12 +739,12 @@ export function Sidebar() {
                           },
                         }
                       : {
-                          label: 'Connect',
+                          label: t('tree.connect'),
                           icon: Link2,
                           onSelect: async () => {
                             try {
                               await serverApi.connect(s.id)
-                              toast('ok', `Connected to ${s.name}`)
+                              toast('ok', t('toast.connectedTo', { name: s.name }))
                             } catch (err) {
                               toast('error', errText(err))
                             }
@@ -740,23 +752,32 @@ export function Sidebar() {
                           },
                         },
                     {
-                      label: s.kind === 'local' ? 'Check this computer' : 'Test connection',
+                      label:
+                        s.kind === 'local' ? t('tree.checkThisComputer') : t('tree.testConnection'),
                       icon: Zap,
                       onSelect: async () => {
                         const p = await serverApi.test(s.id)
-                        if (p.ok) toast('ok', `${s.name}: ${p.latencyMs} ms · ${p.os || 'unknown'}`)
-                        else toast('error', `${s.name}: ${p.error}`)
+                        if (p.ok)
+                          toast(
+                            'ok',
+                            t('toast.testOk', {
+                              name: s.name,
+                              ms: p.latencyMs,
+                              os: p.os || t('common.unknown'),
+                            }),
+                          )
+                        else toast('error', t('toast.testFailed', { name: s.name, error: p.error }))
                         await useAppStore.getState().refreshConnections()
                       },
                     },
                     separator,
                     {
-                      label: s.kind === 'local' ? 'Edit this host' : 'Edit server',
+                      label: s.kind === 'local' ? t('tree.editThisHost') : t('tree.editServer'),
                       icon: Pencil,
                       onSelect: () => openDialog({ kind: 'server', server: s }),
                     },
                     {
-                      label: s.kind === 'local' ? 'Remove this host' : 'Remove server',
+                      label: s.kind === 'local' ? t('tree.removeThisHost') : t('tree.removeServer'),
                       icon: Trash2,
                       danger: true,
                       onSelect: () => void deleteServer(s),
@@ -781,13 +802,13 @@ export function Sidebar() {
                   )
                 }
                 label={s.name}
-                meta={s.kind === 'local' ? 'this computer' : `${s.username}@${s.host}`}
+                meta={s.kind === 'local' ? t('tree.thisComputer') : `${s.username}@${s.host}`}
                 metaDim
                 actions={
                   <>
                     <RowBtn
                       icon={<TerminalSquare size={11} />}
-                      title="Open shell"
+                      title={t('tree.openShell')}
                       onClick={() =>
                         openTab({
                           title: s.name,
@@ -801,7 +822,7 @@ export function Sidebar() {
                     />
                     <RowBtn
                       icon={<FolderTree size={11} />}
-                      title="Browse files"
+                      title={t('tree.browseFiles')}
                       onClick={() =>
                         openTab({
                           title: s.name,
@@ -816,28 +837,31 @@ export function Sidebar() {
                     />
                     <RowBtn
                       icon={<Zap size={11} />}
-                      title="Test connection"
+                      title={t('tree.testConnection')}
                       onClick={async () => {
                         const p = await serverApi.test(s.id)
                         if (p.ok)
                           toast(
                             'ok',
-                            `${s.name}: ${p.latencyMs} ms · ${p.os || 'unknown OS'} · ${
-                              p.hasTmux ? p.tmuxVersion : 'no tmux'
-                            }`,
+                            t('toast.testOkFull', {
+                              name: s.name,
+                              ms: p.latencyMs,
+                              os: p.os || t('common.unknownOS'),
+                              tmux: p.hasTmux ? p.tmuxVersion : t('common.noTmux'),
+                            }),
                           )
-                        else toast('error', `${s.name}: ${p.error}`)
+                        else toast('error', t('toast.testFailed', { name: s.name, error: p.error }))
                         await useAppStore.getState().refreshConnections()
                       }}
                     />
                     <RowBtn
                       icon={<Pencil size={11} />}
-                      title="Edit server"
+                      title={t('tree.editServer')}
                       onClick={() => openDialog({ kind: 'server', server: s })}
                     />
                     <RowBtn
                       icon={<Trash2 size={11} />}
-                      title="Delete server"
+                      title={t('tree.deleteServer')}
                       danger
                       onClick={() => void deleteServer(s)}
                     />
@@ -851,10 +875,10 @@ export function Sidebar() {
 
       <div className="flex shrink-0 gap-1.5 border-t hairline px-2.5 py-2">
         <Button size="sm" onClick={() => openDialog({ kind: 'server' })} className="flex-1">
-          <Plus size={11} /> Server
+          <Plus size={11} /> {t('tree.newServer')}
         </Button>
         <Button size="sm" onClick={() => openDialog({ kind: 'project' })} className="flex-1">
-          <Plus size={11} /> Project
+          <Plus size={11} /> {t('tree.newProject')}
         </Button>
       </div>
     </div>
@@ -967,7 +991,8 @@ function RowBtn({
         onClick()
       }}
       className={clsx(
-        'rounded-control p-1 text-ink-400 hover:bg-ink-750',
+        iconButtonClass,
+        'text-ink-400 hover:bg-ink-750',
         danger ? 'hover:text-danger' : 'hover:text-ink-100',
       )}
     >

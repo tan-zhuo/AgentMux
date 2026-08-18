@@ -13,8 +13,11 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { on, orch as orchApi, skills as skillApi } from '../lib/api'
+import { agentStatusLabel } from '../lib/agentStatus'
+import type { MsgKey } from '../lib/i18n'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
+import { useT } from '../store/useI18n'
 import { AgentDetail } from './panels/AgentDetail'
 import { BroadcastPanel } from './panels/BroadcastPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
@@ -58,14 +61,16 @@ function useSelectedServerId(): string {
  * child's data fetch and flashing its loading state several times a minute.
  */
 function ForServer({ render }: { render: (serverId: string) => React.ReactNode }) {
+  const t = useT()
   const serverId = useSelectedServerId()
   if (!serverId) {
-    return <Empty title="Select a server" hint="Pick a server, workspace or agent in the tree." />
+    return <Empty title={t('panel.selectServer')} hint={t('panel.selectServer.hint')} />
   }
   return <>{render(serverId)}</>
 }
 
 export function RightPanel() {
+  const t = useT()
   const panel = useAppStore((s) => s.rightPanel)
   const setPanel = useAppStore((s) => s.setRightPanel)
   const toggleRight = useAppStore((s) => s.toggleRight)
@@ -158,15 +163,15 @@ export function RightPanel() {
     syncOverflow()
   }, [panel, syncOverflow])
 
-  const tabs: Array<{ id: PanelKind; label: string; icon: typeof Bot; badge?: number }> = [
-    { id: 'detail', label: 'Detail', icon: Bot },
-    { id: 'broadcast', label: 'Broadcast', icon: Radio, badge: targets.length },
-    { id: 'metrics', label: 'Metrics', icon: Activity },
-    { id: 'tmux', label: 'tmux', icon: TerminalSquare },
-    { id: 'toolkit', label: 'Install', icon: Sparkles },
-    { id: 'memory', label: 'Memory', icon: Brain },
-    { id: 'skills', label: 'Skills', icon: Wand2, badge: drafts },
-    { id: 'orchestrator', label: 'Run', icon: Workflow, badge: pending },
+  const tabs: Array<{ id: PanelKind; label: MsgKey; icon: typeof Bot; badge?: number }> = [
+    { id: 'detail', label: 'panel.detail', icon: Bot },
+    { id: 'broadcast', label: 'panel.broadcast', icon: Radio, badge: targets.length },
+    { id: 'metrics', label: 'panel.metrics', icon: Activity },
+    { id: 'tmux', label: 'panel.tmux', icon: TerminalSquare },
+    { id: 'toolkit', label: 'panel.install', icon: Sparkles },
+    { id: 'memory', label: 'panel.memory', icon: Brain },
+    { id: 'skills', label: 'panel.skills', icon: Wand2, badge: drafts },
+    { id: 'orchestrator', label: 'panel.run', icon: Workflow, badge: pending },
   ]
 
   return (
@@ -177,14 +182,14 @@ export function RightPanel() {
             instead of just the ones off-screen. */}
         <div className="relative min-w-0 flex-1">
           <div ref={stripRef} className="no-scrollbar flex h-full items-stretch gap-0.5 overflow-x-auto">
-            {tabs.map((t) => {
-              const Icon = t.icon
-              const active = panel === t.id
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const active = panel === tab.id
               return (
                 <button
-                  key={t.id}
+                  key={tab.id}
                   ref={active ? activeRef : undefined}
-                  onClick={() => setPanel(t.id)}
+                  onClick={() => setPanel(tab.id)}
                   className={clsx(
                     // A raised pill rather than an underline. Underlined tabs
                     // are a web convention; on Apple's platforms selection in a
@@ -197,8 +202,8 @@ export function RightPanel() {
                   )}
                 >
                   <Icon size={12} />
-                  {t.label}
-                  {!!t.badge && <Badge tone="accent">{t.badge}</Badge>}
+                  {t(tab.label)}
+                  {!!tab.badge && <Badge tone="accent">{tab.badge}</Badge>}
                 </button>
               )
             })}
@@ -214,7 +219,7 @@ export function RightPanel() {
         </div>
         <button
           onClick={toggleRight}
-          title="Collapse panel"
+          title={t('panel.collapse')}
           className="shrink-0 border-l hairline px-2 text-ink-500 hover:text-ink-100"
         >
           <PanelRightClose size={14} />
@@ -237,6 +242,7 @@ export function RightPanel() {
 }
 
 function DetailRouter() {
+  const t = useT()
   const selection = useAppStore((s) => s.selection)
   const snapshot = useAppStore((s) => s.snapshot)
   const openTab = useAppStore((s) => s.openTab)
@@ -244,20 +250,20 @@ function DetailRouter() {
 
   if (selection.kind === 'server') {
     const server = snapshot.servers.find((s) => s.id === selection.id)
-    if (!server) return <Empty title="Server not found" />
+    if (!server) return <Empty title={t('panel.serverNotFound')} />
     return <ServerDetail server={server} />
   }
 
   if (selection.kind === 'agent') {
     const agent = snapshot.agents.find((a) => a.id === selection.id)
     const workspace = snapshot.workspaces.find((w) => w.id === agent?.workspaceId)
-    if (!agent || !workspace) return <Empty title="Agent not found" />
+    if (!agent || !workspace) return <Empty title={t('panel.agentNotFound')} />
     return <AgentDetail agent={agent} workspace={workspace} />
   }
 
   if (selection.kind === 'workspace') {
     const ws = snapshot.workspaces.find((w) => w.id === selection.id)
-    if (!ws) return <Empty title="Workspace not found" />
+    if (!ws) return <Empty title={t('panel.workspaceNotFound')} />
     const server = snapshot.servers.find((s) => s.id === ws.serverId)
     const wsAgents = snapshot.agents.filter((a) => a.workspaceId === ws.id)
     return (
@@ -265,7 +271,9 @@ function DetailRouter() {
         <div className="border-b hairline px-3 py-3">
           <h3 className="truncate text-sm font-semibold text-ink-100">{ws.name}</h3>
           <p className="truncate font-mono text-[11px] text-ink-400">{ws.remotePath}</p>
-          <p className="mt-1 text-[11px] text-ink-500">on {server?.name ?? 'missing server'}</p>
+          <p className="mt-1 text-[11px] text-ink-500">
+            {t('panel.onServer', { name: server?.name ?? t('tree.missingServer') })}
+          </p>
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             <Button
               size="sm"
@@ -281,10 +289,10 @@ function DetailRouter() {
                 })
               }
             >
-              <TerminalSquare size={11} /> Open shell
+              <TerminalSquare size={11} /> {t('tree.openShell')}
             </Button>
             <Button size="sm" onClick={() => openDialog({ kind: 'agent', workspaceId: ws.id })}>
-              <Plus size={11} /> Add agent
+              <Plus size={11} /> {t('tree.addAgent')}
             </Button>
           </div>
           {Object.keys(ws.env).length > 0 && (
@@ -300,7 +308,7 @@ function DetailRouter() {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <p className="px-3 py-1.5 text-[11px] font-semibold text-ink-300">
-            Agents ({wsAgents.length})
+            {t('panel.agentsCount', { n: wsAgents.length })}
           </p>
           {wsAgents.map((a) => (
             <button
@@ -310,11 +318,13 @@ function DetailRouter() {
             >
               <Bot size={12} className="text-ink-500" />
               <span className="min-w-0 flex-1 truncate text-ink-200">{a.name}</span>
-              <Badge tone={a.status === 'running' ? 'ok' : 'neutral'}>{a.status}</Badge>
+              <Badge tone={a.status === 'running' ? 'ok' : 'neutral'}>
+                {agentStatusLabel(t, a.status)}
+              </Badge>
             </button>
           ))}
           {!wsAgents.length && (
-            <p className="px-3 py-2 text-[11px] text-ink-600">No agents in this workspace yet.</p>
+            <p className="px-3 py-2 text-[11px] text-ink-600">{t('panel.noAgentsHere')}</p>
           )}
         </div>
       </div>
@@ -323,7 +333,7 @@ function DetailRouter() {
 
   if (selection.kind === 'project') {
     const project = snapshot.projects.find((p) => p.id === selection.id)
-    if (!project) return <Empty title="Project not found" />
+    if (!project) return <Empty title={t('panel.projectNotFound')} />
     const wss = snapshot.workspaces.filter((w) => w.projectId === project.id)
     return (
       <div className="flex h-full flex-col">
@@ -337,12 +347,12 @@ function DetailRouter() {
             className="mt-2.5"
             onClick={() => openDialog({ kind: 'workspace', projectId: project.id })}
           >
-            <Plus size={11} /> Add workspace
+            <Plus size={11} /> {t('tree.addWorkspace')}
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <p className="px-3 py-1.5 text-[11px] font-semibold text-ink-300">
-            Workspaces ({wss.length})
+            {t('panel.workspacesCount', { n: wss.length })}
           </p>
           {wss.map((w) => {
             const server = snapshot.servers.find((s) => s.id === w.serverId)
@@ -353,7 +363,7 @@ function DetailRouter() {
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850"
               >
                 <span className="min-w-0 flex-1 truncate text-ink-200">{w.name}</span>
-                <span className="truncate text-ink-600">{server?.name ?? '—'}</span>
+                <span className="truncate text-ink-600">{server?.name ?? t('common.none')}</span>
               </button>
             )
           })}
@@ -363,9 +373,6 @@ function DetailRouter() {
   }
 
   return (
-    <Empty
-      title="Nothing selected"
-      hint="Select a server, workspace or agent on the left to see its details here."
-    />
+    <Empty title={t('panel.nothingSelected')} hint={t('panel.nothingSelected.hint')} />
   )
 }

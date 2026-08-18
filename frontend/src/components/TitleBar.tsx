@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { PanelLeft, PanelRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { useT } from '../store/useI18n'
 
 type Light = 'close' | 'minimise' | 'zoom'
 
@@ -103,6 +104,7 @@ function TrafficLight({
  * replace the platform ones; everything outside the buttons drags the window.
  */
 export function TitleBar() {
+  const t = useT()
   const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
@@ -149,7 +151,7 @@ export function TitleBar() {
       >
         <TrafficLight
           kind="close"
-          label="Close window"
+          label={t('window.close')}
           focused={focused}
           hovered={hovered}
           maximised={maximised}
@@ -157,7 +159,7 @@ export function TitleBar() {
         />
         <TrafficLight
           kind="minimise"
-          label="Minimise window"
+          label={t('window.minimise')}
           focused={focused}
           hovered={hovered}
           maximised={maximised}
@@ -165,7 +167,7 @@ export function TitleBar() {
         />
         <TrafficLight
           kind="zoom"
-          label={maximised ? 'Restore window' : 'Zoom window'}
+          label={maximised ? t('window.restore') : t('window.zoom')}
           focused={focused}
           hovered={hovered}
           maximised={maximised}
@@ -191,14 +193,18 @@ export function TitleBar() {
           focused ? 'text-ink-400' : 'text-ink-600',
         )}
       >
-        {loading ? 'loading' : (active?.title ?? 'multi-server agent control plane')}
+        {loading ? t('title.loading') : (active?.title ?? t('title.tagline'))}
       </span>
 
       <div className="ml-auto flex items-center gap-0.5">
-        <TitleBarButton active={sidebarOpen} title="Toggle sidebar (Ctrl+B)" onClick={toggleSidebar}>
+        <TitleBarButton
+          active={sidebarOpen}
+          title={t('title.toggleSidebar')}
+          onClick={toggleSidebar}
+        >
           <PanelLeft size={14} />
         </TitleBarButton>
-        <TitleBarButton active={rightOpen} title="Toggle panel" onClick={toggleRight}>
+        <TitleBarButton active={rightOpen} title={t('title.togglePanel')} onClick={toggleRight}>
           <PanelRight size={14} />
         </TitleBarButton>
       </div>

@@ -1,16 +1,25 @@
 import clsx from 'clsx'
 import { Check } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   agents as agentApi,
   errText,
   llm as llmApi,
   servers as serverApi,
+  toolkit,
   tree as treeApi,
 } from '../lib/api'
+import {
+  LANGUAGES,
+  offsetLabel,
+  systemTimeZone,
+  timeZones,
+  type Lang,
+} from '../lib/i18n'
 import { themes } from '../lib/themes'
 import type {
   Agent,
+  AgentChoice,
   AuthType,
   LLMConfig,
   LLMStatus,
@@ -23,6 +32,7 @@ import type {
 } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
+import { useFmt, useI18n, useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
 import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
 import { SplitDialog } from './SplitDialog'
@@ -74,6 +84,7 @@ function useDialogPlumbing() {
 }
 
 function ServerDialog() {
+  const t = useT()
   const dialog = useDialogs((s) => s.dialog)
   const existing = dialog?.kind === 'server' ? dialog.server : undefined
   const servers = useAppStore((s) => s.snapshot.servers)
@@ -120,27 +131,33 @@ function ServerDialog() {
 
   return (
     <Modal
-      title={existing ? `Edit ${existing.name}` : 'Add host'}
+      title={existing ? t('dialog.editName', { name: existing.name }) : t('server.addHost')}
       onClose={close}
       footer={
         <>
           {existing && (
             <Button
-              size="sm"
               disabled={testing}
               onClick={async () => {
                 setTesting(true)
                 const p = await serverApi.test(existing.id)
                 setTesting(false)
                 if (p.ok)
-                  toast('ok', `${p.latencyMs} ms · ${p.os || '?'} · ${p.hasTmux ? p.tmuxVersion : 'no tmux'}`)
+                  toast(
+                    'ok',
+                    t('server.testResult', {
+                      ms: p.latencyMs,
+                      os: p.os || t('common.unknownOS'),
+                      tmux: p.hasTmux ? p.tmuxVersion : t('common.noTmux'),
+                    }),
+                  )
                 else toast('error', p.error)
               }}
             >
-              Test connection
+              {t('tree.testConnection')}
             </Button>
           )}
-          <Button onClick={close}>Cancel</Button>
+          <Button onClick={close}>{t('common.cancel')}</Button>
           <Button
             variant="primary"
             disabled={saving || (local && !existing && !support?.supported)}
@@ -157,7 +174,7 @@ function ServerDialog() {
                   if (local && !existing) return serverApi.addLocal(form.name)
                   return serverApi.save({ ...form, kind, tags })
                 },
-                existing ? 'Host updated' : 'Host added',
+                existing ? t('server.updated') : t('server.added'),
               )
             }
           >
@@ -169,25 +186,26 @@ function ServerDialog() {
       <div className="space-y-3">
         {!existing && (
           <Field
-            label="Where the work runs"
-            hint={
-              local
-                ? 'This computer, managed like any other host: agents in a local tmux session, so closing AgentMux still does not stop them.'
-                : 'A machine reached over SSH.'
-            }
+            label={t('server.whereWorkRuns')}
+            hint={local ? t('server.kind.localHint') : t('server.kind.sshHint')}
           >
             <Segmented<ServerKind>
+              size="sm"
               value={kind}
               onChange={(v) => {
                 setKind(v)
                 if (v === 'local' && support?.name && !form.name) set('name', support.name)
               }}
               options={[
-                { value: 'ssh', label: 'Remote host', title: 'Reached over SSH' },
+                {
+                  value: 'ssh',
+                  label: t('server.kind.remote'),
+                  title: t('server.kind.remoteTitle'),
+                },
                 {
                   value: 'local',
-                  label: 'This computer',
-                  title: 'The machine AgentMux is running on',
+                  label: t('server.kind.local'),
+                  title: t('server.kind.localTitle'),
                 },
               ]}
             />
@@ -201,23 +219,22 @@ function ServerDialog() {
         )}
         {local && !existing && support?.existingId && (
           <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] leading-relaxed text-ink-400">
-            This computer is already in the tree — saving will select it rather than adding a second
-            one.
+            {t('server.alreadyInTree')}
           </p>
         )}
 
         <div className={local ? '' : 'grid grid-cols-2 gap-3'}>
-          <Field label="Name">
+          <Field label={t('server.name')}>
             <input
               autoFocus
               className={inputClass}
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder={local ? support?.name || 'this computer' : 'gpu-box-01'}
+              placeholder={local ? support?.name || t('tree.thisComputer') : 'gpu-box-01'}
             />
           </Field>
           {!local && (
-            <Field label="Tags" hint="comma separated">
+            <Field label={t('server.tags')} hint={t('server.tags.hint')}>
               <input
                 className={inputClass}
                 value={tagText}
@@ -230,13 +247,11 @@ function ServerDialog() {
 
         {local ? (
           <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] leading-relaxed text-ink-400">
-            Nothing to address and nothing to authenticate: no host, no account, no key. Paths on
-            this host are POSIX paths, which on Windows means paths inside WSL — the only place
-            there that has tmux, and therefore the only place an agent survives the window closing.
+            {t('server.localBlurb')}
           </p>
         ) : (
         <div className="grid grid-cols-[2fr_1fr_1.5fr] gap-3">
-          <Field label="Host">
+          <Field label={t('server.host')}>
             <input
               className={inputClass}
               value={form.host}
@@ -244,7 +259,7 @@ function ServerDialog() {
               placeholder="10.0.0.12"
             />
           </Field>
-          <Field label="Port">
+          <Field label={t('server.port')}>
             <input
               type="number"
               className={inputClass}
@@ -252,7 +267,7 @@ function ServerDialog() {
               onChange={(e) => set('port', Number(e.target.value) || 22)}
             />
           </Field>
-          <Field label="Username">
+          <Field label={t('server.username')}>
             <input
               className={inputClass}
               value={form.username}
@@ -263,30 +278,41 @@ function ServerDialog() {
         </div>
         )}
 
-        <Field
-          label="Orchestrator trust"
-          hint="How much the orchestrator may do here on its own. Destructive actions are confirmed everywhere, whatever this says."
-        >
+        <Field label={t('server.trust')} hint={t('server.trust.hint')}>
           <Segmented<TrustLevel>
+            size="sm"
             value={form.trustLevel ?? 'normal'}
             onChange={(v) => set('trustLevel', v)}
             options={[
-              { value: 'trusted', label: 'Trusted', title: 'Recoverable actions run without asking' },
-              { value: 'normal', label: 'Ask first', title: 'Anything that changes something is confirmed' },
-              { value: 'production', label: 'Production', title: 'Everything but reading is confirmed' },
+              {
+                value: 'trusted',
+                label: t('server.trust.trusted'),
+                title: t('server.trust.trustedTitle'),
+              },
+              {
+                value: 'normal',
+                label: t('server.trust.normal'),
+                title: t('server.trust.normalTitle'),
+              },
+              {
+                value: 'production',
+                label: t('server.trust.production'),
+                title: t('server.trust.productionTitle'),
+              },
             ]}
           />
         </Field>
 
         {!local && (
-        <Field label="Authentication">
+        <Field label={t('server.auth')}>
           <Segmented<AuthType>
+            size="sm"
             value={form.authType}
             onChange={(v) => set('authType', v)}
             options={[
               { value: 'agent', label: 'ssh-agent' },
-              { value: 'key', label: 'Key' },
-              { value: 'password', label: 'Password' },
+              { value: 'key', label: t('server.auth.key') },
+              { value: 'password', label: t('server.auth.password') },
             ]}
           />
         </Field>
@@ -294,7 +320,7 @@ function ServerDialog() {
 
         {!local && form.authType === 'key' && (
           <>
-            <Field label="Private key path" hint="Leave blank to try ~/.ssh/id_ed25519, id_ecdsa, id_rsa">
+            <Field label={t('server.keyPath')} hint={t('server.keyPath.hint')}>
               <input
                 className={inputClass}
                 value={form.keyPath}
@@ -303,11 +329,11 @@ function ServerDialog() {
               />
             </Field>
             <Field
-              label="Key passphrase"
+              label={t('server.passphrase')}
               hint={
                 existing?.hasPassphrase
-                  ? 'Stored. Leave blank to keep it, or type a new one.'
-                  : 'Encrypted with a key held in your OS keychain.'
+                  ? t('server.secret.stored')
+                  : t('server.secret.encrypted')
               }
             >
               <input
@@ -323,12 +349,8 @@ function ServerDialog() {
 
         {!local && form.authType === 'password' && (
           <Field
-            label="Password"
-            hint={
-              existing?.hasPassword
-                ? 'Stored. Leave blank to keep it, or type a new one.'
-                : 'Encrypted with a key held in your OS keychain.'
-            }
+            label={t('server.auth.password')}
+            hint={existing?.hasPassword ? t('server.secret.stored') : t('server.secret.encrypted')}
           >
             <input
               type="password"
@@ -341,13 +363,13 @@ function ServerDialog() {
         )}
 
         {!local && (
-        <Field label="Jump host" hint="Route the connection through another configured server">
+        <Field label={t('server.jumpHost')} hint={t('server.jumpHost.hint')}>
           <select
             className={inputClass}
             value={form.jumpServerId ?? ''}
             onChange={(e) => set('jumpServerId', e.target.value || null)}
           >
-            <option value="">None (direct)</option>
+            <option value="">{t('server.jumpHost.none')}</option>
             {servers
               .filter((s) => s.id !== form.id && s.kind !== 'local')
               .map((s) => (
@@ -361,8 +383,7 @@ function ServerDialog() {
 
         {existing?.hostKey && (
           <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] text-ink-400">
-            Host key pinned on first connection. Clear it from the server detail panel if you
-            rotated the server's key.
+            {t('server.hostKeyPinned')}
           </p>
         )}
       </div>
@@ -371,6 +392,7 @@ function ServerDialog() {
 }
 
 function ProjectDialog() {
+  const t = useT()
   const dialog = useDialogs((s) => s.dialog)
   const existing = dialog?.kind === 'project' ? dialog.project : undefined
   const { close, submit, saving } = useDialogPlumbing()
@@ -386,23 +408,23 @@ function ProjectDialog() {
 
   return (
     <Modal
-      title={existing ? `Edit ${existing.name}` : 'New project'}
+      title={existing ? t('dialog.editName', { name: existing.name }) : t('project.new')}
       onClose={close}
       footer={
         <>
-          <Button onClick={close}>Cancel</Button>
+          <Button onClick={close}>{t('common.cancel')}</Button>
           <Button
             variant="primary"
             disabled={saving}
-            onClick={() => submit(() => treeApi.saveProject(form), 'Project saved')}
+            onClick={() => submit(() => treeApi.saveProject(form), t('project.saved'))}
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Name">
+        <Field label={t('server.name')}>
           <input
             autoFocus
             className={inputClass}
@@ -411,7 +433,7 @@ function ProjectDialog() {
             placeholder="checkout-service"
           />
         </Field>
-        <Field label="Description">
+        <Field label={t('project.description')}>
           <textarea
             rows={3}
             className={`${textareaClass} resize-none`}
@@ -425,6 +447,7 @@ function ProjectDialog() {
 }
 
 function WorkspaceDialog() {
+  const t = useT()
   const dialog = useDialogs((s) => s.dialog)
   const existing = dialog?.kind === 'workspace' ? dialog.workspace : undefined
   const presetProject = dialog?.kind === 'workspace' ? dialog.projectId : undefined
@@ -450,25 +473,30 @@ function WorkspaceDialog() {
 
   return (
     <Modal
-      title={existing ? `Edit ${existing.name}` : 'New workspace'}
+      title={existing ? t('dialog.editName', { name: existing.name }) : t('workspace.new')}
       onClose={close}
       wide
       footer={
         <>
-          <Button onClick={close}>Cancel</Button>
+          <Button onClick={close}>{t('common.cancel')}</Button>
           <Button
             variant="primary"
             disabled={saving}
-            onClick={() => submit(() => treeApi.saveWorkspace({ ...form, env: parseEnv(envText) }), 'Workspace saved')}
+            onClick={() =>
+              submit(
+                () => treeApi.saveWorkspace({ ...form, env: parseEnv(envText) }),
+                t('workspace.saved'),
+              )
+            }
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Project">
+          <Field label={t('workspace.project')}>
             <select
               className={inputClass}
               value={form.projectId}
@@ -481,7 +509,7 @@ function WorkspaceDialog() {
               ))}
             </select>
           </Field>
-          <Field label="Server">
+          <Field label={t('workspace.server')}>
             <select
               className={inputClass}
               value={form.serverId}
@@ -489,7 +517,7 @@ function WorkspaceDialog() {
             >
               {snapshot.servers.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({s.kind === 'local' ? 'this computer' : s.host})
+                  {s.name} ({s.kind === 'local' ? t('tree.thisComputer') : s.host})
                 </option>
               ))}
             </select>
@@ -497,7 +525,7 @@ function WorkspaceDialog() {
         </div>
 
         <div className="grid grid-cols-[1fr_2fr] gap-3">
-          <Field label="Name">
+          <Field label={t('server.name')}>
             <input
               autoFocus
               className={inputClass}
@@ -506,7 +534,7 @@ function WorkspaceDialog() {
               placeholder="prod checkout"
             />
           </Field>
-          <Field label="Remote path" hint="Absolute path on the server">
+          <Field label={t('workspace.remotePath')} hint={t('workspace.remotePath.hint')}>
             <input
               className={inputClass}
               value={form.remotePath}
@@ -516,7 +544,7 @@ function WorkspaceDialog() {
           </Field>
         </div>
 
-        <Field label="Default agent command" hint="e.g. claude, opencode, or your own launcher">
+        <Field label={t('workspace.defaultCommand')} hint={t('workspace.defaultCommand.hint')}>
           <input
             className={inputClass}
             value={form.defaultAgentCommand}
@@ -525,7 +553,7 @@ function WorkspaceDialog() {
           />
         </Field>
 
-        <Field label="Environment" hint="One KEY=value per line; applied before the agent starts">
+        <Field label={t('workspace.env')} hint={t('workspace.env.hint')}>
           <textarea
             rows={4}
             className={`${textareaClass} resize-none font-mono`}
@@ -551,7 +579,11 @@ function parseEnv(text: string): Record<string, string> {
   return out
 }
 
+/** The select's value for "none of these — I'll type the command myself". */
+const CUSTOM_AGENT = '__custom__'
+
 function AgentDialog() {
+  const t = useT()
   const dialog = useDialogs((s) => s.dialog)
   const existing = dialog?.kind === 'agent' ? dialog.agent : undefined
   const presetWorkspace = dialog?.kind === 'agent' ? dialog.workspaceId : undefined
@@ -580,6 +612,52 @@ function AgentDialog() {
     createdAt: existing?.createdAt ?? 0,
   })
 
+  // The agent CLIs the workspace's server can actually run — the same list the
+  // file browser's launcher offers. Picking a name people know beats recalling
+  // the command that starts it, and the two places should ask the same way.
+  const serverId = snapshot.workspaces.find((w) => w.id === form.workspaceId)?.serverId ?? ''
+  const [choices, setChoices] = useState<AgentChoice[] | null>(null)
+  const [custom, setCustom] = useState(false)
+
+  useEffect(() => {
+    if (!serverId) {
+      setChoices([])
+      setCustom(true)
+      return
+    }
+    let cancelled = false
+    setChoices(null)
+    toolkit
+      .installedAgents(serverId)
+      .then((found) => {
+        if (cancelled) return
+        setChoices(found)
+        // A command already in hand — an agent being edited, a workspace
+        // default — keeps the field it came from unless one of the detected
+        // agents owns it. An empty one starts on the first thing installed, so
+        // the common case is a name, a Save, and nothing to remember.
+        setForm((f) => {
+          if (f.command.trim()) {
+            setCustom(!found.some((c) => c.command === f.command))
+            return f
+          }
+          const first = found[0]
+          setCustom(!first)
+          return first ? { ...f, command: first.command } : f
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setChoices([])
+        setCustom(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [serverId])
+
+  const selected = choices?.find((c) => c.command === form.command)
+
   // Keep the suggested session name in step with the name until the user edits it.
   const [sessionTouched, setSessionTouched] = useState(!!existing?.tmuxSession)
   useEffect(() => {
@@ -598,23 +676,23 @@ function AgentDialog() {
 
   return (
     <Modal
-      title={existing ? `Edit ${existing.name}` : 'New agent'}
+      title={existing ? t('dialog.editName', { name: existing.name }) : t('agent.new')}
       onClose={close}
       footer={
         <>
-          <Button onClick={close}>Cancel</Button>
+          <Button onClick={close}>{t('common.cancel')}</Button>
           <Button
             variant="primary"
             disabled={saving}
-            onClick={() => submit(() => agentApi.save(form), 'Agent saved')}
+            onClick={() => submit(() => agentApi.save(form), t('agent.saved'))}
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Workspace">
+        <Field label={t('agent.workspace')}>
           <select
             className={inputClass}
             value={form.workspaceId}
@@ -638,7 +716,57 @@ function AgentDialog() {
           </select>
         </Field>
 
-        <Field label="Name">
+        <Field
+          label={t('agent.type')}
+          hint={
+            choices === null
+              ? t('agent.type.detecting')
+              : choices.length === 0
+                ? t('agent.type.none')
+                : selected
+                  ? selected.command
+                  : undefined
+          }
+        >
+          <select
+            className={inputClass}
+            disabled={choices === null}
+            value={custom || !selected ? CUSTOM_AGENT : selected.id}
+            onChange={(e) => {
+              const pick = choices?.find((c) => c.id === e.target.value)
+              if (!pick) {
+                setCustom(true)
+                return
+              }
+              setCustom(false)
+              // The agent's own id is the name people would have typed here
+              // anyway, and an empty name is the only one worth guessing at.
+              setForm((f) => ({ ...f, command: pick.command, name: f.name || pick.id }))
+            }}
+          >
+            {choices === null && <option value={CUSTOM_AGENT}>{t('agent.type.detecting')}</option>}
+            {choices?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.version ? ` · ${c.version}` : ''}
+              </option>
+            ))}
+            {choices !== null && <option value={CUSTOM_AGENT}>{t('agent.type.custom')}</option>}
+          </select>
+        </Field>
+
+        {(custom || (choices !== null && !selected)) && (
+          <Field label={t('agent.command')} hint={t('agent.command.hint')}>
+            <input
+              className={`${inputClass} font-mono`}
+              value={form.command}
+              onChange={(e) => setForm({ ...form, command: e.target.value })}
+              placeholder="claude"
+            />
+          </Field>
+        )}
+
+        <Field label={t('server.name')}>
           <input
             autoFocus
             className={inputClass}
@@ -648,16 +776,7 @@ function AgentDialog() {
           />
         </Field>
 
-        <Field label="Command" hint="Runs inside the tmux pane, in the workspace directory">
-          <input
-            className={`${inputClass} font-mono`}
-            value={form.command}
-            onChange={(e) => setForm({ ...form, command: e.target.value })}
-            placeholder="claude"
-          />
-        </Field>
-
-        <Field label="tmux session" hint="Must not contain ':' or '.'">
+        <Field label={t('agent.tmuxSession')} hint={t('agent.tmuxSession.hint')}>
           <input
             className={`${inputClass} font-mono`}
             value={form.tmuxSession}
@@ -675,21 +794,29 @@ function AgentDialog() {
 
 function SettingsDialog() {
   const { close } = useDialogPlumbing()
+  const t = useT()
   const diagnostics = useAppStore((s) => s.diagnostics)
   const themeId = useTheme((s) => s.themeId)
   const setTheme = useTheme((s) => s.setTheme)
 
   return (
-    <Modal title="Settings" onClose={close} wide footer={<Button onClick={close}>Close</Button>}>
-      <p className="mb-2 text-[11px] font-semibold text-ink-300">Theme</p>
+    <Modal
+      title={t('settings.title')}
+      onClose={close}
+      wide
+      footer={<Button onClick={close}>{t('common.close')}</Button>}
+    >
+      <LanguageSettings />
+
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.theme')}</p>
       <div className="mb-5 grid grid-cols-2 gap-2">
-        {themes.map((t) => {
-          const selected = t.id === themeId
+        {themes.map((theme) => {
+          const selected = theme.id === themeId
           return (
             <button
-              key={t.id}
+              key={theme.id}
               type="button"
-              onClick={() => setTheme(t.id)}
+              onClick={() => setTheme(theme.id)}
               className={clsx(
                 'flex flex-col gap-2 rounded-card border p-2.5 text-left transition-colors',
                 selected
@@ -698,33 +825,38 @@ function SettingsDialog() {
               )}
             >
               <span className="flex items-center gap-2">
-                <span className="text-xs font-medium text-ink-100">{t.name}</span>
+                <span className="text-xs font-medium text-ink-100">{theme.name}</span>
                 {selected && <Check size={12} className="text-accent" />}
-                <span className="ml-auto text-[10px] text-ink-500">{t.mode}</span>
+                <span className="ml-auto text-[10px] text-ink-500">
+                  {theme.mode === 'dark' ? t('theme.dark') : t('theme.light')}
+                </span>
               </span>
-              <span className="text-[10.5px] leading-snug text-ink-500">{t.blurb}</span>
+              <span className="text-[10.5px] leading-snug text-ink-500">{t(theme.blurb)}</span>
               {/* A miniature of the real layout reads better than loose swatches. */}
               <span
                 className="flex h-9 overflow-hidden rounded-control border"
-                style={{ borderColor: t.colors['ink-700'], background: t.colors['ink-900'] }}
+                style={{ borderColor: theme.colors['ink-700'], background: theme.colors['ink-900'] }}
               >
                 <span
                   className="h-full w-1/4 border-r"
                   style={{
-                    background: t.colors['ink-900'],
-                    borderColor: t.colors['ink-800'],
+                    background: theme.colors['ink-900'],
+                    borderColor: theme.colors['ink-800'],
                   }}
                 />
-                <span className="h-full flex-1" style={{ background: t.terminal.background }} />
+                <span className="h-full flex-1" style={{ background: theme.terminal.background }} />
                 <span className="flex h-full w-8 flex-col justify-center gap-1 px-1.5">
                   <span
                     className="block h-1 rounded-capsule"
-                    style={{ background: t.colors.accent }}
+                    style={{ background: theme.colors.accent }}
                   />
-                  <span className="block h-1 rounded-capsule" style={{ background: t.colors.ok }} />
                   <span
                     className="block h-1 rounded-capsule"
-                    style={{ background: t.colors.danger }}
+                    style={{ background: theme.colors.ok }}
+                  />
+                  <span
+                    className="block h-1 rounded-capsule"
+                    style={{ background: theme.colors.danger }}
                   />
                 </span>
               </span>
@@ -735,27 +867,77 @@ function SettingsDialog() {
 
       <LocalModelSettings />
 
-      <p className="mb-2 text-[11px] font-semibold text-ink-300">
-        Diagnostics
-      </p>
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.diagnostics')}</p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
-        <dt className="text-ink-500">Version</dt>
-        <dd className="font-mono text-ink-200">{diagnostics?.version ?? '—'}</dd>
-        <dt className="text-ink-500">Data directory</dt>
-        <dd className="font-mono break-all text-ink-200">{diagnostics?.dataDir ?? '—'}</dd>
-        <dt className="text-ink-500">Secret storage</dt>
+        <dt className="text-ink-500">{t('settings.version')}</dt>
+        <dd className="font-mono text-ink-200">{diagnostics?.version ?? t('common.none')}</dd>
+        <dt className="text-ink-500">{t('settings.dataDir')}</dt>
+        <dd className="font-mono break-all text-ink-200">
+          {diagnostics?.dataDir ?? t('common.none')}
+        </dd>
+        <dt className="text-ink-500">{t('settings.secretStorage')}</dt>
         <dd className={diagnostics?.keyLocationOk ? 'text-ok' : 'text-warn'}>
           {diagnostics?.keyLocationOk
-            ? 'Master key held in the OS keychain'
-            : 'OS keychain unavailable — master key is in a 0600 file'}
+            ? t('settings.secret.keychain')
+            : t('settings.secret.file')}
         </dd>
       </dl>
-      <p className="mt-4 text-[11px] leading-relaxed text-ink-400">
-        Passwords and key passphrases are encrypted with AES-256-GCM before they are written to the
-        local database. Host keys are pinned on first connection and a later mismatch aborts the
-        connection.
-      </p>
+      <p className="mt-4 text-[11px] leading-relaxed text-ink-400">{t('settings.security.blurb')}</p>
     </Modal>
+  )
+}
+
+/**
+ * Language and time zone.
+ *
+ * They sit together because they answer the same question — how this app should
+ * read to the person in front of it — and because the zone is the half people
+ * forget: an agent's "seen 09:14" is a lie if the host is in Tokyo and you are
+ * not. The zone is chosen, not inferred from the language, since working in
+ * English from Shanghai is at least as common as the reverse.
+ */
+function LanguageSettings() {
+  const t = useT()
+  const fmt = useFmt()
+  const lang = useI18n((s) => s.lang)
+  const setLang = useI18n((s) => s.setLang)
+  const tz = useI18n((s) => s.tz)
+  const setTz = useI18n((s) => s.setTz)
+  // Built once: on a runtime that knows every zone this is a 400-entry list.
+  const zones = useMemo(() => timeZones(), [])
+  const here = systemTimeZone()
+
+  return (
+    <div className="mb-5 grid grid-cols-2 gap-3">
+      <Field label={t('settings.language')} hint={t('settings.language.hint')}>
+        <select
+          className={inputClass}
+          value={lang}
+          onChange={(e) => setLang(e.target.value as Lang)}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.native}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label={t('settings.timezone')}
+        hint={t('settings.timezone.now', { time: fmt.dateTime(Math.floor(Date.now() / 1000)) })}
+      >
+        <select className={inputClass} value={tz} onChange={(e) => setTz(e.target.value)}>
+          <option value="">
+            {t('settings.timezone.system')} — {here} {offsetLabel(here)}
+          </option>
+          {zones.map((z) => (
+            <option key={z} value={z}>
+              {z} {offsetLabel(z)}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </div>
   )
 }
 
@@ -768,6 +950,7 @@ function SettingsDialog() {
  * it is invisible from anywhere else in the app.
  */
 function LocalModelSettings() {
+  const t = useT()
   const toast = useAppStore((s) => s.toast)
   const [cfg, setCfg] = useState<LLMConfig | null>(null)
   const [status, setStatus] = useState<LLMStatus | null>(null)
@@ -805,11 +988,9 @@ function LocalModelSettings() {
 
   return (
     <>
-      <p className="mb-2 text-[11px] font-semibold text-ink-300">
-        Local model
-      </p>
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('llm.title')}</p>
       <div className="mb-2 space-y-2">
-        <Field label="Ollama address" hint="Where the local runtime listens.">
+        <Field label={t('llm.address')} hint={t('llm.address.hint')}>
           <input
             value={cfg.baseUrl}
             onChange={(e) => set('baseUrl', e.target.value)}
@@ -818,7 +999,7 @@ function LocalModelSettings() {
           />
         </Field>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Planning model">
+          <Field label={t('llm.chatModel')}>
             <input
               list="agentmux-chat-models"
               value={cfg.chatModel}
@@ -831,7 +1012,7 @@ function LocalModelSettings() {
               ))}
             </datalist>
           </Field>
-          <Field label="Embedding model" hint="Changing this needs the memory index rebuilt.">
+          <Field label={t('llm.embedModel')} hint={t('llm.embedModel.hint')}>
             <input
               list="agentmux-embed-models"
               value={cfg.embedModel}
@@ -855,7 +1036,7 @@ function LocalModelSettings() {
               setBusy(true)
               try {
                 setStatus(await llmApi.saveConfig(cfg))
-                toast('ok', 'Saved')
+                toast('ok', t('llm.saved'))
               } catch (e) {
                 toast('error', errText(e))
               } finally {
@@ -863,7 +1044,7 @@ function LocalModelSettings() {
               }
             }}
           >
-            Save and test
+            {t('llm.saveAndTest')}
           </Button>
           {status && (
             <span
@@ -872,7 +1053,7 @@ function LocalModelSettings() {
                 status.reachable ? 'text-ok' : 'text-danger',
               )}
             >
-              {status.reachable ? `Ollama ${status.version}` : 'Not reachable'}
+              {status.reachable ? `Ollama ${status.version}` : t('llm.notReachable')}
             </span>
           )}
           {status?.reachable && (
@@ -883,7 +1064,7 @@ function LocalModelSettings() {
                   status.chatModelReady ? 'text-ink-500' : 'text-warn',
                 )}
               >
-                planning {status.chatModelReady ? 'ok' : 'missing'}
+                {status.chatModelReady ? t('llm.planningOk') : t('llm.planningMissing')}
               </span>
               <span
                 className={clsx(
@@ -891,7 +1072,7 @@ function LocalModelSettings() {
                   status.embedModelReady ? 'text-ink-500' : 'text-warn',
                 )}
               >
-                · embedding {status.embedModelReady ? 'ok' : 'missing'}
+                {status.embedModelReady ? t('llm.embeddingOk') : t('llm.embeddingMissing')}
               </span>
             </span>
           )}
@@ -903,10 +1084,7 @@ function LocalModelSettings() {
           </p>
         )}
       </div>
-      <p className="mb-5 text-[11px] leading-relaxed text-ink-400">
-        Everything here runs on this machine. AgentMux never sends your memories, your servers or
-        their output to a hosted model.
-      </p>
+      <p className="mb-5 text-[11px] leading-relaxed text-ink-400">{t('llm.privacy')}</p>
     </>
   )
 }

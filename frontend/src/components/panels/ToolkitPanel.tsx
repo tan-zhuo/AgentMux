@@ -15,6 +15,8 @@ import { errText, toolkit } from '../../lib/api'
 import type { InstallMethod, ToolReport, ToolStatus } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
 import { useDialogs } from '../../store/useDialogs'
+import { useT } from '../../store/useI18n'
+import type { TFunc } from '../../lib/i18n'
 import { Badge, Button, Empty, textareaClass } from '../ui'
 
 /**
@@ -28,6 +30,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
   const openTab = useAppStore((s) => s.openTab)
   const toast = useAppStore((s) => s.toast)
   const openDialog = useDialogs((s) => s.open)
+  const t = useT()
 
   const [report, setReport] = useState<ToolReport | null>(null)
   const [loading, setLoading] = useState(false)
@@ -59,7 +62,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
       const started = await toolkit.install(serverId, status.tool.id, method.id)
       if (started.usesTmux) {
         openTab({
-          title: `install ${started.toolName}`,
+          title: t('toolkit.installTab', { name: started.toolName }),
           kind: 'tmux',
           serverId,
           workspaceId: '',
@@ -69,13 +72,16 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
         toast(
           'ok',
           started.needsRoot
-            ? `Installing ${started.toolName} — attach the tab to enter your sudo password`
-            : `Installing ${started.toolName} in tmux session ${started.session}`,
+            ? t('toolkit.installingSudo', { name: started.toolName })
+            : t('toolkit.installingTmux', {
+                name: started.toolName,
+                session: started.session,
+              }),
         )
       } else {
         // tmux is the thing being installed, so there is no session to use yet.
         openTab({
-          title: `install ${started.toolName}`,
+          title: t('toolkit.installTab', { name: started.toolName }),
           kind: 'command',
           serverId,
           workspaceId: '',
@@ -83,7 +89,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
           tmuxSession: '',
           command: started.command,
         })
-        toast('warn', `${started.toolName} is installing in a plain shell — keep this tab open`)
+        toast('warn', t('toolkit.installingShell', { name: started.toolName }))
       }
     } catch (e) {
       toast('error', errText(e))
@@ -95,8 +101,18 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
   async function verify(status: ToolStatus) {
     try {
       const p = await toolkit.verify(serverId, status.tool.id)
-      if (p.installed) toast('ok', `${status.tool.name} ${p.version || ''} at ${p.path}`.trim())
-      else toast('warn', `${status.tool.name} is still not on PATH — try a fresh login shell`)
+      if (p.installed)
+        toast(
+          'ok',
+          p.version
+            ? t('toolkit.verified', {
+                name: status.tool.name,
+                version: p.version,
+                path: p.path,
+              })
+            : t('toolkit.verifiedNoVersion', { name: status.tool.name, path: p.path }),
+        )
+      else toast('warn', t('toolkit.notOnPath', { name: status.tool.name }))
       await load()
     } catch (e) {
       toast('error', errText(e))
@@ -109,7 +125,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
     try {
       const started = await toolkit.installCustom(serverId, 'custom install', script)
       openTab({
-        title: 'custom install',
+        title: t('toolkit.customInstall'),
         kind: started.usesTmux ? 'tmux' : 'command',
         serverId,
         workspaceId: '',
@@ -130,13 +146,13 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b hairline px-3 py-2">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-300">
-          <Sparkles size={11} /> Agent toolkit
+          <Sparkles size={11} /> {t('toolkit.title')}
         </span>
         <div className="flex gap-1">
-          <Button size="sm" variant="subtle" onClick={() => setCustomOpen((v) => !v)} title="Custom script">
+          <Button size="sm" variant="subtle" onClick={() => setCustomOpen((v) => !v)} title={t('toolkit.customScript')}>
             <Terminal size={11} />
           </Button>
-          <Button size="sm" variant="subtle" onClick={load} disabled={loading} title="Re-detect">
+          <Button size="sm" variant="subtle" onClick={load} disabled={loading} title={t('toolkit.redetect')}>
             <RefreshCw size={11} className={loading ? 'animate-spin' : undefined} />
           </Button>
         </div>
@@ -151,8 +167,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
       {tmuxMissing && (
         <p className="flex items-start gap-1.5 border-b hairline bg-warn/8 px-3 py-2 text-[11px] leading-relaxed text-warn">
           <ShieldAlert size={12} className="mt-0.5 shrink-0" />
-          tmux is missing. AgentMux keeps every agent alive inside tmux, so install it first —
-          without it nothing survives a dropped connection.
+          {t('toolkit.tmuxMissing')}
         </p>
       )}
 
@@ -162,22 +177,24 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
             rows={3}
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
-            placeholder="Any install command — runs in the tmux install session"
+            placeholder={t('toolkit.customPlaceholder')}
             className={clsx(textareaClass, 'resize-none font-mono')}
           />
           <div className="mt-1.5 flex justify-end">
             <Button size="sm" variant="primary" disabled={!custom.trim()} onClick={() => void runCustom()}>
-              Run
+              {t('toolkit.run')}
             </Button>
           </div>
         </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {!report && !loading && <Empty title="Not detected yet" hint="Connect to the server first." />}
+        {!report && !loading && (
+          <Empty title={t('toolkit.notDetected')} hint={t('toolkit.notDetected.hint')} />
+        )}
         {report && (
           <>
-            <Section title="Agents" />
+            <Section title={t('toolkit.agents')} />
             {report.agents.map((s) => (
               <ToolRow
                 key={s.tool.id}
@@ -188,9 +205,10 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
                 onUseAsAgent={() =>
                   openDialog({ kind: 'agent', presetCommand: s.tool.runCommand })
                 }
+                t={t}
               />
             ))}
-            <Section title="Runtimes" />
+            <Section title={t('toolkit.runtimes')} />
             {report.runtimes.map((s) => (
               <ToolRow
                 key={s.tool.id}
@@ -198,6 +216,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
                 busy={busyTool === s.tool.id}
                 onInstall={install}
                 onVerify={verify}
+                t={t}
               />
             ))}
           </>
@@ -221,12 +240,16 @@ function ToolRow({
   onInstall,
   onVerify,
   onUseAsAgent,
+  t,
 }: {
   status: ToolStatus
   busy: boolean
   onInstall: (s: ToolStatus, m: InstallMethod) => void | Promise<void>
   onVerify: (s: ToolStatus) => void | Promise<void>
   onUseAsAgent?: () => void
+  // Passed down rather than subscribed to again: the rows re-render with the
+  // panel anyway, and one subscription per tool would be a hook for nothing.
+  t: TFunc
 }) {
   const [showMethods, setShowMethods] = useState(false)
   const methods = status.available ?? []
@@ -259,31 +282,32 @@ function ToolRow({
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-5">
         {!status.installed && primary && (
           <Button size="sm" variant="primary" disabled={busy} onClick={() => void onInstall(status, primary)}>
-            <Download size={11} /> {busy ? 'Starting…' : `Install · ${primary.label}`}
+            <Download size={11} />{' '}
+            {busy ? t('toolkit.starting') : t('toolkit.install', { method: primary.label })}
             {primary.needsRoot && <span className="text-warn">sudo</span>}
           </Button>
         )}
         {methods.length > 1 && (
           <Button size="sm" variant="subtle" onClick={() => setShowMethods((v) => !v)}>
             <ChevronDown size={11} className={showMethods ? 'rotate-180' : undefined} />
-            {methods.length - 1} more
+            {t('toolkit.moreMethods', { n: methods.length - 1 })}
           </Button>
         )}
         {status.installed && (
           <>
             <Button size="sm" variant="subtle" onClick={() => void onVerify(status)}>
-              Re-check
+              {t('toolkit.recheck')}
             </Button>
             {onUseAsAgent && (
               <Button size="sm" onClick={onUseAsAgent}>
-                Use as agent
+                {t('toolkit.useAsAgent')}
               </Button>
             )}
           </>
         )}
         {!status.installed && !primary && (
           <Button size="sm" variant="subtle" onClick={() => void onVerify(status)}>
-            Re-check
+            {t('toolkit.recheck')}
           </Button>
         )}
         {status.tool.docs && (
@@ -293,7 +317,7 @@ function ToolRow({
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-[11px] text-ink-500 hover:text-accent"
           >
-            <ExternalLink size={10} /> docs
+            <ExternalLink size={10} /> {t('toolkit.docs')}
           </a>
         )}
       </div>

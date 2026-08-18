@@ -9,8 +9,10 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { tParts } from '../lib/i18n'
 import { MAX_PANES, useAppStore, type Tab } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
+import { useT } from '../store/useI18n'
 import { ConnDot, Modal, StatusDot, inputClass } from './ui'
 
 interface Choice {
@@ -51,6 +53,7 @@ export function SplitDialog() {
   const paneIds = useAppStore((s) => s.paneIds)
   const openTab = useAppStore((s) => s.openTab)
   const splitWith = useAppStore((s) => s.splitWith)
+  const t = useT()
 
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -63,15 +66,15 @@ export function SplitDialog() {
 
     // Tabs that are open but not on screen: one click and they are, with the
     // shell they are already attached to.
-    for (const t of tabs) {
-      if (paneIds.includes(t.id)) continue
+    for (const tab of tabs) {
+      if (paneIds.includes(tab.id)) continue
       out.push({
-        key: `tab:${t.id}`,
-        group: 'Already open',
-        label: t.title,
-        hint: serverById.get(t.serverId)?.name ?? t.kind,
-        icon: kindIcon[t.kind],
-        run: () => splitWith(t.id),
+        key: `tab:${tab.id}`,
+        group: t('split.group.open'),
+        label: tab.title,
+        hint: serverById.get(tab.serverId)?.name ?? tab.kind,
+        icon: kindIcon[tab.kind],
+        run: () => splitWith(tab.id),
       })
     }
 
@@ -80,7 +83,7 @@ export function SplitDialog() {
       if (!ws) continue
       out.push({
         key: `agent:${a.id}`,
-        group: 'Agents',
+        group: t('split.group.agents'),
         label: a.name,
         // The host is in the hint so typing a host name finds its agents too.
         hint: [serverById.get(ws.serverId)?.name, a.tmuxSession].filter(Boolean).join(' · '),
@@ -105,7 +108,7 @@ export function SplitDialog() {
       const server = serverById.get(w.serverId)
       out.push({
         key: `ws:${w.id}`,
-        group: 'Shell in a workspace',
+        group: t('split.group.workspace'),
         label: w.name,
         hint: `${server ? `${server.name}:` : ''}${w.remotePath}`,
         icon: TerminalSquare,
@@ -131,11 +134,11 @@ export function SplitDialog() {
     for (const s of snapshot.servers) {
       out.push({
         key: `shell:${s.id}`,
-        group: 'Shell on a host',
+        group: t('split.group.host'),
         label: s.name,
         hint:
           s.kind === 'local'
-            ? 'this computer'
+            ? t('tree.thisComputer')
             : `${s.username}@${s.host}${s.port === 22 ? '' : `:${s.port}`}`,
         icon: Server,
         lead: <ConnDot connected={!!connections[s.id]?.connected} />,
@@ -159,8 +162,8 @@ export function SplitDialog() {
     for (const s of snapshot.servers) {
       out.push({
         key: `files:${s.id}`,
-        group: 'Files beside a terminal',
-        label: `Browse ${s.name}`,
+        group: t('split.group.files'),
+        label: t('split.browse', { name: s.name }),
         hint: 'SFTP',
         icon: FolderTree,
         run: () =>
@@ -180,7 +183,7 @@ export function SplitDialog() {
     }
 
     return out
-  }, [snapshot, connections, tabs, paneIds, openTab, splitWith])
+  }, [snapshot, connections, tabs, paneIds, openTab, splitWith, t])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -209,13 +212,25 @@ export function SplitDialog() {
 
   return (
     <Modal
-      title="Add a pane"
+      title={t('palette.addPane')}
       onClose={close}
       footer={
         <p className="mr-auto text-[11px] leading-relaxed text-ink-500">
-          Pane {Math.min(paneIds.length + 1, MAX_PANES)} of {MAX_PANES}, opening beside the current
-          one. <span className="font-mono">⌘\</span> skips this and splits with the next tab;{' '}
-          <span className="font-mono">⇧⌘\</span> closes a pane again.
+          {t('split.footer.pane', {
+            n: Math.min(paneIds.length + 1, MAX_PANES),
+            total: MAX_PANES,
+          })}{' '}
+          {/* The two shortcuts are set in mono inside the sentence, and where a
+              language puts them is the translation's business. */}
+          {tParts(t('split.footer.keys')).map((piece, i) =>
+            piece.slot ? (
+              <span key={i} className="font-mono">
+                {piece.text === 'close' ? '⇧⌘\\' : '⌘\\'}
+              </span>
+            ) : (
+              <span key={i}>{piece.text}</span>
+            ),
+          )}
         </p>
       }
     >
@@ -235,7 +250,7 @@ export function SplitDialog() {
             choose(filtered[cursor])
           }
         }}
-        placeholder="A host, a workspace, an agent, or a tab already open"
+        placeholder={t('split.placeholder')}
         className={clsx(inputClass, 'mb-1')}
       />
 
@@ -278,9 +293,7 @@ export function SplitDialog() {
         })}
         {!filtered.length && (
           <p className="px-1 py-3 text-xs leading-relaxed text-ink-500">
-            {choices.length
-              ? 'Nothing matches that.'
-              : 'Add a host on the left first — a pane needs something to attach to.'}
+            {choices.length ? t('split.noMatches') : t('split.empty')}
           </p>
         )}
       </div>

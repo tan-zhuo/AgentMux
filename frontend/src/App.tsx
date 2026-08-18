@@ -22,11 +22,13 @@ import {
   SIDEBAR_MIN,
   useAppStore,
 } from './store/useAppStore'
+import { useI18n } from './store/useI18n'
 import { useTheme } from './store/useTheme'
 
 export default function App() {
   const loadAll = useAppStore((s) => s.loadAll)
   const initTheme = useTheme((s) => s.init)
+  const initI18n = useI18n((s) => s.init)
   const applyAgents = useAppStore((s) => s.applyAgents)
   const applyConnState = useAppStore((s) => s.applyConnState)
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
@@ -41,8 +43,9 @@ export default function App() {
     // Theme first: it only needs one settings read, so the window is painted in
     // the right colours before the (slower) tree snapshot lands.
     void initTheme()
+    void initI18n()
     void loadAll()
-  }, [loadAll, initTheme])
+  }, [loadAll, initTheme, initI18n])
 
   // Backend pushes: agent status polling and connection state changes.
   useEffect(() => {
