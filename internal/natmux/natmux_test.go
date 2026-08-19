@@ -2,9 +2,11 @@ package natmux
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -41,6 +43,17 @@ func waitForDaemon(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+// echoSum is a command that proves the session's shell ran what it was sent
+// rather than echoing it back — written in the arithmetic of whichever shell
+// this platform starts. The POSIX form is a parse error in PowerShell, which is
+// how a test that reads as portable turns out not to be.
+func echoSum(marker string, a, b int) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf(`Write-Output "%s-$(%d+%d)"`, marker, a, b)
+	}
+	return fmt.Sprintf("echo %s-$((%d+%d))", marker, a, b)
 }
 
 // waitFor polls until check passes or the deadline hits.
@@ -92,7 +105,7 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 
 	// Type a command and read it back from the scrollback capture.
-	if err := c.SendText("", name, "echo natmux-says-$((40+2))", true); err != nil {
+	if err := c.SendText("", name, echoSum("natmux-says", 40, 2), true); err != nil {
 		t.Fatalf("send text: %v", err)
 	}
 	waitFor(t, "command output in capture", func() bool {

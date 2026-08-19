@@ -3,6 +3,7 @@
 package natmux
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"os"
@@ -16,7 +17,17 @@ import (
 
 // pipePath is the daemon's address: one named pipe per user, so two accounts on
 // the same machine get two brokers and neither can see the other's sessions.
+//
+// AGENTMUX_NATMUX_SOCKET names an address of one's own, which is what lets
+// tests run several daemons side by side here as they do on the unix side. A
+// pipe is not a filesystem path, so the value is not used as one — it is hashed
+// into a name, which keeps two different overrides apart without caring what
+// either of them looks like.
 func pipePath() string {
+	if v := os.Getenv("AGENTMUX_NATMUX_SOCKET"); v != "" {
+		sum := sha256.Sum256([]byte(v))
+		return fmt.Sprintf(`\\.\pipe\agentmux-natmux-%x`, sum[:8])
+	}
 	user := strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
 			return r
@@ -95,8 +106,14 @@ func listenTCP() (net.Listener, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	user := os.Getenv("USERNAME")
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", TCPPort(user)))
+	// A port of one's own, for tests that must not fight the daemon a developer
+	// happens to be running. Unset — which is every real installation — means
+	// the port a remote AgentMux can work out for itself from the user name.
+	addr := os.Getenv("AGENTMUX_NATMUX_TCP")
+	if addr == "" {
+		addr = fmt.Sprintf("127.0.0.1:%d", TCPPort(os.Getenv("USERNAME")))
+	}
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, "", err
 	}

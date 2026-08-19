@@ -65,7 +65,8 @@ func startTCPDaemon(t *testing.T) (string, string) {
 			return addr, tokenPath()
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("tcp daemon did not come up")
+			log, _ := os.ReadFile(daemonLogPath())
+			t.Fatalf("tcp daemon did not come up on %s\n%s", addr, strings.TrimSpace(string(log)))
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -85,7 +86,7 @@ func TestRemoteTransportLifecycle(t *testing.T) {
 	}
 	defer c.KillSession("", name)
 
-	if err := c.SendText("", name, "echo remote-tcp-$((6*7))", true); err != nil {
+	if err := c.SendText("", name, echoSum("remote-tcp", 6, 36), true); err != nil {
 		t.Fatalf("send over tcp: %v", err)
 	}
 	waitFor(t, "output over tcp", func() bool {
