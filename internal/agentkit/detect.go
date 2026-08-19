@@ -27,7 +27,7 @@ const fieldSep = "~@~"
 // for, and one `exit` or a bash-ism in a POSIX sh would take the whole probe
 // down with it.
 const pathPrelude = `
-for d in "$HOME/.local/bin" "$HOME/bin" "$HOME/.claude/local" \
+for d in "$HOME/.local/bin" "$HOME/bin" "$HOME/.claude/local" "$HOME/.grok/bin" \
          "$HOME/.npm-global/bin" "$HOME/.node_modules/bin" "$HOME/.yarn/bin" \
          "$HOME/.bun/bin" "$HOME/.deno/bin" "$HOME/.cargo/bin" "$HOME/go/bin" \
          "$HOME/.volta/bin" "$HOME/.pyenv/shims" "$HOME/.rye/shims" \

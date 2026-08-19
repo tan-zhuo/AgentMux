@@ -12,8 +12,8 @@ English · [中文](README.zh-CN.md)
 
 ## Overview
 
-AgentMux operates coding agents — Claude Code, Codex, Gemini CLI, OpenCode,
-Aider, Cursor CLI — that execute on the machines where the work belongs: build
+AgentMux operates coding agents — Claude Code, Codex, Gemini CLI, Grok CLI,
+OpenCode, Aider, Cursor CLI — that execute on the machines where the work belongs: build
 servers, GPU boxes, staging hosts, and this computer alongside them. Every agent
 runs inside a `tmux` session on its host, and the application attaches to that
 session instead of owning the process. Closing the client, suspending the laptop

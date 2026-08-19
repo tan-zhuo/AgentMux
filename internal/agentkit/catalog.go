@@ -100,6 +100,26 @@ func Agents() []Tool {
 			},
 		},
 		{
+			ID:          "grok",
+			Name:        "Grok CLI",
+			Vendor:      "xAI",
+			Description: "xAI's terminal coding agent.",
+			Binary:      "grok",
+			RunCommand:  "grok",
+			VersionArgs: "--version",
+			Docs:        "https://docs.x.ai",
+			Kind:        "agent",
+			Methods: []Method{
+				{
+					ID:       "native",
+					Label:    "Native installer",
+					Requires: "curl",
+					Script:   `curl -fsSL https://x.ai/cli/install.sh | bash`,
+				},
+				{ID: "npm", Label: "npm (global)", Requires: "npm", Script: `npm install -g @xai-official/grok`},
+			},
+		},
+		{
 			ID:          "opencode",
 			Name:        "OpenCode",
 			Vendor:      "SST",

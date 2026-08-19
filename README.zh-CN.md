@@ -13,7 +13,7 @@
 ## 概述
 
 AgentMux 用于运维在「工作本该发生的机器」上执行的编程 agent——Claude Code、Codex、
-Gemini CLI、OpenCode、Aider、Cursor CLI 等：构建机、GPU 机、预发机，以及并列其中的这台
+Gemini CLI、Grok CLI、OpenCode、Aider、Cursor CLI 等：构建机、GPU 机、预发机，以及并列其中的这台
 本机。每个 agent 运行在所属主机的 `tmux` 会话中，应用连接到该会话，而不持有进程本身。
 因此关闭客户端、休眠笔记本或网络中断，都不会影响正在进行的工作。
 
