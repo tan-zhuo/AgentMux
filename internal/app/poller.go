@@ -76,6 +76,10 @@ func agentsSignature(agents []store.Agent) string {
 		b.WriteByte('\x1f')
 		b.WriteString(string(a.Status))
 		b.WriteByte('\x1f')
+		b.WriteString(string(a.Activity))
+		b.WriteByte('\x1f')
+		b.WriteString(string(a.Attention))
+		b.WriteByte('\x1f')
 		if a.PID != nil {
 			b.WriteString(strconv.Itoa(*a.PID))
 		}

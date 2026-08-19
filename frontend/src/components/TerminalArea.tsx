@@ -25,7 +25,7 @@ import { useDialogs } from '../store/useDialogs'
 import { EditorPane } from './EditorPane'
 import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
-import { Empty, iconButtonClass } from './ui'
+import { AttentionDot, Empty, iconButtonClass } from './ui'
 
 /** The narrowest and shortest a pane is worth being, in CSS pixels: roughly
  *  forty columns and a dozen rows at the terminal's own type size. Below that a
@@ -285,6 +285,7 @@ export function TerminalArea() {
   const t = useT()
   const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
+  const agents = useAppStore((s) => s.snapshot.agents)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const closeTab = useAppStore((s) => s.closeTab)
   const moveTab = useAppStore((s) => s.moveTab)
@@ -450,6 +451,12 @@ export function TerminalArea() {
           {tabs.map((tab, index) => {
             const Icon = kindIcon[tab.kind]
             const active = tab.id === activeTabId
+            // The agent behind this tab wants a look — the badge shows on
+            // background tabs only, because focusing the tab is the look.
+            const attention =
+              tab.kind === 'agent' && tab.agentId
+                ? agents.find((a) => a.id === tab.agentId)?.attention
+                : undefined
             // In a split, more than one tab is on screen. Both are lifted out of
             // the strip's background; only the focused one is marked, because
             // "which pane am I typing into" is the question a split raises.
@@ -577,6 +584,14 @@ export function TerminalArea() {
                 )}
                 <Icon size={12} className="shrink-0 opacity-70" />
                 <span className="max-w-[180px] truncate">{tab.title}</span>
+                {attention && (
+                  <AttentionDot
+                    kind={attention}
+                    title={t(
+                      attention === 'input' ? 'agent.attention.input' : 'agent.attention.done',
+                    )}
+                  />
+                )}
                 {tab.status === 'opening' && (
                   <span className="h-1.5 w-1.5 animate-pulse rounded-capsule bg-warn" />
                 )}

@@ -141,20 +141,54 @@ const (
 	StatusUnknown  AgentStatus = "unknown"
 )
 
+// AgentActivity is what a running agent is doing right now, read off its pane.
+// It refines StatusRunning: tmux only says a process occupies the pane, and the
+// difference between "working", "waiting for the user to answer something" and
+// "sitting at an empty prompt with no task" is exactly what a person scanning
+// the tree needs.
+type AgentActivity string
+
+const (
+	// ActivityWorking: output shows the agent is actively doing something.
+	ActivityWorking AgentActivity = "working"
+	// ActivityInput: the agent has asked a question and is blocked on a human.
+	ActivityInput AgentActivity = "input"
+	// ActivityQuiet: the agent process is alive but idle at its prompt.
+	ActivityQuiet AgentActivity = "quiet"
+	// ActivityNone: no agent process — the pane is a shell, or gone.
+	ActivityNone AgentActivity = ""
+)
+
+// AgentAttention is a sticky "look at me" mark. Unlike Activity it survives
+// until a person acknowledges it, because the whole point is to be noticed by
+// someone who was not watching when the moment happened.
+type AgentAttention string
+
+const (
+	// AttentionInput: the agent is waiting on a human decision.
+	AttentionInput AgentAttention = "input"
+	// AttentionDone: the agent finished working and has results to review.
+	AttentionDone AgentAttention = "done"
+	// AttentionNone: nothing pending.
+	AttentionNone AgentAttention = ""
+)
+
 // Agent is a long-lived AI agent process pinned to a tmux session.
 type Agent struct {
-	ID           string      `json:"id"`
-	WorkspaceID  string      `json:"workspaceId"`
-	Name         string      `json:"name"`
-	Command      string      `json:"command"`
-	TmuxSession  string      `json:"tmuxSession"`
-	TmuxWindow   string      `json:"tmuxWindow"`
-	TmuxPaneID   string      `json:"tmuxPaneId"`
-	Status       AgentStatus `json:"status"`
-	LastSeen     *int64      `json:"lastSeen"`
-	PID          *int        `json:"pid"`
-	ProgressText string      `json:"progressText"`
-	CreatedAt    int64       `json:"createdAt"`
+	ID           string         `json:"id"`
+	WorkspaceID  string         `json:"workspaceId"`
+	Name         string         `json:"name"`
+	Command      string         `json:"command"`
+	TmuxSession  string         `json:"tmuxSession"`
+	TmuxWindow   string         `json:"tmuxWindow"`
+	TmuxPaneID   string         `json:"tmuxPaneId"`
+	Status       AgentStatus    `json:"status"`
+	Activity     AgentActivity  `json:"activity"`
+	Attention    AgentAttention `json:"attention"`
+	LastSeen     *int64         `json:"lastSeen"`
+	PID          *int           `json:"pid"`
+	ProgressText string         `json:"progressText"`
+	CreatedAt    int64          `json:"createdAt"`
 }
 
 // TerminalTab persists an open terminal so the layout survives a restart.

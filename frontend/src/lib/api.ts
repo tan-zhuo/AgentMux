@@ -218,6 +218,7 @@ export const agents = {
     call<QuickLaunch>('AgentService', 'LaunchInDir', serverId, dir, command),
   refresh: (serverId: string) => call<Agent[]>('AgentService', 'Refresh', serverId),
   refreshAll: () => call<Agent[]>('AgentService', 'RefreshAll'),
+  acknowledge: (id: string) => call<void>('AgentService', 'Acknowledge', id),
 }
 
 /**

@@ -11,7 +11,7 @@ import (
 )
 
 const agentCols = `id, workspace_id, name, command, tmux_session, tmux_window, tmux_pane_id,
-	status, last_seen, pid, progress_text, created_at`
+	status, activity, attention, last_seen, pid, progress_text, created_at`
 
 func scanAgent(sc interface{ Scan(...any) error }) (Agent, error) {
 	var (
@@ -20,7 +20,7 @@ func scanAgent(sc interface{ Scan(...any) error }) (Agent, error) {
 		pid      sql.NullInt64
 	)
 	err := sc.Scan(&a.ID, &a.WorkspaceID, &a.Name, &a.Command, &a.TmuxSession, &a.TmuxWindow,
-		&a.TmuxPaneID, &a.Status, &lastSeen, &pid, &a.ProgressText, &a.CreatedAt)
+		&a.TmuxPaneID, &a.Status, &a.Activity, &a.Attention, &lastSeen, &pid, &a.ProgressText, &a.CreatedAt)
 	if err != nil {
 		return Agent{}, err
 	}
@@ -108,16 +108,26 @@ func (s *Store) getAgentLocked(id string) (Agent, error) {
 	return scanAgent(row)
 }
 
-// UpdateAgentRuntime persists the polled runtime state of an agent.
-func (s *Store) UpdateAgentRuntime(id string, status AgentStatus, pid *int, progress string) error {
+// UpdateAgentRuntime persists the polled runtime state of an agent. Attention
+// is deliberately not part of it: runtime state is overwritten on every poll,
+// and a mark meant to outlive the moment it was raised must not be.
+func (s *Store) UpdateAgentRuntime(id string, status AgentStatus, activity AgentActivity, pid *int, progress string) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
 	var pidVal any
 	if pid != nil {
 		pidVal = *pid
 	}
-	_, err := s.db.Exec(`UPDATE agents SET status = ?, pid = ?, progress_text = ?, last_seen = ? WHERE id = ?`,
-		string(status), pidVal, progress, time.Now().Unix(), id)
+	_, err := s.db.Exec(`UPDATE agents SET status = ?, activity = ?, pid = ?, progress_text = ?, last_seen = ? WHERE id = ?`,
+		string(status), string(activity), pidVal, progress, time.Now().Unix(), id)
+	return err
+}
+
+// SetAgentAttention raises or clears the sticky "needs a human" mark.
+func (s *Store) SetAgentAttention(id string, attention AgentAttention) error {
+	s.wmu.Lock()
+	defer s.wmu.Unlock()
+	_, err := s.db.Exec(`UPDATE agents SET attention = ? WHERE id = ?`, string(attention), id)
 	return err
 }
 

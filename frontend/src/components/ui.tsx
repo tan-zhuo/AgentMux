@@ -304,6 +304,28 @@ export function StatusDot({ status, pulse }: { status: AgentStatus; pulse?: bool
   )
 }
 
+/**
+ * The sticky "come look" mark next to an agent: amber and pulsing when it is
+ * blocked on a human decision, calm accent-blue when it finished and left
+ * results to review. The two read differently on purpose — one is urgent,
+ * the other can wait until you are ready.
+ */
+export function AttentionDot({ kind, title }: { kind: 'input' | 'done'; title?: string }) {
+  return (
+    <span title={title} className="relative inline-flex h-2 w-2 shrink-0">
+      {kind === 'input' && (
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-capsule bg-warn opacity-70" />
+      )}
+      <span
+        className={clsx(
+          'relative inline-flex h-2 w-2 rounded-capsule',
+          kind === 'input' ? 'bg-warn' : 'bg-accent',
+        )}
+      />
+    </span>
+  )
+}
+
 export function ConnDot({ connected }: { connected: boolean }) {
   return (
     <span

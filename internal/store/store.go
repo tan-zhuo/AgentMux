@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS agents (
   tmux_window   TEXT NOT NULL DEFAULT '',
   tmux_pane_id  TEXT NOT NULL DEFAULT '',
   status        TEXT NOT NULL DEFAULT 'unknown',
+  activity      TEXT NOT NULL DEFAULT '',
+  attention     TEXT NOT NULL DEFAULT '',
   last_seen     INTEGER,
   pid           INTEGER,
   progress_text TEXT NOT NULL DEFAULT '',
@@ -302,6 +304,10 @@ func migrate(db *sql.DB) {
 		// How the host is reached. Everything written before local hosts existed
 		// was reached over SSH, which is what the default says.
 		`ALTER TABLE servers ADD COLUMN kind TEXT NOT NULL DEFAULT 'ssh'`,
+		// What a running agent is doing, and whether it is waiting on a human.
+		// Both empty for existing rows: the next poll fills them in.
+		`ALTER TABLE agents ADD COLUMN activity TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE agents ADD COLUMN attention TEXT NOT NULL DEFAULT ''`,
 	} {
 		_, _ = db.Exec(stmt)
 	}

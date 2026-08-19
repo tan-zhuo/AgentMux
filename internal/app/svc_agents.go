@@ -16,10 +16,22 @@ import (
 )
 
 // AgentService owns the lifecycle of AI agents living inside remote tmux panes.
-type AgentService struct{ core *Core }
+type AgentService struct {
+	core *Core
+
+	// lastActivity remembers what each agent was doing at the previous poll, so
+	// attention marks are raised on transitions rather than levels: "started
+	// asking" and "stopped working" are events, "is still asking" is not. Kept
+	// in memory on purpose — after a restart the next poll re-raises anything
+	// still pending, which is the right way to be wrong.
+	actMu        sync.Mutex
+	lastActivity map[string]store.AgentActivity
+}
 
 // NewAgentService binds an agent service to the core.
-func NewAgentService(c *Core) *AgentService { return &AgentService{core: c} }
+func NewAgentService(c *Core) *AgentService {
+	return &AgentService{core: c, lastActivity: map[string]store.AgentActivity{}}
+}
 
 // ServiceName identifies the service in Wails logs.
 func (a *AgentService) ServiceName() string { return "AgentService" }
@@ -62,6 +74,9 @@ func (a *AgentService) Delete(id string) error {
 	if err := a.core.Store.DeleteAgent(id); err != nil {
 		return err
 	}
+	a.actMu.Lock()
+	delete(a.lastActivity, id)
+	a.actMu.Unlock()
 	a.publish()
 	return nil
 }
@@ -225,7 +240,7 @@ func (a *AgentService) Start(agentID string) (StartResult, error) {
 		// double-click never launches a second agent on top of the first.
 		res.Skipped = true
 		res.Status = store.StatusRunning
-		_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusRunning, &pane.PID, "")
+		_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusRunning, a.prevActivity(ag.ID), &pane.PID, "")
 		a.emitAgents()
 		return res, nil
 	}
@@ -237,9 +252,21 @@ func (a *AgentService) Start(agentID string) (StartResult, error) {
 	}
 
 	res.Status = store.StatusRunning
-	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusRunning, &pane.PID, "starting…")
+	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusRunning, store.ActivityWorking, &pane.PID, "starting…")
+	// Starting an agent is a person acting on it: whatever it wanted before is
+	// superseded, and its first quiet moment after this launch is a fresh "done".
+	a.noteEngaged(ag, store.ActivityWorking)
 	a.emitAgents()
 	return res, nil
+}
+
+// noteEngaged records that a person just acted on the agent: the activity
+// baseline moves and any pending attention mark comes down.
+func (a *AgentService) noteEngaged(ag store.Agent, act store.AgentActivity) {
+	a.actMu.Lock()
+	a.lastActivity[ag.ID] = act
+	a.actMu.Unlock()
+	_ = a.core.Store.SetAgentAttention(ag.ID, store.AttentionNone)
 }
 
 // launchCommand builds the line typed into the agent's session, in the dialect
@@ -284,7 +311,9 @@ func (a *AgentService) Stop(agentID string) error {
 	if err := a.core.Tmux.SendKey(ws.ServerID, target, "C-c"); err != nil {
 		return err
 	}
-	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusIdle, nil, "")
+	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusIdle, store.ActivityNone, nil, "")
+	// A deliberate stop is not a result to review — no done-mark for it.
+	a.noteEngaged(ag, store.ActivityNone)
 	a.emitAgents()
 	return nil
 }
@@ -299,7 +328,8 @@ func (a *AgentService) Kill(agentID string) error {
 	if err := a.core.Tmux.KillSession(ws.ServerID, ag.TmuxSession); err != nil {
 		return err
 	}
-	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusDetached, nil, "")
+	_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusDetached, store.ActivityNone, nil, "")
+	a.noteEngaged(ag, store.ActivityNone)
 	a.emitAgents()
 	return nil
 }
@@ -346,6 +376,15 @@ func (a *AgentService) Send(agentID, message string, execute bool) Receipt {
 		return r
 	}
 	r.OK = true
+	// Messaging an agent answers whatever it was flagged for. A submitted
+	// message puts it back to work; one typed for review leaves the baseline
+	// where the next poll will read it.
+	if execute {
+		a.noteEngaged(ag, store.ActivityWorking)
+	} else {
+		a.noteEngaged(ag, a.prevActivity(ag.ID))
+	}
+	a.emitAgents()
 	return r
 }
 
@@ -617,7 +656,7 @@ func (a *AgentService) pollServer(serverID string) error {
 	panes, err := a.core.Tmux.ListPanes(serverID)
 	if err != nil {
 		for _, ag := range mine {
-			_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusUnknown, nil, "")
+			_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusUnknown, store.ActivityNone, nil, "")
 		}
 		return err
 	}
@@ -625,20 +664,77 @@ func (a *AgentService) pollServer(serverID string) error {
 	for _, ag := range mine {
 		pane, ok := pickPane(ag, panes)
 		if !ok {
-			_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusDetached, nil, "")
+			_ = a.core.Store.UpdateAgentRuntime(ag.ID, store.StatusDetached, store.ActivityNone, nil, "")
 			continue
 		}
 		status := store.StatusIdle
+		activity := store.ActivityNone
 		progress := ""
 		if !shellCommands[pane.Command] {
 			status = store.StatusRunning
 			if out, err := a.core.Tmux.CapturePane(serverID, pane.PaneID, 40); err == nil {
 				progress = lastMeaningfulLine(out)
+				activity = classifyActivity(out)
+			} else {
+				// Could not read the pane this cycle; guessing "working" would
+				// invent state, and "quiet" would raise a false done-mark.
+				activity = a.prevActivity(ag.ID)
 			}
 		}
 		pid := pane.PID
-		_ = a.core.Store.UpdateAgentRuntime(ag.ID, status, &pid, progress)
+		_ = a.core.Store.UpdateAgentRuntime(ag.ID, status, activity, &pid, progress)
+		a.updateAttention(ag, activity)
 	}
+	return nil
+}
+
+func (a *AgentService) prevActivity(agentID string) store.AgentActivity {
+	a.actMu.Lock()
+	defer a.actMu.Unlock()
+	return a.lastActivity[agentID]
+}
+
+// updateAttention turns this poll's activity into the sticky mark a person
+// scans for. Marks are raised on transitions and stay up until acknowledged;
+// an agent that goes back to work takes its stale mark down itself, because a
+// "come look" that points at superseded output is worse than none.
+func (a *AgentService) updateAttention(ag store.Agent, activity store.AgentActivity) {
+	a.actMu.Lock()
+	prev, known := a.lastActivity[ag.ID]
+	a.lastActivity[ag.ID] = activity
+	a.actMu.Unlock()
+
+	switch {
+	case activity == store.ActivityInput:
+		if prev != store.ActivityInput && ag.Attention != store.AttentionInput {
+			a.setAttention(ag.ID, store.AttentionInput)
+		}
+	case activity == store.ActivityWorking:
+		if ag.Attention != store.AttentionNone {
+			a.setAttention(ag.ID, store.AttentionNone)
+		}
+	// Working a moment ago, quiet (or exited) now: the run ended and there is
+	// output to review. `known` guards the first poll after a restart, where
+	// "no record" must not read as "was working".
+	case known && prev == store.ActivityWorking:
+		if ag.Attention != store.AttentionDone {
+			a.setAttention(ag.ID, store.AttentionDone)
+		}
+	}
+}
+
+func (a *AgentService) setAttention(agentID string, att store.AgentAttention) {
+	_ = a.core.Store.SetAgentAttention(agentID, att)
+}
+
+// Acknowledge clears an agent's attention mark. The UI calls it when a person
+// actually looks at the agent — opens its terminal or dismisses the flag — so
+// the mark measures "unseen", not "unanswered".
+func (a *AgentService) Acknowledge(agentID string) error {
+	if err := a.core.Store.SetAgentAttention(agentID, store.AttentionNone); err != nil {
+		return err
+	}
+	a.emitAgents()
 	return nil
 }
 

@@ -1,5 +1,5 @@
 import type { MsgKey, TFunc } from './i18n'
-import type { AgentStatus } from './types'
+import type { Agent, AgentStatus } from './types'
 
 const KEYS: Record<AgentStatus, MsgKey> = {
   running: 'agent.status.running',
@@ -16,4 +16,19 @@ const KEYS: Record<AgentStatus, MsgKey> = {
  */
 export function agentStatusLabel(t: TFunc, status: AgentStatus): string {
   return t(KEYS[status] ?? 'agent.status.unknown')
+}
+
+/**
+ * The one-line answer to "what is this agent doing right now". For a running
+ * agent the pane's activity beats the raw status: "waiting for your input" and
+ * "idle — no task running" are the two facts a person scanning a list of
+ * agents actually wants, and the progress line only matters while it works.
+ */
+export function agentActivityLabel(t: TFunc, agent: Agent): string {
+  if (agent.status === 'running') {
+    if (agent.activity === 'input') return t('agent.activity.input')
+    if (agent.activity === 'quiet') return t('agent.activity.quiet')
+    return agent.progressText || t('agent.status.running')
+  }
+  return agentStatusLabel(t, agent.status)
 }

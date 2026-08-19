@@ -154,6 +154,16 @@ export const zh: Messages = {
   'agent.status.detached': '已分离',
   'agent.status.unknown': '未知',
 
+  'agent.activity.input': '等待人工处理',
+  'agent.activity.quiet': '空闲 · 没有正在进行的任务',
+  'agent.attention.input': '需要人工处理',
+  'agent.attention.done': '已完成 · 有结果待查看',
+  'agent.attention.inputHint': '这个 agent 提出了问题，在你到它的终端里回答之前会一直等待。',
+  'agent.attention.doneHint': '这个 agent 已停止工作，有输出等你查看。',
+  'agent.attention.open': '打开终端',
+  'agent.attention.dismiss': '标为已读',
+  'tree.needsAttention': '{n} 个在等你处理',
+
   'dialog.editName': '编辑 {name}',
   'server.addHost': '添加主机',
   'server.updated': '主机已更新',

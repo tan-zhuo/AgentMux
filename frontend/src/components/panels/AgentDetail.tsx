@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { agents as agentApi, errText } from '../../lib/api'
 import type { Agent, Workspace } from '../../lib/types'
 import { agentStatusLabel } from '../../lib/agentStatus'
-import { refreshServerAgents, useAppStore } from '../../store/useAppStore'
+import { acknowledgeAgent, refreshServerAgents, useAppStore } from '../../store/useAppStore'
 import { confirmAction } from '../../store/useConfirm'
 import { useDialogs } from '../../store/useDialogs'
 import { useFmt, useT } from '../../store/useI18n'
@@ -144,11 +144,66 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
           <Badge tone={agent.status === 'running' ? 'ok' : 'neutral'}>
             {agentStatusLabel(t, agent.status)}
           </Badge>
+          {agent.status === 'running' && agent.activity === 'input' && (
+            <Badge tone="warn">{t('agent.activity.input')}</Badge>
+          )}
+          {agent.status === 'running' && agent.activity === 'quiet' && (
+            <Badge>{t('agent.activity.quiet')}</Badge>
+          )}
           {agent.pid ? <Badge>{t('agentDetail.pid', { pid: agent.pid })}</Badge> : null}
           {agent.lastSeen ? (
             <Badge>{t('agentDetail.seen', { time: fmt.time(agent.lastSeen) })}</Badge>
           ) : null}
         </div>
+
+        {agent.attention && (
+          <div
+            className={clsx(
+              'mt-2 rounded-control border px-2.5 py-2',
+              agent.attention === 'input'
+                ? 'border-warn/40 bg-warn/10'
+                : 'border-accent/40 bg-accent/10',
+            )}
+          >
+            <p
+              className={clsx(
+                'text-[11px] font-semibold',
+                agent.attention === 'input' ? 'text-warn' : 'text-accent',
+              )}
+            >
+              {t(agent.attention === 'input' ? 'agent.attention.input' : 'agent.attention.done')}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-ink-300">
+              {t(
+                agent.attention === 'input'
+                  ? 'agent.attention.inputHint'
+                  : 'agent.attention.doneHint',
+              )}
+            </p>
+            <div className="mt-1.5 flex gap-1.5">
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() =>
+                  // Opening the terminal acknowledges the mark by itself.
+                  openTab({
+                    title: agent.name,
+                    kind: 'agent',
+                    serverId: workspace.serverId,
+                    workspaceId: workspace.id,
+                    agentId: agent.id,
+                    tmuxSession: agent.tmuxSession,
+                  })
+                }
+              >
+                <Terminal size={11} /> {t('agent.attention.open')}
+              </Button>
+              <Button size="sm" onClick={() => acknowledgeAgent(agent.id)}>
+                {t('agent.attention.dismiss')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <p className="mt-2 truncate font-mono text-[11px] text-ink-500" title={agent.command}>
           $ {agent.command}

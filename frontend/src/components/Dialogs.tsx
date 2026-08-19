@@ -667,6 +667,8 @@ function AgentDialog() {
     tmuxWindow: existing?.tmuxWindow ?? '',
     tmuxPaneId: existing?.tmuxPaneId ?? '',
     status: existing?.status ?? 'unknown',
+    activity: existing?.activity ?? '',
+    attention: existing?.attention ?? '',
     lastSeen: existing?.lastSeen ?? null,
     pid: existing?.pid ?? null,
     progressText: existing?.progressText ?? '',

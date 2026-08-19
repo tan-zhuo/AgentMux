@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
-import { agentStatusLabel } from '../lib/agentStatus'
+import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
 import { isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
@@ -37,15 +37,15 @@ import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
-import { Button, ConnDot, StatusDot, iconButtonClass } from './ui'
+import { AttentionDot, Badge, Button, ConnDot, StatusDot, iconButtonClass } from './ui'
 
 const ROW_H = 26
 const OVERSCAN = 8
 
 type Row =
   | { key: string; kind: 'section'; section: 'projects' | 'servers'; depth: 0; onAdd?: () => void }
-  | { key: string; kind: 'project'; depth: number; project: Project; childCount: number }
-  | { key: string; kind: 'workspace'; depth: number; workspace: Workspace; server?: Server }
+  | { key: string; kind: 'project'; depth: number; project: Project; childCount: number; alerts: number }
+  | { key: string; kind: 'workspace'; depth: number; workspace: Workspace; server?: Server; alerts: number }
   | { key: string; kind: 'agent'; depth: number; agent: Agent; workspace: Workspace }
   | { key: string; kind: 'server'; depth: number; server: Server }
   | { key: string; kind: 'hint'; depth: number; text: MsgKey }
@@ -125,7 +125,20 @@ export function Sidebar() {
       if (q && !matches(p.name) && visibleWss.length === 0) continue
 
       const agentCount = wss.reduce((n, w) => n + (agentsByWs.get(w.id)?.length ?? 0), 0)
-      out.push({ key: `p:${p.id}`, kind: 'project', depth: 0, project: p, childCount: agentCount })
+      // Attention bubbles up: a collapsed project or workspace still shows how
+      // many of its agents are waiting on a human, otherwise folding the tree
+      // is how a flag gets missed for an afternoon.
+      const alertsIn = (w: Workspace) =>
+        (agentsByWs.get(w.id) ?? []).filter((a) => a.attention).length
+      const projectAlerts = wss.reduce((n, w) => n + alertsIn(w), 0)
+      out.push({
+        key: `p:${p.id}`,
+        kind: 'project',
+        depth: 0,
+        project: p,
+        childCount: agentCount,
+        alerts: projectAlerts,
+      })
       const projectOpen = q ? true : (expanded[`p:${p.id}`] ?? true)
       if (!projectOpen) continue
 
@@ -140,6 +153,7 @@ export function Sidebar() {
           depth: 1,
           workspace: w,
           server: serverById.get(w.serverId),
+          alerts: alertsIn(w),
         })
         const wsOpen = q ? true : (expanded[`w:${w.id}`] ?? true)
         if (!wsOpen) continue
@@ -336,6 +350,13 @@ export function Sidebar() {
                   onChevron={() => toggleExpanded(`p:${row.project.id}`)}
                   label={row.project.name}
                   meta={row.childCount ? `${row.childCount}` : undefined}
+                  badge={
+                    row.alerts > 0 ? (
+                      <span title={t('tree.needsAttention', { n: row.alerts })}>
+                        <Badge tone="warn">{row.alerts}</Badge>
+                      </span>
+                    ) : undefined
+                  }
                   actions={
                     <>
                       <RowBtn
@@ -442,6 +463,13 @@ export function Sidebar() {
                   icon={<ConnDot connected={!!connections[row.workspace.serverId]?.connected} />}
                   label={row.workspace.name}
                   meta={row.server?.name ?? t('tree.missingServer')}
+                  badge={
+                    row.alerts > 0 ? (
+                      <span title={t('tree.needsAttention', { n: row.alerts })}>
+                        <Badge tone="warn">{row.alerts}</Badge>
+                      </span>
+                    ) : undefined
+                  }
                   actions={
                     <>
                       <RowBtn
@@ -611,14 +639,21 @@ export function Sidebar() {
                       tmuxSession: a.tmuxSession,
                     })
                   }
-                  icon={<StatusDot status={a.status} pulse />}
+                  icon={<StatusDot status={a.status} pulse={a.activity === 'working'} />}
                   label={a.name}
-                  meta={
-                    a.status === 'running'
-                      ? a.progressText || t('agent.status.running')
-                      : agentStatusLabel(t, a.status)
-                  }
+                  meta={agentActivityLabel(t, a)}
                   metaDim
+                  metaWarn={a.status === 'running' && a.activity === 'input'}
+                  badge={
+                    a.attention ? (
+                      <AttentionDot
+                        kind={a.attention}
+                        title={t(
+                          a.attention === 'input' ? 'agent.attention.input' : 'agent.attention.done',
+                        )}
+                      />
+                    ) : undefined
+                  }
                   leading={
                     <input
                       type="checkbox"
@@ -917,6 +952,8 @@ function TreeRow({
   label,
   meta,
   metaDim,
+  metaWarn,
+  badge,
   actions,
 }: {
   style: React.CSSProperties
@@ -932,6 +969,12 @@ function TreeRow({
   label: string
   meta?: string
   metaDim?: boolean
+  /** Meta in the warning colour — for "waiting for your input", which must not
+   *  read like ordinary dimmed status text. */
+  metaWarn?: boolean
+  /** Always-visible marker on the row's right edge; unlike actions it does not
+   *  wait for a hover, because it exists for the eye that is only scanning. */
+  badge?: React.ReactNode
   actions?: React.ReactNode
 }) {
   return (
@@ -978,13 +1021,14 @@ function TreeRow({
         <span
           className={clsx(
             'min-w-0 flex-1 truncate text-[11px]',
-            selected ? 'text-white/70' : metaDim ? 'text-ink-500' : 'text-ink-400',
+            selected ? 'text-white/70' : metaWarn ? 'text-warn' : metaDim ? 'text-ink-500' : 'text-ink-400',
           )}
         >
           {meta}
         </span>
       )}
       {!meta && <span className="flex-1" />}
+      {badge && <span className="flex shrink-0 items-center">{badge}</span>}
       <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">{actions}</span>
     </div>
   )

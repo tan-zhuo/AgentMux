@@ -105,6 +105,34 @@ export function targetKey(t: BroadcastTarget): string {
 let tabSeq = 0
 const nextTabId = () => `tab-${Date.now().toString(36)}-${tabSeq++}`
 
+/** Acknowledgements already sent but not yet reflected in a poll, so a slow
+ *  round trip does not fire the same one every 5 seconds. */
+const acksInFlight = new Set<string>()
+
+/**
+ * Clears an agent's attention mark once a person has actually looked at it.
+ * Optimistic: the badge goes down immediately, the backend catches up. Called
+ * from everywhere "looked at it" happens — focusing the agent's terminal tab,
+ * dismissing the flag in the detail panel — so no path leaves a stale badge.
+ */
+export function acknowledgeAgent(agentId: string) {
+  if (!agentId || acksInFlight.has(agentId)) return
+  const { snapshot } = useAppStore.getState()
+  const agent = snapshot.agents.find((a) => a.id === agentId)
+  if (!agent?.attention) return
+  acksInFlight.add(agentId)
+  useAppStore.setState((s) => ({
+    snapshot: {
+      ...s.snapshot,
+      agents: s.snapshot.agents.map((a) => (a.id === agentId ? { ...a, attention: '' } : a)),
+    },
+  }))
+  void agentApi
+    .acknowledge(agentId)
+    .catch(() => {})
+    .finally(() => acksInFlight.delete(agentId))
+}
+
 /**
  * Show `id` in the focused pane and focus it.
  *
@@ -165,6 +193,8 @@ function sameAgents(a: Agent[], b: Agent[]): boolean {
     if (
       x.id !== y.id ||
       x.status !== y.status ||
+      x.activity !== y.activity ||
+      x.attention !== y.attention ||
       x.pid !== y.pid ||
       x.progressText !== y.progressText ||
       x.name !== y.name ||
@@ -383,6 +413,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { snapshot: { ...s.snapshot, agents: list }, tabs }
     })
     if (synced) void get().persistTabs()
+    // A mark raised for the agent whose terminal is already in the focused
+    // pane is telling someone to look at what they are looking at.
+    const { tabs, activeTabId } = get()
+    const active = tabs.find((t) => t.id === activeTabId)
+    if (active?.kind === 'agent' && active.agentId) acknowledgeAgent(active.agentId)
   },
 
   applyConnState(cs) {
@@ -466,6 +501,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   openTab(spec, opts) {
+    // Opening an agent's terminal is the "click in and look" its badge asked for.
+    if (spec.kind === 'agent' && spec.agentId) acknowledgeAgent(spec.agentId)
     // `newPane` is how the split picker opens things: the tab arrives beside
     // what is already on screen instead of replacing it. Silently ignored once
     // the grid is full, because the tab is still worth opening.
@@ -605,6 +642,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeTabId,
       paneIds: activeTabId ? focusIntoPane(s.paneIds, s.activeTabId, activeTabId) : [],
     }))
+    // Focusing an agent's terminal is looking at it: its badge has done its job.
+    const tab = get().tabs.find((t) => t.id === activeTabId)
+    if (tab?.kind === 'agent' && tab.agentId) acknowledgeAgent(tab.agentId)
   },
 
   splitPane() {

@@ -80,6 +80,16 @@ export interface Workspace {
 
 export type AgentStatus = 'running' | 'idle' | 'error' | 'detached' | 'unknown'
 
+/** What a running agent is doing right now, read off its pane every poll.
+ *  Refines status 'running': working on something, blocked on a question for
+ *  the human, or sitting quietly at its prompt with no task. Empty when no
+ *  agent process is in the pane. */
+export type AgentActivity = 'working' | 'input' | 'quiet' | ''
+
+/** A sticky "come look" mark. It survives until acknowledged, because it exists
+ *  for the person who was not watching when the moment happened. */
+export type AgentAttention = 'input' | 'done' | ''
+
 export interface Agent {
   id: string
   workspaceId: string
@@ -89,6 +99,8 @@ export interface Agent {
   tmuxWindow: string
   tmuxPaneId: string
   status: AgentStatus
+  activity: AgentActivity
+  attention: AgentAttention
   lastSeen: number | null
   pid: number | null
   progressText: string

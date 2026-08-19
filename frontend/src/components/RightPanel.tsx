@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { on, orch as orchApi, skills as skillApi } from '../lib/api'
-import { agentStatusLabel } from '../lib/agentStatus'
+import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
@@ -27,7 +27,7 @@ import { ServerDetail } from './panels/ServerDetail'
 import { SkillPanel } from './panels/SkillPanel'
 import { TmuxPanel } from './panels/TmuxPanel'
 import { ToolkitPanel } from './panels/ToolkitPanel'
-import { Badge, Button, Empty } from './ui'
+import { AttentionDot, Badge, Button, Empty } from './ui'
 
 /**
  * Resolves the server behind the current selection — directly, or via the
@@ -76,6 +76,11 @@ export function RightPanel() {
   const toggleRight = useAppStore((s) => s.toggleRight)
   const targets = useAppStore((s) => s.broadcastTargets)
   const width = useAppStore((s) => s.rightWidth)
+  // Agents waiting on a human. A number, so the store only re-renders this
+  // component when the count itself moves, not on every status poll.
+  const attention = useAppStore((s) =>
+    s.snapshot.agents.reduce((n, a) => n + (a.attention ? 1 : 0), 0),
+  )
 
   const stripRef = useRef<HTMLDivElement | null>(null)
   const activeRef = useRef<HTMLButtonElement | null>(null)
@@ -164,7 +169,7 @@ export function RightPanel() {
   }, [panel, syncOverflow])
 
   const tabs: Array<{ id: PanelKind; label: MsgKey; icon: typeof Bot; badge?: number }> = [
-    { id: 'detail', label: 'panel.detail', icon: Bot },
+    { id: 'detail', label: 'panel.detail', icon: Bot, badge: attention },
     { id: 'broadcast', label: 'panel.broadcast', icon: Radio, badge: targets.length },
     { id: 'metrics', label: 'panel.metrics', icon: Activity },
     { id: 'tmux', label: 'panel.tmux', icon: TerminalSquare },
@@ -318,8 +323,26 @@ function DetailRouter() {
             >
               <Bot size={12} className="text-ink-500" />
               <span className="min-w-0 flex-1 truncate text-ink-200">{a.name}</span>
-              <Badge tone={a.status === 'running' ? 'ok' : 'neutral'}>
-                {agentStatusLabel(t, a.status)}
+              {a.attention && (
+                <AttentionDot
+                  kind={a.attention}
+                  title={t(
+                    a.attention === 'input' ? 'agent.attention.input' : 'agent.attention.done',
+                  )}
+                />
+              )}
+              <Badge
+                tone={
+                  a.status === 'running'
+                    ? a.activity === 'input'
+                      ? 'warn'
+                      : a.activity === 'quiet'
+                        ? 'neutral'
+                        : 'ok'
+                    : 'neutral'
+                }
+              >
+                {agentActivityLabel(t, a)}
               </Badge>
             </button>
           ))}

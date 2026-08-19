@@ -160,6 +160,16 @@ export const en = {
   'agent.status.detached': 'detached',
   'agent.status.unknown': 'unknown',
 
+  'agent.activity.input': 'waiting for your input',
+  'agent.activity.quiet': 'idle — no task running',
+  'agent.attention.input': 'Needs your input',
+  'agent.attention.done': 'Finished — result to review',
+  'agent.attention.inputHint': 'This agent asked a question and is blocked until you answer in its terminal.',
+  'agent.attention.doneHint': 'This agent stopped working and left output for you to review.',
+  'agent.attention.open': 'Open terminal',
+  'agent.attention.dismiss': 'Mark as seen',
+  'tree.needsAttention': '{n} waiting for you',
+
   'dialog.editName': 'Edit {name}',
   'server.addHost': 'Add host',
   'server.updated': 'Host updated',

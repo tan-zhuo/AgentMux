@@ -156,6 +156,16 @@ export const ja: Messages = {
   'agent.status.detached': 'デタッチ済み',
   'agent.status.unknown': '不明',
 
+  'agent.activity.input': '入力待ち',
+  'agent.activity.quiet': '待機中 · 実行中のタスクなし',
+  'agent.attention.input': '対応が必要です',
+  'agent.attention.done': '完了 · 結果の確認待ち',
+  'agent.attention.inputHint': 'このエージェントは質問をして、ターミナルでの回答を待っています。',
+  'agent.attention.doneHint': 'このエージェントは作業を終え、確認すべき出力があります。',
+  'agent.attention.open': 'ターミナルを開く',
+  'agent.attention.dismiss': '既読にする',
+  'tree.needsAttention': '{n} 件が対応待ち',
+
   'dialog.editName': '{name} を編集',
   'server.addHost': 'ホストを追加',
   'server.updated': 'ホストを更新しました',
