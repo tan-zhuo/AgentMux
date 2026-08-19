@@ -198,6 +198,28 @@ func (c *Client) NewSession(serverID, name, cwd string) error {
 	return nil
 }
 
+// NewWindowExec opens a new window in a session running the given shell
+// command, creating the session if it does not exist yet. Unlike typing into
+// an existing pane with SendText, the command is the window's own process:
+// whatever the session's active pane is doing — a stuck installer, an open
+// pager, a sudo prompt nobody answered — cannot swallow it.
+func (c *Client) NewWindowExec(serverID, session, window, command string) error {
+	if strings.ContainsAny(session, ":.") {
+		return fmt.Errorf("tmux session name %q cannot contain ':' or '.'", session)
+	}
+	script := `if tmux has-session -t ` + q(target(session)) + ` 2>/dev/null; then ` +
+		`tmux new-window -t ` + q(target(session)) + ` -n ` + q(window) + ` ` + q(command) +
+		`; else tmux new-session -d -s ` + q(session) + ` -n ` + q(window) + ` ` + q(command) + `; fi`
+	res, err := c.run.Exec(serverID, script)
+	if err != nil {
+		return err
+	}
+	if res.Code != 0 {
+		return fmt.Errorf("tmux new-window: %s", strings.TrimSpace(res.Stderr))
+	}
+	return nil
+}
+
 // KillSession terminates a session and everything running inside it.
 func (c *Client) KillSession(serverID, name string) error {
 	res, err := c.run.Exec(serverID, `tmux kill-session -t `+q(target(name)))

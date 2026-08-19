@@ -420,6 +420,8 @@ export const ja: Messages = {
   'toolkit.verified': '{name} {version}（{path}）',
   'toolkit.verifiedNoVersion': '{name}（{path}）',
   'toolkit.notOnPath': '{name} はまだ PATH にありません — ログインシェルを開き直してみてください',
+  'toolkit.installDone': '{name} のインストールが完了しました — {version}',
+  'toolkit.installDoneNoVersion': '{name} のインストールが完了しました',
   'toolkit.starting': '開始中…',
   'toolkit.install': 'インストール · {method}',
   'toolkit.moreMethods': 'ほか {n} 件',

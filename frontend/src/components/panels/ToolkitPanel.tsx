@@ -10,7 +10,7 @@ import {
   Sparkles,
   Terminal,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { errText, toolkit } from '../../lib/api'
 import type { InstallMethod, ToolReport, ToolStatus } from '../../lib/types'
 import { useAppStore } from '../../store/useAppStore'
@@ -56,6 +56,43 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
     void load()
   }, [load])
 
+  // Installs finish in a tmux window the user may never look at, so the panel
+  // re-probes the tool itself and reports the outcome instead of waiting for a
+  // manual re-check.
+  const watchTimers = useRef<Set<number>>(new Set())
+  useEffect(() => {
+    const timers = watchTimers.current
+    return () => {
+      for (const id of timers) clearTimeout(id)
+      timers.clear()
+    }
+  }, [serverId])
+
+  function watchInstall(status: ToolStatus) {
+    let tries = 0
+    const tick = async () => {
+      tries++
+      try {
+        const p = await toolkit.verify(serverId, status.tool.id)
+        if (p.installed) {
+          toast(
+            'ok',
+            p.version
+              ? t('toolkit.installDone', { name: status.tool.name, version: p.version })
+              : t('toolkit.installDoneNoVersion', { name: status.tool.name }),
+          )
+          await load()
+          return
+        }
+      } catch {
+        // The server may be busy with the install itself — keep polling.
+      }
+      // Give up quietly after ~10 minutes; slow networks legitimately take long.
+      if (tries < 120) watchTimers.current.add(window.setTimeout(tick, 5000))
+    }
+    watchTimers.current.add(window.setTimeout(tick, 8000))
+  }
+
   async function install(status: ToolStatus, method: InstallMethod) {
     setBusyTool(status.tool.id)
     try {
@@ -91,6 +128,7 @@ export function ToolkitPanel({ serverId }: { serverId: string }) {
         })
         toast('warn', t('toolkit.installingShell', { name: started.toolName }))
       }
+      watchInstall(status)
     } catch (e) {
       toast('error', errText(e))
     } finally {

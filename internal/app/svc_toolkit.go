@@ -83,10 +83,11 @@ type InstallStarted struct {
 	Command string `json:"command"`
 }
 
-// Install runs the chosen install method for a tool. When tmux is available the
-// command is typed into a dedicated install session and the caller attaches to
-// watch; otherwise — the bootstrap case where tmux itself is missing — the
-// caller opens a plain PTY running the script.
+// Install runs the chosen install method for a tool. The wrapped script — PATH
+// prelude, npm permission and mirror fallbacks, a success/failure banner — runs
+// as its own window in the install session, so nothing a previous install left
+// in a pane can swallow it. When tmux itself is missing — the bootstrap case —
+// the caller opens a plain PTY running the same script.
 func (t *ToolkitService) Install(serverID, toolID, methodID string) (InstallStarted, error) {
 	tool, ok := agentkit.ByID(toolID)
 	if !ok {
@@ -105,34 +106,12 @@ func (t *ToolkitService) Install(serverID, toolID, methodID string) (InstallStar
 		Script:    method.Script,
 		NeedsRoot: method.NeedsRoot,
 	}
-
-	// A banner makes the pane self-explaining when the user attaches later.
-	banner := fmt.Sprintf("echo '=== AgentMux: installing %s via %s ==='", tool.Name, method.Label)
-	full := banner + "; " + method.Script
-
-	if info := t.core.Tmux.Available(serverID); info.Available {
-		exists, err := t.core.Tmux.HasSession(serverID, installSession)
-		if err != nil {
-			return started, err
-		}
-		if !exists {
-			if err := t.core.Tmux.NewSession(serverID, installSession, ""); err != nil {
-				return started, err
-			}
-		}
-		if err := t.core.Tmux.SendText(serverID, tmuxx.Target(installSession), full, true); err != nil {
-			return started, err
-		}
-		started.Session = installSession
-		started.UsesTmux = true
-		return started, nil
+	if t.core.IsWinHost(serverID) {
+		banner := fmt.Sprintf("echo '=== AgentMux: installing %s via %s ==='", tool.Name, method.Label)
+		return t.startTyped(serverID, banner+"; "+method.Script, started)
 	}
-
-	// tmux is what we are probably installing. Run it in a login shell so sudo
-	// and any other prompt still works, and keep the shell open afterwards so
-	// the output does not vanish with the process.
-	started.Command = full + `; echo; echo '=== install finished, shell stays open ==='; exec "${SHELL:-/bin/sh}" -l`
-	return started, nil
+	full := agentkit.InstallScript(tool.Name+" via "+method.Label, method.Script, method.Requires == "npm")
+	return t.start(serverID, tool.ID, full, started)
 }
 
 // InstallCustom runs a user-supplied script the same way, for tools that are not
@@ -145,8 +124,40 @@ func (t *ToolkitService) InstallCustom(serverID, label, script string) (InstallS
 		label = "custom script"
 	}
 	started := InstallStarted{ServerID: serverID, ToolID: "custom", ToolName: label, Script: script}
-	full := fmt.Sprintf("echo '=== AgentMux: %s ==='; %s", label, script)
+	if t.core.IsWinHost(serverID) {
+		return t.startTyped(serverID, fmt.Sprintf("echo '=== AgentMux: %s ==='; %s", label, script), started)
+	}
+	full := agentkit.InstallScript(label, script, false)
+	return t.start(serverID, "custom", full, started)
+}
 
+// start places a wrapped install script in a fresh window of the install
+// session, or hands it back for a plain PTY when tmux is not there yet. A
+// fresh window means whatever a previous install left in a pane — an open
+// pager, an unanswered sudo prompt — cannot swallow the command, which the old
+// type-into-the-active-pane approach silently did.
+//
+// This talks to tmux directly rather than through the Mux interface: windows
+// are a tmux concept, and this path is only taken for hosts tmux serves.
+func (t *ToolkitService) start(serverID, window, script string, started InstallStarted) (InstallStarted, error) {
+	tm := tmuxx.New(t.core.Run)
+	if info := tm.Available(serverID); info.Available {
+		if err := tm.NewWindowExec(serverID, installSession, window, script); err != nil {
+			return started, err
+		}
+		started.Session = installSession
+		started.UsesTmux = true
+		return started, nil
+	}
+	started.Command = script
+	return started, nil
+}
+
+// startTyped is the Windows-host path: the session daemon has sessions but no
+// windows, and its shell is PowerShell, which the wrapped POSIX script would
+// not survive — so the raw command is typed into the shared install session as
+// before.
+func (t *ToolkitService) startTyped(serverID, command string, started InstallStarted) (InstallStarted, error) {
 	if info := t.core.Tmux.Available(serverID); info.Available {
 		exists, err := t.core.Tmux.HasSession(serverID, installSession)
 		if err != nil {
@@ -157,14 +168,14 @@ func (t *ToolkitService) InstallCustom(serverID, label, script string) (InstallS
 				return started, err
 			}
 		}
-		if err := t.core.Tmux.SendText(serverID, tmuxx.Target(installSession), full, true); err != nil {
+		if err := t.core.Tmux.SendText(serverID, tmuxx.Target(installSession), command, true); err != nil {
 			return started, err
 		}
 		started.Session = installSession
 		started.UsesTmux = true
 		return started, nil
 	}
-	started.Command = full + `; exec "${SHELL:-/bin/sh}" -l`
+	started.Command = command
 	return started, nil
 }
 

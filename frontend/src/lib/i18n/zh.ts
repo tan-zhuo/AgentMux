@@ -418,6 +418,8 @@ export const zh: Messages = {
   'toolkit.verified': '{name} {version}，在 {path}',
   'toolkit.verifiedNoVersion': '{name} 在 {path}',
   'toolkit.notOnPath': '{name} 还不在 PATH 里 —— 试试重开一个登录 shell',
+  'toolkit.installDone': '{name} 安装成功 —— {version}',
+  'toolkit.installDoneNoVersion': '{name} 安装成功',
   'toolkit.starting': '正在启动…',
   'toolkit.install': '安装 · {method}',
   'toolkit.moreMethods': '还有 {n} 种',

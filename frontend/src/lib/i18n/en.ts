@@ -424,6 +424,8 @@ export const en = {
   'toolkit.verified': '{name} {version} at {path}',
   'toolkit.verifiedNoVersion': '{name} at {path}',
   'toolkit.notOnPath': '{name} is still not on PATH — try a fresh login shell',
+  'toolkit.installDone': '{name} installed — {version}',
+  'toolkit.installDoneNoVersion': '{name} installed',
   'toolkit.starting': 'Starting…',
   'toolkit.install': 'Install · {method}',
   'toolkit.moreMethods': '{n} more',
