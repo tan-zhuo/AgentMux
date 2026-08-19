@@ -329,6 +329,34 @@ export interface GpuDevice {
   driver: string
 }
 
+// --- self-update -------------------------------------------------------------
+
+/** What a version check against the release feed found. */
+export interface UpdateInfo {
+  currentVersion: string
+  latestVersion: string
+  publishedAt: string
+  pageUrl: string
+  notes: string
+  assetSize: number
+  hasUpdate: boolean
+  error: string
+}
+
+/** One step of a running upgrade, pushed as the `update:progress` event. */
+export interface UpdateProgress {
+  phase: 'download' | 'install' | 'restart'
+  doneBytes: number
+  totalBytes: number
+  percent: number
+}
+
+/** Apply's answer. When ok, the app is about to restart itself. */
+export interface UpdateResult {
+  ok: boolean
+  error: string
+}
+
 /** What a host is made of, as opposed to what it is doing. Read once per
  *  session rather than on the polling ticker. */
 export interface HardwareInfo {

@@ -27,6 +27,23 @@ export const zh: Messages = {
   'settings.security.blurb':
     '密码和密钥口令在写入本地数据库之前会用 AES-256-GCM 加密。主机密钥在首次连接时固定，之后若不匹配则中止连接。',
 
+  'update.available': 'AgentMux {latest} 已发布 —— 当前是 {current}',
+  'update.upgrade': '升级并重启',
+  'update.later': '稍后',
+  'update.notes': '发行说明',
+  'update.retry': '重试',
+  'update.downloading': '正在下载 {done} / {total}',
+  'update.installing': '正在安装…',
+  'update.restarting': '正在重启…',
+  'update.failed': '升级失败：{error}',
+  'update.failed.generic': '升级没有完成',
+  'update.check': '检查更新',
+  'update.checking': '检查中…',
+  'update.upToDate': '已经是最新版本',
+  'update.found': '{version} 已发布 —— 见上方横幅',
+  'update.devBuild': 'dev 构建通过 git 更新，不走发布渠道',
+  'update.checkFailed': '检查失败：{error}',
+
   'status.connected': '已连接 {n}/{total}',
   'status.running': '运行中 {n}/{total}',
   'status.keyInFile': '密钥在文件中',

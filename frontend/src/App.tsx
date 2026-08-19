@@ -11,6 +11,7 @@ import { StatusBar } from './components/StatusBar'
 import { TerminalArea } from './components/TerminalArea'
 import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
+import { UpdateBanner } from './components/UpdateBanner'
 import { on } from './lib/api'
 import type { Agent, ConnState } from './lib/types'
 import {
@@ -130,6 +131,7 @@ export default function App() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-ink-900">
       <TitleBar />
+      <UpdateBanner />
 
       <div className="flex min-h-0 flex-1">
         {sidebarOpen && (

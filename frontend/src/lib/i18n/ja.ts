@@ -29,6 +29,23 @@ export const ja: Messages = {
   'settings.security.blurb':
     'パスワードと鍵のパスフレーズは、ローカルデータベースに書き込む前に AES-256-GCM で暗号化されます。ホストキーは初回接続時に固定され、以降に不一致があれば接続を中止します。',
 
+  'update.available': 'AgentMux {latest} が公開されました — 現在は {current} です',
+  'update.upgrade': 'アップグレードして再起動',
+  'update.later': 'あとで',
+  'update.notes': 'リリースノート',
+  'update.retry': '再試行',
+  'update.downloading': 'ダウンロード中 {done} / {total}',
+  'update.installing': 'インストール中…',
+  'update.restarting': '再起動中…',
+  'update.failed': 'アップデートに失敗しました: {error}',
+  'update.failed.generic': 'アップデートが完了しませんでした',
+  'update.check': 'アップデートを確認',
+  'update.checking': '確認中…',
+  'update.upToDate': 'これが最新バージョンです',
+  'update.found': '{version} が公開されています — 上のバナーをご覧ください',
+  'update.devBuild': 'dev ビルドは git で更新します（リリース経由ではありません）',
+  'update.checkFailed': '確認できませんでした: {error}',
+
   'status.connected': '{n}/{total} 接続中',
   'status.running': '{n}/{total} 実行中',
   'status.keyInFile': '鍵はファイル内',

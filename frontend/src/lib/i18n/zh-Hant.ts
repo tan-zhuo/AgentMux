@@ -27,6 +27,23 @@ export const zhHant: Messages = {
   'settings.security.blurb':
     '密碼和金鑰密語在寫入本機資料庫之前會用 AES-256-GCM 加密。主機金鑰在首次連線時固定，之後若不相符則中止連線。',
 
+  'update.available': 'AgentMux {latest} 已發佈 —— 目前是 {current}',
+  'update.upgrade': '升級並重新啟動',
+  'update.later': '稍後',
+  'update.notes': '版本資訊',
+  'update.retry': '重試',
+  'update.downloading': '正在下載 {done} / {total}',
+  'update.installing': '正在安裝…',
+  'update.restarting': '正在重新啟動…',
+  'update.failed': '升級失敗：{error}',
+  'update.failed.generic': '升級沒有完成',
+  'update.check': '檢查更新',
+  'update.checking': '檢查中…',
+  'update.upToDate': '已經是最新版本',
+  'update.found': '{version} 已發佈 —— 見上方橫幅',
+  'update.devBuild': 'dev 建置透過 git 更新，不走發佈通道',
+  'update.checkFailed': '檢查失敗：{error}',
+
   'status.connected': '已連線 {n}/{total}',
   'status.running': '執行中 {n}/{total}',
   'status.keyInFile': '金鑰在檔案中',

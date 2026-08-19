@@ -33,6 +33,23 @@ export const en = {
   'settings.security.blurb':
     'Passwords and key passphrases are encrypted with AES-256-GCM before they are written to the local database. Host keys are pinned on first connection and a later mismatch aborts the connection.',
 
+  'update.available': 'AgentMux {latest} is available — you are on {current}',
+  'update.upgrade': 'Upgrade & restart',
+  'update.later': 'Later',
+  'update.notes': 'Release notes',
+  'update.retry': 'Try again',
+  'update.downloading': 'Downloading {done} of {total}',
+  'update.installing': 'Installing…',
+  'update.restarting': 'Restarting…',
+  'update.failed': 'Update failed: {error}',
+  'update.failed.generic': 'the update did not complete',
+  'update.check': 'Check for updates',
+  'update.checking': 'Checking…',
+  'update.upToDate': 'This is the latest version',
+  'update.found': '{version} is available — see the banner above',
+  'update.devBuild': 'A dev build updates through git, not the release feed',
+  'update.checkFailed': 'Could not check: {error}',
+
   'status.connected': '{n}/{total} connected',
   'status.running': '{n}/{total} running',
   'status.keyInFile': 'key in file',

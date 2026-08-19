@@ -45,6 +45,7 @@ func main() {
 	}
 
 	agentSvc := app.NewAgentService(core)
+	updateSvc := app.NewUpdateService(core)
 
 	wailsApp := application.New(application.Options{
 		Name:        "AgentMux",
@@ -66,6 +67,7 @@ func main() {
 			application.NewService(app.NewConfigService(core)),
 			application.NewService(app.NewDesktopService(core)),
 			application.NewService(agentSvc),
+			application.NewService(updateSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -77,6 +79,9 @@ func main() {
 		wailsApp.Event.Emit(name, data)
 	})
 	core.StartPoller(agentSvc, 5*time.Second)
+	// A quiet daily rhythm plus a check at launch; anyone impatient can ask
+	// from the settings dialog.
+	updateSvc.StartWatch(6 * time.Hour)
 
 	// The native frame cannot be re-coloured after creation, so it is built from
 	// the theme the user last chose.

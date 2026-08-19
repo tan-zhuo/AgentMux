@@ -34,6 +34,8 @@ import type {
   Transfer,
   MetricSample,
   HardwareInfo,
+  UpdateInfo,
+  UpdateResult,
   DetachedTab,
   AgentChoice,
   QuickLaunch,
@@ -189,6 +191,12 @@ export const windows = {
   detach: (tab: DetachedTab, x: number, y: number, width: number, height: number) =>
     call<string>('WindowService', 'Detach', tab, x, y, width, height),
   claim: (token: string) => call<DetachedTab>('WindowService', 'Claim', token),
+}
+
+export const update = {
+  check: () => call<UpdateInfo>('UpdateService', 'Check'),
+  apply: () => call<UpdateResult>('UpdateService', 'Apply'),
+  openReleasePage: () => call<void>('UpdateService', 'OpenReleasePage'),
 }
 
 export const metrics = {
