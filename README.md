@@ -214,6 +214,30 @@ downloading with `curl -L -O <url>` avoids it.
 | `Ctrl/⌘ ⇧ ↵` | Fill the area with the focused pane, and back again |
 | `Ctrl/⌘ ⌥ ←` `→` | Move between panes — zoomed, this reads them one at a time |
 
+## Tablets and phones (serve mode)
+
+The same executable also runs headless, serving the full app to any browser —
+an Android tablet, an iPad, a phone. Releases ship a dedicated server build,
+`agentmux-server-linux-{amd64,arm64}`: a fully static headless binary with no
+GTK, no webview and no display needed — copy it to any Linux server and run
+it. The desktop build enters the same mode with `--serve`:
+
+```bash
+./agentmux                      # server build: serves by default on :8642
+agentmux --serve --addr 0.0.0.0:8642   # desktop build, same thing
+```
+
+The first start generates an access token and prints it in the log (persisted
+as `serve-token` in the data directory; `AGENTMUX_TOKEN` overrides it). Open
+`http://host:8642` on the tablet, enter the token once, and everything —
+terminals, agents, the toolkit, file browsing — works. "Add to Home Screen"
+(Safari on iPad, Chrome on Android) installs it as a standalone app; Android
+can alternatively install the `agentmux-android.apk` attached to each release,
+which asks for the server address on first launch (see `mobile/`). Closing
+the browser stops nothing, exactly like closing the desktop window — the
+agents live in remote tmux. Put a HTTPS reverse proxy in front for use over
+the public internet.
+
 ## Architecture
 
 One SSH connection per remote host, multiplexed: terminals, commands and file

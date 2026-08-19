@@ -1,0 +1,92 @@
+<!doctype html>
+<!-- The connect page: asks where `agentmux --serve` runs, proves the address
+     answers before leaving, remembers it, and navigates there. Clearing the
+     app's data is the way back to this page. -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>AgentMux</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { background: #080a0f; color: #9aa4b2; font: 15px/1.6 system-ui, sans-serif;
+             display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+      main { width: min(420px, 86vw); }
+      h1 { color: #d5dbe4; font-size: 17px; margin: 0 0 4px; }
+      p { font-size: 13px; margin: 0 0 16px; }
+      input { width: 100%; box-sizing: border-box; background: #0b0d12; color: #d5dbe4;
+              border: 1px solid #232a35; border-radius: 8px; padding: 12px 14px; font-size: 15px; }
+      input:focus { outline: none; border-color: #4f8cff; }
+      button { margin-top: 12px; width: 100%; background: #4f8cff; color: #fff; border: 0;
+               border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 600; }
+      button:disabled { opacity: 0.5; }
+      .err { color: #ff6b6b; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AgentMux</h1>
+      <p>输入运行 <code>agentmux --serve</code> 的服务器地址</p>
+      <input id="addr" type="url" placeholder="http://192.168.1.10:8642"
+             autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" />
+      <button id="go">连接</button>
+      <div class="err" id="err"></div>
+    </main>
+    <script>
+      const KEY = 'agentmux.server'
+      const addr = document.getElementById('addr')
+      const go = document.getElementById('go')
+      const err = document.getElementById('err')
+
+      function normalize(v) {
+        v = v.trim().replace(/\/+$/, '')
+        if (!v) return ''
+        if (!/^https?:\/\//.test(v)) v = 'http://' + v
+        return v
+      }
+
+      // The manifest is tiny, unauthenticated, and only AgentMux serves it at
+      // this path — a good "is this really our server" probe.
+      async function reachable(base) {
+        const ctl = new AbortController()
+        const timer = setTimeout(() => ctl.abort(), 6000)
+        try {
+          const res = await fetch(base + '/manifest.webmanifest', { signal: ctl.signal })
+          return res.ok
+        } catch {
+          return false
+        } finally {
+          clearTimeout(timer)
+        }
+      }
+
+      async function connect(base, quiet) {
+        go.disabled = true
+        err.textContent = ''
+        if (await reachable(base)) {
+          localStorage.setItem(KEY, base)
+          location.replace(base)
+          return
+        }
+        go.disabled = false
+        if (!quiet) err.textContent = '连不上这个地址 —— 确认 agentmux --serve 正在运行、端口可达。'
+      }
+
+      go.addEventListener('click', () => {
+        const base = normalize(addr.value)
+        if (base) void connect(base, false)
+      })
+      addr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') go.click()
+      })
+
+      // A remembered server is tried silently; if it moved, the form is
+      // already on screen with the old address filled in.
+      const saved = localStorage.getItem(KEY)
+      if (saved) {
+        addr.value = saved
+        void connect(saved, true)
+      }
+    </script>
+  </body>
+</html>

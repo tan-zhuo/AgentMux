@@ -261,3 +261,162 @@ jobs:
           gh release upload "${{ github.event.release.tag_name }}" \
             "dist/${{ matrix.asset }}" "dist/${{ matrix.asset }}.sha256" \
             --clobber
+
+  # The headless server binary is what tablets connect to: `agentmux --serve`
+  # with no GTK, no webview, no display. Built with CGO off it is fully static
+  # — copy it to any Linux box, x86 or ARM, and run it. This is a separate job
+  # from the desktop matrix because it deliberately shares none of the desktop
+  # build's system dependencies.
+  server:
+    name: Server (Linux ${{ matrix.arch }}, headless)
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Work out the version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            v="${{ github.event.release.tag_name }}"
+          else
+            v="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Build (static, headless)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} \
+            go build -tags headless -trimpath \
+            -ldflags "-s -w -X agentmux/internal/app.Version=${{ steps.ver.outputs.version }}" \
+            -o dist/agentmux .
+
+      - name: Package
+        run: |
+          asset=agentmux-server-linux-${{ matrix.arch }}
+          stage="dist/$asset"
+          mkdir -p "$stage"
+          cp dist/agentmux "$stage/"
+          cp README.md README.zh-CN.md LICENSE "$stage/"
+          tar -C dist -czf "dist/$asset.tar.gz" "$asset"
+          cd dist
+          sha256sum "$asset.tar.gz" > "$asset.tar.gz.sha256"
+          cat "$asset.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentmux-server-linux-${{ matrix.arch }}.tar.gz
+          path: |
+            dist/agentmux-server-linux-${{ matrix.arch }}.tar.gz
+            dist/agentmux-server-linux-${{ matrix.arch }}.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "dist/agentmux-server-linux-${{ matrix.arch }}.tar.gz" \
+            "dist/agentmux-server-linux-${{ matrix.arch }}.tar.gz.sha256" \
+            --clobber
+
+  # The Android shell: a WebView that asks for the serve address at runtime,
+  # so one generic APK serves everyone — nothing is baked in at build time.
+  # With ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD secrets set the APK is
+  # release-signed with a stable identity (upgrades install over the old
+  # version); without them it falls back to a debug-signed build, which
+  # installs fine but needs an uninstall before a differently-signed upgrade.
+  #
+  # iPad has no job here on purpose: an iOS build cannot be installed without
+  # an Apple Developer signing identity, and the PWA (“Add to Home Screen”)
+  # already covers it with nothing to download.
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Generate the Android project
+        working-directory: mobile
+        run: |
+          npm install
+          npx cap add android
+          npx cap sync android
+          # The shell talks plain http to LAN and VPN addresses; Android
+          # blocks cleartext unless the manifest says otherwise.
+          sed -i 's/<application /<application android:usesCleartextTraffic="true" /' \
+            android/app/src/main/AndroidManifest.xml
+
+      - name: Build the APK
+        working-directory: mobile/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p ../../dist-apk
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > release.keystore
+            ./gradlew assembleRelease
+            bt="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+            "$bt/zipalign" -f 4 \
+              app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+            "$bt/apksigner" sign \
+              --ks release.keystore --ks-pass "pass:$KEYSTORE_PASS" \
+              --out ../../dist-apk/agentmux-android.apk aligned.apk
+          else
+            ./gradlew assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../../dist-apk/agentmux-android.apk
+          fi
+
+      - name: Checksum
+        run: |
+          cd dist-apk
+          sha256sum agentmux-android.apk > agentmux-android.apk.sha256
+          cat agentmux-android.apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentmux-android.apk
+          path: |
+            dist-apk/agentmux-android.apk
+            dist-apk/agentmux-android.apk.sha256
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            dist-apk/agentmux-android.apk dist-apk/agentmux-android.apk.sha256 \
+            --clobber

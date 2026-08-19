@@ -80,3 +80,14 @@ jobs:
       # themselves unless AGENTMUX_TEST_HOST is set. Everything else runs.
       - name: Test
         run: go test -tags ${{ env.GO_TAGS }} ./...
+
+      # The headless server build must stay free of cgo and the webview — that
+      # is its whole point. Building it with CGO off on one platform is what
+      # catches a stray GTK import before the release workflow does.
+      - name: Build (headless server)
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go vet -tags headless ./...
+          go build -tags headless ./...
