@@ -27,7 +27,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
+import { agents as agentApi, errText, isDesktop, servers as serverApi, tree as treeApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
 import { isLocalKind } from '../lib/types'
@@ -749,7 +749,7 @@ export function Sidebar() {
                     // Opening a desktop on the computer you are sitting at is
                     // not a thing anybody wants, so it is offered only for the
                     // machines that are somewhere else.
-                    isLocalKind(s.kind)
+                    isLocalKind(s.kind) || !isDesktop
                       ? {}
                       : {
                           label: t('tree.openDesktop'),

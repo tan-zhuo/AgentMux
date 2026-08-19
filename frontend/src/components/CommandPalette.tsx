@@ -18,7 +18,7 @@ import {
   TerminalSquare,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { agents as agentApi, errText } from '../lib/api'
+import { agents as agentApi, errText, isDesktop } from '../lib/api'
 import { themes } from '../lib/themes'
 import { MAX_PANES, refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
@@ -189,7 +189,7 @@ export function CommandPalette() {
           setRightPanel('metrics')
         },
       })
-      if (s.kind !== 'local' && s.kind !== 'localwin') {
+      if (isDesktop && s.kind !== 'local' && s.kind !== 'localwin') {
         out.push({
           id: `desktop:${s.id}`,
           label: t('desktop.title', { name: s.name }),

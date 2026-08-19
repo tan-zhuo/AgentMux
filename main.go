@@ -7,28 +7,25 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"fmt"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"agentmux/internal/app"
 	"agentmux/internal/natmux"
 	"agentmux/internal/store"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
+	"agentmux/internal/webserve"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
-
-// The window and taskbar icon. Wails looks for icon resource 3 in the
-// executable first and falls back to this, so the app is correctly badged even
-// when the binary was built without an embedded resource.
-//
-//go:embed build/appicon/icon.png
-var appIcon []byte
 
 func main() {
 	// The same executable is also the native session daemon: the broker that
@@ -39,91 +36,16 @@ func main() {
 		return
 	}
 
-	core, err := app.NewCore()
-	if err != nil {
-		fatal("AgentMux could not start", err)
+	// Headless server mode: the same core and services, but served over HTTP
+	// for browsers — tablets and phones — instead of bound to a native window.
+	if len(os.Args) > 1 && os.Args[1] == "--serve" {
+		serveMain(os.Args[2:])
+		return
 	}
 
-	agentSvc := app.NewAgentService(core)
-	updateSvc := app.NewUpdateService(core)
-
-	wailsApp := application.New(application.Options{
-		Name:        "AgentMux",
-		Description: "Multi-server AI agent and SSH cluster control plane",
-		Icon:        appIcon,
-		Services: []application.Service{
-			application.NewService(app.NewServerService(core)),
-			application.NewService(app.NewTreeService(core)),
-			application.NewService(app.NewTerminalService(core)),
-			application.NewService(app.NewTmuxService(core)),
-			application.NewService(app.NewToolkitService(core)),
-			application.NewService(app.NewFileService(core)),
-			application.NewService(app.NewMetricsService(core)),
-			application.NewService(app.NewWindowService(core)),
-			application.NewService(app.NewLLMService(core)),
-			application.NewService(app.NewMemoryService(core)),
-			application.NewService(app.NewSkillService(core)),
-			application.NewService(app.NewOrchService(core)),
-			application.NewService(app.NewConfigService(core)),
-			application.NewService(app.NewDesktopService(core)),
-			application.NewService(agentSvc),
-			application.NewService(updateSvc),
-		},
-		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
-		},
-		OnShutdown: func() { core.Shutdown() },
-	})
-
-	core.SetEmitter(func(name string, data any) {
-		wailsApp.Event.Emit(name, data)
-	})
-	core.StartPoller(agentSvc, 5*time.Second)
-	// A quiet daily rhythm plus a check at launch; anyone impatient can ask
-	// from the settings dialog.
-	updateSvc.StartWatch(6 * time.Hour)
-
-	// The native frame cannot be re-coloured after creation, so it is built from
-	// the theme the user last chose.
-	chrome := core.WindowChrome()
-	winTheme := application.Dark
-	if chrome.Light {
-		winTheme = application.Light
-	}
-
-	// Frameless, because the app draws its own macOS-style title bar. Windows
-	// frameless decorations are deliberately left enabled: they are what keep the
-	// native drop shadow, the Windows 11 rounded corners and the resize borders.
-	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "AgentMux",
-		Width:            1520,
-		Height:           940,
-		MinWidth:         1024,
-		MinHeight:        620,
-		Frameless:        true,
-		BackgroundColour: chrome.Background,
-		Windows: application.WindowsWindow{
-			Theme: winTheme,
-			// The window is frameless so there is no title bar to draw an icon
-			// in, but the icon is what the taskbar and Alt+Tab use.
-			DisableIcon: false,
-			// Windows 11 draws a light system border around the window, which
-			// reads as a bright hairline against a dark UI. Match it to the theme.
-			CustomTheme: application.ThemeSettings{
-				DarkModeActive:    &application.WindowTheme{BorderColour: chrome.Border},
-				DarkModeInactive:  &application.WindowTheme{BorderColour: chrome.BorderInactive},
-				LightModeActive:   &application.WindowTheme{BorderColour: chrome.Border},
-				LightModeInactive: &application.WindowTheme{BorderColour: chrome.BorderInactive},
-			},
-		},
-		Mac: application.MacWindow{
-			InvisibleTitleBarHeight: 38,
-		},
-	})
-
-	if err := wailsApp.Run(); err != nil {
-		fatal("AgentMux exited with an error", err)
-	}
+	// The desktop build opens the native window here; the headless server
+	// build, which links neither GTK nor a webview, serves instead.
+	runApp()
 }
 
 // fatal records a startup failure somewhere a user can find it.
@@ -144,4 +66,92 @@ func fatal(context string, err error) {
 		}
 	}
 	log.Fatalf("%s: %v", context, err)
+}
+
+// serveMain runs AgentMux as a headless web server: the built frontend, an RPC
+// endpoint and an event stream behind a bearer token. This is what a tablet —
+// Android or iPad — connects to; the browser is just another window onto the
+// same core, and closing it stops nothing, exactly like closing the desktop.
+//
+// The window-bound services are deliberately absent: WindowService and
+// DesktopService drive native webview windows that do not exist here, and
+// UpdateService replaces the desktop binary.
+func serveMain(args []string) {
+	flags := flag.NewFlagSet("serve", flag.ExitOnError)
+	addr := flags.String("addr", envOr("AGENTMUX_ADDR", ":8642"), "listen address, e.g. :8642 or 0.0.0.0:8642")
+	_ = flags.Parse(args)
+
+	core, err := app.NewCore()
+	if err != nil {
+		fatal("AgentMux could not start", err)
+	}
+	agentSvc := app.NewAgentService(core)
+	registry := webserve.NewRegistry(
+		app.NewServerService(core),
+		app.NewTreeService(core),
+		app.NewTerminalService(core),
+		app.NewTmuxService(core),
+		app.NewToolkitService(core),
+		app.NewFileService(core),
+		app.NewMetricsService(core),
+		app.NewLLMService(core),
+		app.NewMemoryService(core),
+		app.NewSkillService(core),
+		app.NewOrchService(core),
+		app.NewConfigService(core),
+		agentSvc,
+	)
+	hub := webserve.NewHub()
+	core.SetEmitter(hub.Emit)
+	core.StartPoller(agentSvc, 5*time.Second)
+
+	dataDir, err := store.AppDir()
+	if err != nil {
+		fatal("AgentMux could not find its data directory", err)
+	}
+	token, err := webserve.LoadOrCreateToken(dataDir)
+	if err != nil {
+		fatal("AgentMux could not establish a serve token", err)
+	}
+	dist, err := fs.Sub(assets, "frontend/dist")
+	if err != nil {
+		fatal("frontend assets missing from this build", err)
+	}
+
+	server := &http.Server{Addr: *addr, Handler: webserve.New(registry, hub, dist, token).Handler()}
+	go func() {
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+		<-stop
+		_ = server.Close()
+	}()
+
+	log.Printf("AgentMux serving on %s", *addr)
+	log.Printf("access token: %s", token)
+	log.Printf("open http://<this-host>%s on your tablet and enter the token (or set AGENTMUX_TOKEN)", portOf(*addr))
+	err = server.ListenAndServe()
+	core.Shutdown()
+	if err != nil && err != http.ErrServerClosed {
+		fatal("AgentMux server exited with an error", err)
+	}
+}
+
+// envOr reads an environment variable with a fallback.
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+// portOf extracts the ":port" part of a listen address for display.
+func portOf(addr string) string {
+	if i := len(addr) - 1; i >= 0 {
+		for j := i; j >= 0; j-- {
+			if addr[j] == ':' {
+				return addr[j:]
+			}
+		}
+	}
+	return addr
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { agents as agentApi, errText, servers, terminal, tree, windows } from '../lib/api'
+import { agents as agentApi, errText, isDesktop, servers, terminal, tree, windows } from '../lib/api'
 import { confirmAction } from './useConfirm'
 import { useDialogs } from './useDialogs'
 import { t } from './useI18n'
@@ -561,6 +561,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async detachTab(id, x, y, width, height) {
+    // Tearing a tab into its own native window only exists on the desktop; in
+    // a browser the drop quietly does nothing.
+    if (!isDesktop) return
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab) return
     try {

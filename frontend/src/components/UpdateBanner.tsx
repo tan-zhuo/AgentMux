@@ -1,6 +1,6 @@
 import { ArrowUpCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { errText, on, update as updateApi } from '../lib/api'
+import { errText, isDesktop, on, update as updateApi } from '../lib/api'
 import type { UpdateInfo, UpdateProgress } from '../lib/types'
 import { useT } from '../store/useI18n'
 import { Button } from './ui'
@@ -57,7 +57,14 @@ export function UpdateCheckButton({ current }: { current: string }) {
  * progress bar and ends with the app restarting itself. Errors land in the
  * same strip: the user who clicked is looking exactly here.
  */
+// Self-update replaces the desktop binary; in serve mode the server binary is
+// updated on the server, so the banner has nothing to offer a browser.
 export function UpdateBanner() {
+  if (!isDesktop) return null
+  return <UpdateBannerInner />
+}
+
+function UpdateBannerInner() {
   const t = useT()
   const [info, setInfo] = useState<UpdateInfo | null>(null)
   const [progress, setProgress] = useState<UpdateProgress | null>(null)

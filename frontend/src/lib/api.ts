@@ -1,4 +1,7 @@
 import { Call, Events } from '@wailsio/runtime'
+import { httpCall, isDesktop, sseOn } from './webTransport'
+
+export { isDesktop }
 import type {
   Agent,
   ConfigImport,
@@ -68,12 +71,15 @@ import type {
 const PKG = 'agentmux/internal/app'
 
 function call<T>(service: string, method: string, ...args: unknown[]): Promise<T> {
-  return Call.ByName(`${PKG}.${service}.${method}`, ...args) as unknown as Promise<T>
+  const name = `${PKG}.${service}.${method}`
+  if (isDesktop) return Call.ByName(name, ...args) as unknown as Promise<T>
+  return httpCall<T>(name, args)
 }
 
 /** Subscribe to a backend event. Returns an unsubscribe function. */
 export function on<T>(event: string, cb: (data: T) => void): () => void {
-  return Events.On(event, (e: { data: T }) => cb(e.data))
+  if (isDesktop) return Events.On(event, (e: { data: T }) => cb(e.data))
+  return sseOn(event, cb)
 }
 
 export const servers = {

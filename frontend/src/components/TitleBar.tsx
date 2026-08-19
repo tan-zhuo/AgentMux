@@ -2,6 +2,7 @@ import { Window } from '@wailsio/runtime'
 import clsx from 'clsx'
 import { PanelLeft, PanelRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { isDesktop } from '../lib/api'
 import { useAppStore } from '../store/useAppStore'
 import { useT } from '../store/useI18n'
 
@@ -129,12 +130,14 @@ export function TitleBar() {
   }, [])
 
   const syncMaximised = () => {
+    if (!isDesktop) return
     void Window.IsMaximised()
       .then(setMaximised)
       .catch(() => {})
   }
 
   useEffect(() => {
+    if (!isDesktop) return
     syncMaximised()
     window.addEventListener('resize', syncMaximised)
     return () => window.removeEventListener('resize', syncMaximised)
@@ -144,6 +147,9 @@ export function TitleBar() {
 
   return (
     <header className="drag-region relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline bg-ink-900 pr-2 pl-3 select-none">
+      {/* In a browser there is no native window to close or move, so the
+          traffic lights stay off and the bar is just a bar. */}
+      {isDesktop && (
       <div
         className="no-drag-region flex items-center gap-2"
         onMouseEnter={() => setHovered(true)}
@@ -176,6 +182,7 @@ export function TitleBar() {
           }}
         />
       </div>
+      )}
 
       <span
         className={clsx(

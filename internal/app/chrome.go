@@ -1,3 +1,7 @@
+// Native window chrome only exists where a native window does; the headless
+// server build has neither.
+//go:build !headless
+
 package app
 
 import "github.com/wailsapp/wails/v3/pkg/application"

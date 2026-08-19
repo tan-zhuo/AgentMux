@@ -1,3 +1,7 @@
+// Window management rides on the Wails webview, which the headless server
+// build neither has nor links — GTK and WebKit stay off a server's shoulders.
+//go:build !headless
+
 package app
 
 import (

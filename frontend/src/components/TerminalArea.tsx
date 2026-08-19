@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { isDesktop } from '../lib/api'
 import { MAX_PANES, useAppStore, type SplitAxis, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useT } from '../store/useI18n'
@@ -524,19 +525,24 @@ export function TerminalArea() {
                       disabled: !inPane || panes.length < 2,
                       onSelect: () => closePane(tab.id),
                     },
-                    separator,
-                    {
-                      label: t('area.newWindow'),
-                      icon: ExternalLink,
-                      onSelect: () =>
-                        void detachTab(
-                          tab.id,
-                          Math.round(window.screenX + 80),
-                          Math.round(window.screenY + 80),
-                          Math.max(720, Math.round(window.innerWidth * 0.62)),
-                          Math.max(480, Math.round(window.innerHeight * 0.72)),
-                        ),
-                    },
+                    // Tearing into a native window is a desktop-only trick.
+                    ...(isDesktop
+                      ? [
+                          separator,
+                          {
+                            label: t('area.newWindow'),
+                            icon: ExternalLink,
+                            onSelect: () =>
+                              void detachTab(
+                                tab.id,
+                                Math.round(window.screenX + 80),
+                                Math.round(window.screenY + 80),
+                                Math.max(720, Math.round(window.innerWidth * 0.62)),
+                                Math.max(480, Math.round(window.innerHeight * 0.72)),
+                              ),
+                          },
+                        ]
+                      : []),
                     separator,
                     {
                       label: t('area.closeTab'),

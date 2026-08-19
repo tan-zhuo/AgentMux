@@ -1,3 +1,7 @@
+// Self-update replaces the desktop binary and restarts the window; a headless
+// server is updated by whoever runs it, so the whole service stays out.
+//go:build !headless
+
 package app
 
 import (

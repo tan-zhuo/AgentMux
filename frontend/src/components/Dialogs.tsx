@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   agents as agentApi,
   errText,
+  isDesktop,
   llm as llmApi,
   servers as serverApi,
   toolkit,
@@ -956,7 +957,7 @@ function SettingsDialog() {
         <dt className="text-ink-500">{t('settings.version')}</dt>
         <dd className="flex items-center gap-2 font-mono text-ink-200">
           {diagnostics?.version ?? t('common.none')}
-          <UpdateCheckButton current={diagnostics?.version ?? ''} />
+          {isDesktop && <UpdateCheckButton current={diagnostics?.version ?? ''} />}
         </dd>
         <dt className="text-ink-500">{t('settings.dataDir')}</dt>
         <dd className="font-mono break-all text-ink-200">
