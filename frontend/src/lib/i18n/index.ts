@@ -1,25 +1,28 @@
 import { en, type MsgKey, type Messages } from './en'
 import { ja } from './ja'
 import { zh } from './zh'
+import { zhHant } from './zh-Hant'
 
 export type { MsgKey, Messages }
 
-export type Lang = 'en' | 'ja' | 'zh'
+export type Lang = 'en' | 'ja' | 'zh' | 'zh-Hant'
 
 /** Offered in the language's own words — nobody looks for "Japanese". */
 export const LANGUAGES: { id: Lang; native: string; english: string }[] = [
   { id: 'en', native: 'English', english: 'English' },
   { id: 'ja', native: '日本語', english: 'Japanese' },
   { id: 'zh', native: '简体中文', english: 'Chinese (Simplified)' },
+  { id: 'zh-Hant', native: '繁體中文', english: 'Chinese (Traditional)' },
 ]
 
-const CATALOGS: Record<Lang, Messages> = { en, ja, zh }
+const CATALOGS: Record<Lang, Messages> = { en, ja, zh, 'zh-Hant': zhHant }
 
 /** The locale used for dates, numbers and collation in each language. */
 export const LOCALES: Record<Lang, string> = {
   en: 'en-US',
   ja: 'ja-JP',
   zh: 'zh-CN',
+  'zh-Hant': 'zh-TW',
 }
 
 export type Params = Record<string, string | number>
@@ -72,7 +75,12 @@ export function detectLang(): Lang {
   for (const tag of navigator.languages ?? [navigator.language]) {
     const base = (tag ?? '').toLowerCase()
     if (base.startsWith('ja')) return 'ja'
-    if (base.startsWith('zh')) return 'zh'
+    if (base.startsWith('zh')) {
+      // Traditional-script regions and explicit -hant tags; the mainland and
+      // Singapore fall through to the simplified catalog.
+      const hant = base.includes('hant') || ['zh-tw', 'zh-hk', 'zh-mo'].some((p) => base.startsWith(p))
+      return hant ? 'zh-Hant' : 'zh'
+    }
     if (base.startsWith('en')) return 'en'
   }
   return 'en'

@@ -41,7 +41,7 @@ export const useI18n = create<I18nState>((set, get) => ({
     let tz = SYSTEM_TZ
     try {
       const stored = await tree.getSetting(LANG_KEY, '')
-      if (stored === 'en' || stored === 'ja' || stored === 'zh') lang = stored
+      if (stored === 'en' || stored === 'ja' || stored === 'zh' || stored === 'zh-Hant') lang = stored
       tz = await tree.getSetting(TZ_KEY, SYSTEM_TZ)
     } catch {
       /* first run, or the store is unavailable — the defaults are fine */
