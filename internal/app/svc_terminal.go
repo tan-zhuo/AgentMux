@@ -39,6 +39,7 @@ func (t *TerminalService) OpenCommand(serverID, command string, cols, rows int) 
 	return t.core.Shells.Open(sshx.ShellOptions{
 		ServerID: serverID, Cols: cols, Rows: rows, Command: command,
 		WindowsHost: t.core.IsSSHWin(serverID),
+		OneShot:     true,
 	})
 }
 
@@ -83,11 +84,18 @@ func (t *TerminalService) AttachTmux(serverID, session string, cols, rows int) (
 // detaches and the session keeps running.
 func (t *TerminalService) attachSession(serverID, session string, cols, rows int) (sshx.ShellInfo, error) {
 	if t.core.IsWinHost(serverID) {
-		opened, err := t.core.NatMuxFor(serverID).OpenAttach(session, cols, rows)
+		// Attaching again is all a dropped connection needs here — the session
+		// itself lives in the daemon on the far side, not in this attachment —
+		// so hand the shell manager the means to do it.
+		reattach := func(o sshx.ShellOptions) (sshx.Opened, error) {
+			return t.core.NatMuxFor(serverID).OpenAttach(session, o.Cols, o.Rows)
+		}
+		opened, err := reattach(sshx.ShellOptions{Cols: cols, Rows: rows})
 		if err != nil {
 			return sshx.ShellInfo{}, err
 		}
-		return t.core.Shells.Adopt(sshx.ShellOptions{ServerID: serverID, Cols: cols, Rows: rows}, opened), nil
+		return t.core.Shells.AdoptWith(
+			sshx.ShellOptions{ServerID: serverID, Cols: cols, Rows: rows}, opened, reattach), nil
 	}
 	return t.core.Shells.Open(sshx.ShellOptions{
 		ServerID: serverID,

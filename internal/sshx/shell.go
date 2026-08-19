@@ -22,6 +22,15 @@ const (
 	// flushInterval coalesces bursty output into a handful of events per second
 	// instead of one per read.
 	flushInterval = 8 * time.Millisecond
+
+	// A terminal whose transport went away is dialled again rather than
+	// declared dead. The waits back off from a second to a quarter of a minute
+	// and stop after this many tries — about five minutes, which covers a
+	// laptop lid, a wifi handover or a server reboot, and stops short of
+	// hammering a machine that is gone for the day.
+	reconnectTries      = 20
+	reconnectFirstDelay = time.Second
+	reconnectMaxDelay   = 15 * time.Second
 )
 
 // ShellOptions describes a PTY to open on a server.
@@ -37,6 +46,13 @@ type ShellOptions struct {
 	// sh, so the command line is composed in the right dialect. Set by the
 	// application layer, which knows the host's kind; never by the frontend.
 	WindowsHost bool `json:"-"`
+	// OneShot marks a terminal that exists to run one command and is finished
+	// when that command is. A dropped connection ends it instead of dialling
+	// back, because dialling back would mean running the command again — and
+	// re-running an install or a build because the wifi blinked is a side
+	// effect nobody asked for. A shell or a session attach has no such
+	// hazard: there is nothing to repeat, only something to rejoin.
+	OneShot bool `json:"-"`
 }
 
 // ShellInfo is the frontend-visible handle for an open PTY.
@@ -60,6 +76,31 @@ type TermExit struct {
 	ID     string `json:"id"`
 	Reason string `json:"reason"`
 }
+
+// TermReconnect is the payload of a term:reconnect:<id> event: one attempt at
+// putting a dropped terminal back, or the moment it succeeded.
+type TermReconnect struct {
+	ID      string `json:"id"`
+	Attempt int    `json:"attempt"`
+	Of      int    `json:"of"`
+	OK      bool   `json:"ok"`
+	Detail  string `json:"detail"`
+}
+
+// ExitError reports a terminal that ended by itself — the command finished, or
+// the shell was exited, or a tmux client was detached.
+//
+// It is the one ending that is never retried: the session did what it was asked
+// and stopped. Everything else — a closed socket, a timed-out keepalive, a
+// vanished network — is a transport failure, and those are worth dialling again.
+type ExitError struct{ Code int }
+
+func (e *ExitError) Error() string { return fmt.Sprintf("exited with status %d", e.Code) }
+
+// Reopener starts the same terminal again after its transport went away. It is
+// handed the options the terminal was opened with, carrying whatever size the
+// window has since been resized to.
+type Reopener func(opts ShellOptions) (Opened, error)
 
 // Session is one transport's half of an open terminal: keystrokes in, a size, and
 // an end.
@@ -96,15 +137,78 @@ type Opener interface {
 type shell struct {
 	id       string
 	serverID string
-	sess     Session
-	release  func()
 	openedAt int64
+	// opts and reopen are what a reconnect needs: what this terminal was, and
+	// how to start it again. A nil reopen means the transport cannot be
+	// redialled — a local PTY, whose process ending is the whole story.
+	opts   ShellOptions
+	reopen Reopener
+	done   chan struct{}
 
-	mu     sync.Mutex
-	cols   int
-	rows   int
-	buf    []byte
-	closed bool
+	mu sync.Mutex
+	// sess and release are swapped when a dropped terminal comes back, so both
+	// live under the lock. sess is nil for the moment in between.
+	sess    Session
+	release func()
+	cols    int
+	rows    int
+	buf     []byte
+	closed  bool
+}
+
+// session returns the live half of the terminal, or nil while it is being
+// redialled.
+func (sh *shell) session() Session {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	return sh.sess
+}
+
+func (sh *shell) isClosed() bool {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	return sh.closed
+}
+
+// currentOpts is what this terminal was opened with, at the size the window has
+// now — a reconnect that came up at the original size would need a resize the
+// remote program has no reason to expect.
+func (sh *shell) currentOpts() ShellOptions {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	o := sh.opts
+	o.Cols, o.Rows = sh.cols, sh.rows
+	return o
+}
+
+// retryable reports whether an ending is worth dialling again.
+func (sh *shell) retryable(err error) bool {
+	if sh.reopen == nil || err == nil || sh.isClosed() {
+		return false
+	}
+	var exit *ExitError
+	return !errors.As(err, &exit)
+}
+
+// dropTransport hands back everything the dead session held. The pool counts
+// leases, and a lease never released is a connection never reaped.
+func (sh *shell) dropTransport() {
+	sh.mu.Lock()
+	sess, release := sh.sess, sh.release
+	sh.sess, sh.release = nil, nil
+	sh.mu.Unlock()
+	if sess != nil {
+		_ = sess.Close()
+	}
+	if release != nil {
+		release()
+	}
+}
+
+func (sh *shell) adoptTransport(opened Opened) {
+	sh.mu.Lock()
+	sh.sess, sh.release = opened.Session, opened.Release
+	sh.mu.Unlock()
 }
 
 // ShellManager owns every open PTY and streams their output to the frontend.
@@ -149,11 +253,15 @@ func (m *ShellManager) Open(opts ShellOptions) (ShellInfo, error) {
 		opts.Term = "xterm-256color"
 	}
 
-	opened, err := m.open(opts)
+	opened, redialable, err := m.open(opts)
 	if err != nil {
 		return ShellInfo{}, err
 	}
-	return m.Adopt(opts, opened), nil
+	var reopen Reopener
+	if redialable {
+		reopen = m.openSSH
+	}
+	return m.adopt(opts, opened, reopen), nil
 }
 
 // Adopt registers a terminal some transport already opened and starts streaming
@@ -161,6 +269,18 @@ func (m *ShellManager) Open(opts ShellOptions) (ShellInfo, error) {
 // how a native session attach — opened against the local session daemon, not
 // through an Opener — joins the same scrollback and event machinery.
 func (m *ShellManager) Adopt(opts ShellOptions, opened Opened) ShellInfo {
+	return m.adopt(opts, opened, nil)
+}
+
+// AdoptWith is Adopt for a transport that can start the terminal again. The
+// session daemon's attachments arrive this way: an attach that drops is worth
+// redialling for exactly the same reason an SSH one is, and the session it was
+// attached to is still there waiting.
+func (m *ShellManager) AdoptWith(opts ShellOptions, opened Opened, reopen Reopener) ShellInfo {
+	return m.adopt(opts, opened, reopen)
+}
+
+func (m *ShellManager) adopt(opts ShellOptions, opened Opened, reopen Reopener) ShellInfo {
 	if opts.Cols <= 0 {
 		opts.Cols = 120
 	}
@@ -170,9 +290,12 @@ func (m *ShellManager) Adopt(opts ShellOptions, opened Opened) ShellInfo {
 	sh := &shell{
 		id:       uuid.NewString(),
 		serverID: opts.ServerID,
+		openedAt: time.Now().Unix(),
+		opts:     opts,
+		reopen:   reopen,
+		done:     make(chan struct{}),
 		sess:     opened.Session,
 		release:  opened.Release,
-		openedAt: time.Now().Unix(),
 		cols:     opts.Cols,
 		rows:     opts.Rows,
 		buf:      make([]byte, 0, 8*1024),
@@ -182,11 +305,8 @@ func (m *ShellManager) Adopt(opts ShellOptions, opened Opened) ShellInfo {
 	m.shells[sh.id] = sh
 	m.mu.Unlock()
 
-	go m.pump(sh, opened.Stdout)
-	if opened.Stderr != nil {
-		go m.drain(sh, opened.Stderr)
-	}
-	go m.wait(sh)
+	m.stream(sh, opened)
+	go m.watch(sh)
 
 	return ShellInfo{
 		ID: sh.id, ServerID: sh.serverID, Cols: sh.cols, Rows: sh.rows,
@@ -194,14 +314,28 @@ func (m *ShellManager) Adopt(opts ShellOptions, opened Opened) ShellInfo {
 	}
 }
 
-// open routes to the transport that owns this host.
-func (m *ShellManager) open(opts ShellOptions) (Opened, error) {
+// stream starts the readers for one transport. It runs again on every
+// reconnect, against the new streams, while the shell — its id, its scrollback,
+// the tab watching it — stays exactly where it was.
+func (m *ShellManager) stream(sh *shell, opened Opened) {
+	go m.pump(sh, opened.Stdout)
+	if opened.Stderr != nil {
+		go m.drain(sh, opened.Stderr)
+	}
+}
+
+// open routes to the transport that owns this host, and says whether that
+// transport is one a dropped terminal can be re-opened on. Only the network
+// ones are: a local PTY that ended, ended because its process did.
+func (m *ShellManager) open(opts ShellOptions) (Opened, bool, error) {
 	if m.localFor != nil {
 		if local := m.localFor(opts.ServerID); local != nil {
-			return local.OpenTerminal(opts)
+			opened, err := local.OpenTerminal(opts)
+			return opened, false, err
 		}
 	}
-	return m.openSSH(opts)
+	opened, err := m.openSSH(opts)
+	return opened, err == nil && !opts.OneShot, err
 }
 
 // openSSH starts a PTY session on a remote host.
@@ -284,7 +418,7 @@ func (s *sshSession) Wait() error {
 	err := s.sess.Wait()
 	var exitErr *ssh.ExitError
 	if errors.As(err, &exitErr) {
-		return fmt.Errorf("exited with status %d", exitErr.ExitStatus())
+		return &ExitError{Code: exitErr.ExitStatus()}
 	}
 	return err
 }
@@ -397,14 +531,111 @@ func (m *ShellManager) drain(sh *shell, r io.Reader) {
 	}
 }
 
-func (m *ShellManager) wait(sh *shell) {
-	// Each transport phrases its own ending, because only it knows what an exit
-	// status meant.
-	reason := "session ended"
-	if err := sh.sess.Wait(); err != nil {
-		reason = err.Error()
+// watch follows one terminal for as long as it lives, across however many
+// transports that takes.
+//
+// A terminal that ends on its own terms is over. One whose transport went out
+// from under it is not: the tmux session on the far side is still running, the
+// agent inside it is still working, and the only thing that actually broke was
+// the pipe. So the pipe is rebuilt, under the same id, and the loop goes back
+// to waiting.
+func (m *ShellManager) watch(sh *shell) {
+	for {
+		sess := sh.session()
+		if sess == nil {
+			return
+		}
+		// Each transport phrases its own ending, because only it knows what an
+		// exit status meant.
+		err := sess.Wait()
+		reason := "session ended"
+		if err != nil {
+			reason = err.Error()
+		}
+		if !sh.retryable(err) {
+			if !sh.isClosed() {
+				_ = m.closeShell(sh.id, reason)
+			}
+			return
+		}
+		if !m.reconnect(sh, reason) {
+			return
+		}
 	}
-	m.closeShell(sh.id, reason)
+}
+
+// reconnect dials a dropped terminal back up, and reports whether it is live
+// again. Giving up ends the terminal the ordinary way, so the pane falls back
+// to the button it has always had.
+func (m *ShellManager) reconnect(sh *shell, reason string) bool {
+	m.note(sh, reason+" — reconnecting…")
+	delay := reconnectFirstDelay
+
+	for attempt := 1; attempt <= reconnectTries; attempt++ {
+		// The old transport is let go before dialling, not after: the pool
+		// counts leases, and it will not redial a server while the dead
+		// connection to it is still spoken for.
+		sh.dropTransport()
+		if !m.pause(sh, delay) {
+			return false
+		}
+		if delay *= 2; delay > reconnectMaxDelay {
+			delay = reconnectMaxDelay
+		}
+
+		opts := sh.currentOpts()
+		opened, err := sh.reopen(opts)
+		if err != nil {
+			m.emit("term:reconnect:"+sh.id, TermReconnect{
+				ID: sh.id, Attempt: attempt, Of: reconnectTries, Detail: err.Error(),
+			})
+			continue
+		}
+		// The tab may have been closed while that dial was in flight, in which
+		// case nobody is watching this terminal and it must not be left open.
+		if sh.isClosed() {
+			_ = opened.Session.Close()
+			if opened.Release != nil {
+				opened.Release()
+			}
+			return false
+		}
+
+		sh.adoptTransport(opened)
+		m.stream(sh, opened)
+		_ = opened.Session.Resize(opts.Cols, opts.Rows)
+		m.note(sh, "reconnected")
+		m.emit("term:reconnect:"+sh.id, TermReconnect{
+			ID: sh.id, Attempt: attempt, Of: reconnectTries, OK: true,
+		})
+		return true
+	}
+
+	_ = m.closeShell(sh.id, fmt.Sprintf("%s — gave up after %d attempts", reason, reconnectTries))
+	return false
+}
+
+// pause waits out a backoff, and reports false if the terminal was closed while
+// it waited. Closing a tab must not be answered by one more reconnect.
+func (m *ShellManager) pause(sh *shell, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-sh.done:
+		return false
+	case <-timer.C:
+		return !sh.isClosed()
+	}
+}
+
+// note writes a line of AgentMux's own voice into the terminal, dimmed so it
+// cannot be mistaken for output from the far end. It goes through the same path
+// as real output, which is what puts it in the scrollback too — a terminal
+// scrolled back to hours ago still says where the gap came from.
+func (m *ShellManager) note(sh *shell, text string) {
+	line := []byte("\r\n\x1b[38;5;245m── " + text + " ──\x1b[0m\r\n")
+	sh.appendScrollback(line)
+	m.emit("term:data:"+sh.id, TermData{ID: sh.id, Base64: base64.StdEncoding.EncodeToString(line)})
 }
 
 func (sh *shell) appendScrollback(chunk []byte) {
@@ -432,7 +663,11 @@ func (m *ShellManager) Write(id, b64 string) error {
 	if err != nil {
 		return fmt.Errorf("bad payload: %w", err)
 	}
-	_, err = sh.sess.Write(raw)
+	sess := sh.session()
+	if sess == nil {
+		return fmt.Errorf("terminal %s is reconnecting", id)
+	}
+	_, err = sess.Write(raw)
 	return err
 }
 
@@ -445,10 +680,16 @@ func (m *ShellManager) Resize(id string, cols, rows int) error {
 	if cols <= 0 || rows <= 0 {
 		return nil
 	}
+	// The size is remembered even while nothing is attached, because it is what
+	// a reconnect will ask the new PTY for.
 	sh.mu.Lock()
 	sh.cols, sh.rows = cols, rows
+	sess := sh.sess
 	sh.mu.Unlock()
-	return sh.sess.Resize(cols, rows)
+	if sess == nil {
+		return nil
+	}
+	return sess.Resize(cols, rows)
 }
 
 // Scrollback returns the buffered output so a re-mounted terminal can replay it.
@@ -486,11 +727,14 @@ func (m *ShellManager) closeShell(id, reason string) error {
 	if already {
 		return nil
 	}
-
-	_ = sh.sess.Close()
-	if sh.release != nil {
-		sh.release()
+	// Closing done stops a reconnect that is mid-backoff. Without it, a tab
+	// closed while its terminal was dropping would be answered by a redial
+	// nobody asked for and nobody is watching.
+	if sh.done != nil {
+		close(sh.done)
 	}
+
+	sh.dropTransport()
 	m.emit("term:exit:"+id, TermExit{ID: id, Reason: reason})
 	return nil
 }

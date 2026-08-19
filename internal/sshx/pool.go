@@ -56,6 +56,17 @@ const (
 	dialTimeout    = 15 * time.Second
 	keepaliveEvery = 30 * time.Second
 	reapEvery      = 30 * time.Second
+	// tcpKeepalive asks the kernel to keep the flow warm. The SSH-level
+	// keepalive below proves the far end is answering; this one stops the boxes
+	// in between — home routers, corporate NAT, cloud load balancers — from
+	// quietly forgetting a connection whose terminal has been idle while
+	// something long-running scrolls by on it.
+	tcpKeepalive = 15 * time.Second
+	// pingTimeout bounds one keepalive. Without it a link to a machine that
+	// went away without closing the socket blocks in SendRequest until the
+	// kernel gives up, which can be an hour — an hour in which the terminal
+	// looks connected and types into nothing.
+	pingTimeout = 10 * time.Second
 )
 
 // Lease is a borrowed reference to a pooled client. Release exactly once.
@@ -228,7 +239,8 @@ func (p *Pool) dial(t Target, chain []string) (*ssh.Client, *Lease, error) {
 	addr := net.JoinHostPort(t.Host, strconv.Itoa(t.Port))
 
 	if t.JumpServerID == "" {
-		conn, err := net.DialTimeout("tcp", addr, dialTimeout)
+		dialer := &net.Dialer{Timeout: dialTimeout, KeepAlive: tcpKeepalive}
+		conn, err := dialer.Dial("tcp", addr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("dial %s: %w", addr, err)
 		}
@@ -319,17 +331,24 @@ func (zeroKey) Marshal() []byte                     { return nil }
 func (zeroKey) Verify([]byte, *ssh.Signature) error { return errors.New("unusable key") }
 
 func isAlive(c *ssh.Client) bool {
-	type result struct{ err error }
-	ch := make(chan result, 1)
+	return ping(c, 5*time.Second) == nil
+}
+
+// ping asks the far end to answer within d. A request that never comes back is
+// reported as a failure rather than waited on, because the caller is either
+// deciding whether to reuse this connection or watching it on the user's
+// behalf, and neither can afford to block on a socket nobody is reading.
+func ping(c *ssh.Client, d time.Duration) error {
+	ch := make(chan error, 1)
 	go func() {
 		_, _, err := c.SendRequest("keepalive@openssh.com", true, nil)
-		ch <- result{err}
+		ch <- err
 	}()
 	select {
-	case r := <-ch:
-		return r.err == nil
-	case <-time.After(5 * time.Second):
-		return false
+	case err := <-ch:
+		return err
+	case <-time.After(d):
+		return errors.New("keepalive timed out")
 	}
 }
 
@@ -343,7 +362,7 @@ func (p *Pool) keepalive(sl *slot, client *ssh.Client, stop chan struct{}) {
 		case <-p.stopCh:
 			return
 		case <-ticker.C:
-			if _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+			if err := ping(client, pingTimeout); err != nil {
 				sl.mu.Lock()
 				if sl.client == client {
 					sl.teardownLocked()

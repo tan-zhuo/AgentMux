@@ -194,7 +194,23 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
           setTabState(tab.id, { status: 'closed', shellId: undefined, error: d.reason })
           termRef.current?.write(`\r\n\x1b[38;5;245m── ${d.reason} ──\x1b[0m\r\n`)
         })
-        disposersRef.current.push(offData, offExit)
+        // A dropped connection is put back by the backend, under the same shell
+        // id — the terminal, its scrollback and this pane all stay as they are.
+        // What the tab shows is the difference between "working" and "on its
+        // way back", which is the pulse the opening state already draws. The
+        // backend writes the explanation into the terminal itself.
+        const offRetry = on<{ id: string; attempt: number; of: number; ok: boolean; detail: string }>(
+          `term:reconnect:${info.id}`,
+          (d) => {
+            setTabState(
+              tab.id,
+              d.ok
+                ? { status: 'open', error: undefined }
+                : { status: 'opening', error: d.detail },
+            )
+          },
+        )
+        disposersRef.current.push(offData, offExit, offRetry)
 
         // Replay anything the backend buffered between open and subscribe.
         try {
