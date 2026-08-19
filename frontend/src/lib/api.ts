@@ -33,6 +33,7 @@ import type {
   FileContent,
   Transfer,
   MetricSample,
+  HardwareInfo,
   DetachedTab,
   AgentChoice,
   QuickLaunch,
@@ -193,6 +194,7 @@ export const windows = {
 export const metrics = {
   sample: (serverId: string) => call<MetricSample>('MetricsService', 'Sample', serverId),
   sampleMany: (serverIds: string[]) => call<MetricSample[]>('MetricsService', 'SampleMany', serverIds),
+  hardware: (serverId: string) => call<HardwareInfo>('MetricsService', 'Hardware', serverId),
 }
 
 export const agents = {

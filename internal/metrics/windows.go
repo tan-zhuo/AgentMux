@@ -121,3 +121,109 @@ func memPercentOf(bytes, total uint64) float64 {
 	}
 	return float64(bytes) / float64(total) * 100
 }
+
+// winHwScript reads the machine's inventory in one PowerShell invocation.
+const winHwScript = `$ErrorActionPreference='SilentlyContinue'; ` +
+	`$cs = Get-CimInstance Win32_ComputerSystem; ` +
+	`'vendor~@~' + $cs.Manufacturer; ` +
+	`'product~@~' + $cs.Model; ` +
+	`'memtotal~@~' + $cs.TotalPhysicalMemory; ` +
+	`Get-CimInstance Win32_Processor | ForEach-Object { 'cpu~@~' + $_.Name + '~@~' + $_.NumberOfCores + '~@~' + $_.NumberOfLogicalProcessors + '~@~' + $_.MaxClockSpeed }; ` +
+	`Get-CimInstance Win32_PhysicalMemory | ForEach-Object { 'mem~@~' + $_.DeviceLocator + '~@~' + $_.Capacity + '~@~' + $_.SMBIOSMemoryType + '~@~' + $_.Speed + '~@~' + $_.Manufacturer + '~@~' + $_.PartNumber }; ` +
+	`Get-CimInstance Win32_DiskDrive | ForEach-Object { 'disk~@~' + $_.Model + '~@~' + $_.Size + '~@~' + $_.InterfaceType }; ` +
+	`Get-CimInstance Win32_VideoController | ForEach-Object { 'gpu~@~' + $_.Name + '~@~' + $_.AdapterRAM + '~@~' + $_.DriverVersion }`
+
+// smbiosMemoryType names the DDR generation behind Win32_PhysicalMemory's
+// SMBIOS type code. Codes outside the table stay blank rather than guessed.
+var smbiosMemoryType = map[int]string{
+	20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 34: "DDR5", 35: "LPDDR5",
+}
+
+// CollectWindowsHardware reads one PowerShell host's inventory.
+func CollectWindowsHardware(run Runner, serverID string) Hardware {
+	h := Hardware{ServerID: serverID, MemModules: []MemModule{}, Disks: []PhysicalDisk{}, GPUs: []GPUDevice{}}
+	res, err := run.Exec(serverID, winHwScript)
+	if err != nil {
+		h.Error = err.Error()
+		return h
+	}
+	if strings.TrimSpace(res.Stdout) == "" {
+		h.Error = strings.TrimSpace(res.Stderr)
+		if h.Error == "" {
+			h.Error = "the host returned nothing"
+		}
+		return h
+	}
+
+	for _, line := range strings.Split(strings.ReplaceAll(res.Stdout, "\r\n", "\n"), "\n") {
+		parts := strings.Split(strings.TrimSpace(line), winSep)
+		if len(parts) < 2 {
+			continue
+		}
+		val := strings.TrimSpace(parts[1])
+		switch parts[0] {
+		case "vendor":
+			h.Vendor = val
+		case "product":
+			h.Product = val
+		case "memtotal":
+			h.MemTotalBytes, _ = strconv.ParseUint(val, 10, 64)
+		case "cpu":
+			// A multi-socket board prints one row per package.
+			if len(parts) < 5 {
+				continue
+			}
+			if h.CPUModel == "" {
+				h.CPUModel = val
+			}
+			h.CPUSockets++
+			h.CPUCores += atoi(parts[2])
+			h.CPUThreads += atoi(parts[3])
+			if mhz := atof(parts[4]); mhz > h.CPUMaxMHz {
+				h.CPUMaxMHz = mhz
+			}
+		case "mem":
+			if len(parts) < 7 {
+				continue
+			}
+			size, _ := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64)
+			if size == 0 {
+				continue
+			}
+			h.MemModules = append(h.MemModules, MemModule{
+				Slot:         val,
+				SizeBytes:    size,
+				Type:         smbiosMemoryType[atoi(parts[3])],
+				SpeedMTs:     atoi(parts[4]),
+				Manufacturer: strings.TrimSpace(parts[5]),
+				PartNumber:   strings.TrimSpace(parts[6]),
+			})
+		case "disk":
+			if len(parts) < 4 {
+				continue
+			}
+			size, _ := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64)
+			if val == "" && size == 0 {
+				continue
+			}
+			h.Disks = append(h.Disks, PhysicalDisk{
+				Name:      val,
+				Model:     val,
+				SizeBytes: size,
+				Transport: strings.TrimSpace(parts[3]),
+			})
+		case "gpu":
+			if len(parts) < 4 || val == "" {
+				continue
+			}
+			vram, _ := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64)
+			h.GPUs = append(h.GPUs, GPUDevice{
+				Name:       val,
+				MemTotalMB: float64(vram) / (1024 * 1024),
+				Driver:     strings.TrimSpace(parts[3]),
+			})
+		}
+	}
+	h.OK = true
+	return h
+}

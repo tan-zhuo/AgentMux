@@ -3,7 +3,7 @@ import { Activity, RefreshCw, Table2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errText, metrics as metricsApi } from '../../lib/api'
 import type { TFunc } from '../../lib/i18n'
-import type { MetricSample } from '../../lib/types'
+import type { HardwareInfo, MemModule, MetricSample } from '../../lib/types'
 import { useFmt, useT } from '../../store/useI18n'
 import { Button, Empty } from '../ui'
 
@@ -34,6 +34,37 @@ function bytes(n: number): string {
 
 function rate(n: number): string {
   return `${bytes(n)}/s`
+}
+
+/** "28C / 56T · 2 sockets · 3.5 GHz" — symbols, so no per-language variant. */
+function cpuTopoLine(t: TFunc, hw: HardwareInfo): string {
+  const parts: string[] = []
+  if (hw.cpuCores > 0 || hw.cpuThreads > 0) parts.push(`${hw.cpuCores}C / ${hw.cpuThreads}T`)
+  if (hw.cpuSockets > 1) parts.push(t('metrics.hw.sockets', { n: hw.cpuSockets }))
+  if (hw.cpuMaxMhz > 0) parts.push(`${(hw.cpuMaxMhz / 1000).toFixed(1)} GHz`)
+  return parts.join(' · ')
+}
+
+/** Identical DIMMs collapse into one entry: "4 × 16 GB DDR4-3200". */
+function memModuleLine(mods: MemModule[]): string {
+  const groups = new Map<string, number>()
+  for (const m of mods) {
+    const gen = [m.type, m.speedMts > 0 ? String(m.speedMts) : ''].filter(Boolean).join('-')
+    const label = [bytes(m.sizeBytes), gen].filter(Boolean).join(' ')
+    groups.set(label, (groups.get(label) ?? 0) + 1)
+  }
+  return [...groups].map(([label, n]) => `${n} × ${label}`).join(' · ')
+}
+
+/** Per-slot detail for the row's tooltip, where part numbers can be long. */
+function memModuleDetail(mods: MemModule[]): string {
+  return mods
+    .map((m) =>
+      [m.slot, bytes(m.sizeBytes), m.type, m.speedMts > 0 ? `${m.speedMts} MT/s` : '', m.manufacturer, m.partNumber]
+        .filter(Boolean)
+        .join(' · '),
+    )
+    .join('\n')
 }
 
 function duration(t: TFunc, seconds: number): string {
@@ -185,6 +216,7 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
   const t = useT()
   const fmt = useFmt()
   const [sample, setSample] = useState<MetricSample | null>(null)
+  const [hw, setHw] = useState<HardwareInfo | null>(null)
   const [cpuHistory, setCpuHistory] = useState<number[]>([])
   const [memHistory, setMemHistory] = useState<number[]>([])
   const [error, setError] = useState('')
@@ -215,6 +247,23 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
       if (alive.current) setBusy(false)
     }
   }, [serverId, t])
+
+  // Hardware is what the machine is, not what it is doing: one read per host,
+  // cached on the backend, never on the polling ticker. A failure here only
+  // hides the inventory card; the vitals poll reports connection problems.
+  useEffect(() => {
+    let live = true
+    setHw(null)
+    metricsApi
+      .hardware(serverId)
+      .then((h) => {
+        if (live && h.ok) setHw(h)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [serverId])
 
   useEffect(() => {
     alive.current = true
@@ -283,6 +332,62 @@ export function MetricsPanel({ serverId }: { serverId: string }) {
                 {[sample.distro, sample.kernel, sample.arch].filter(Boolean).join(' · ')}
               </p>
             )}
+
+            {hw && (
+              <div className="mb-2 rounded-card border hairline bg-ink-850 px-2.5 py-2">
+                <p className="text-[10px] font-medium text-ink-500">{t('metrics.hardware')}</p>
+                <dl className="mt-1.5 space-y-1.5">
+                  {(hw.vendor || hw.product) && (
+                    <HwRow
+                      k={t('metrics.hw.machine')}
+                      v={[hw.vendor, hw.product].filter(Boolean).join(' ')}
+                    />
+                  )}
+                  {hw.cpuModel && (
+                    <HwRow k={t('metrics.cpu')} v={hw.cpuModel} sub={cpuTopoLine(t, hw)} />
+                  )}
+                  {(hw.memTotalBytes > 0 || hw.memModules.length > 0) && (
+                    <HwRow
+                      k={t('metrics.memory')}
+                      v={bytes(
+                        hw.memTotalBytes || hw.memModules.reduce((a, m) => a + m.sizeBytes, 0),
+                      )}
+                      sub={memModuleLine(hw.memModules)}
+                      hint={memModuleDetail(hw.memModules)}
+                    />
+                  )}
+                  {hw.disks.map((d) => (
+                    <HwRow
+                      key={d.name}
+                      k={t('metrics.hw.disk')}
+                      v={d.model || d.name}
+                      sub={[
+                        bytes(d.sizeBytes),
+                        d.kind,
+                        d.transport ? d.transport.toUpperCase() : '',
+                        d.model ? d.name : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    />
+                  ))}
+                  {hw.gpus.map((g, i) => (
+                    <HwRow
+                      key={`${g.name}-${i}`}
+                      k={t('metrics.hw.gpu')}
+                      v={g.name}
+                      sub={[
+                        g.memTotalMb > 0 ? bytes(g.memTotalMb * 1024 * 1024) : '',
+                        g.driver ? t('metrics.hw.driver', { v: g.driver }) : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    />
+                  ))}
+                </dl>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <Tile
                 label={t('metrics.cpu')}
@@ -570,6 +675,20 @@ function Section({ title }: { title: string }) {
     <p className="mt-3 mb-1.5 text-[11px] font-semibold text-ink-300">
       {title}
     </p>
+  )
+}
+
+/** One inventory row: label above, model below, spec line under that. Model
+ *  strings are long, so they truncate with the full text on hover. */
+function HwRow({ k, v, sub, hint }: { k: string; v: string; sub?: string; hint?: string }) {
+  return (
+    <div className="min-w-0" title={hint}>
+      <dt className="text-[10px] text-ink-500">{k}</dt>
+      <dd className="truncate text-[11px] text-ink-200" title={v}>
+        {v}
+      </dd>
+      {sub && <dd className="text-[10px] text-ink-600">{sub}</dd>}
+    </div>
   )
 }
 

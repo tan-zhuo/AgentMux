@@ -293,6 +293,53 @@ export interface MetricSample {
   gpus: GpuUsage[]
 }
 
+export interface MemModule {
+  slot: string
+  sizeBytes: number
+  type: string
+  speedMts: number
+  manufacturer: string
+  partNumber: string
+}
+
+export interface PhysicalDisk {
+  name: string
+  model: string
+  sizeBytes: number
+  /** "SSD" or "HDD" where the host can tell, empty where it cannot. */
+  kind: string
+  transport: string
+}
+
+export interface GpuDevice {
+  name: string
+  memTotalMb: number
+  driver: string
+}
+
+/** What a host is made of, as opposed to what it is doing. Read once per
+ *  session rather than on the polling ticker. */
+export interface HardwareInfo {
+  serverId: string
+  ok: boolean
+  error: string
+
+  vendor: string
+  product: string
+
+  cpuModel: string
+  cpuSockets: number
+  cpuCores: number
+  cpuThreads: number
+  cpuMaxMhz: number
+
+  memTotalBytes: number
+  memModules: MemModule[]
+
+  disks: PhysicalDisk[]
+  gpus: GpuDevice[]
+}
+
 /**
  * A broadcast recipient: either a registered agent, or a tmux session addressed
  * directly. Sessions matter because launching into a directory produces a
