@@ -434,3 +434,38 @@ func TestHostsAreTheSameMachineByAddressRatherThanByKindList(t *testing.T) {
 		t.Fatal("there is only ever one host of a kind that has no address")
 	}
 }
+
+// A remembered desktop belongs to one machine, and the store keys it by an id
+// that is minted afresh on the other side. It has to arrive pointing at the
+// same host anyway.
+func TestAHostsOwnSettingsFollowItToItsNewID(t *testing.T) {
+	from := newStore(t)
+	seed(t, from)
+	servers, _ := from.ListServers()
+	if err := from.SetSetting("desktop."+servers[0].ID, "vnc:5901"); err != nil {
+		t.Fatalf("set setting: %v", err)
+	}
+
+	bundle, err := Build(from, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if got := bundle.Hosts[0].Settings["desktop"]; got != "vnc:5901" {
+		t.Fatalf("the host's own setting did not travel: %q", got)
+	}
+
+	to := newStore(t)
+	if _, err := Apply(context.Background(), to, nil, bundle, nil); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	landed, _ := to.ListServers()
+	if len(landed) != 1 {
+		t.Fatalf("expected one host, got %d", len(landed))
+	}
+	if landed[0].ID == servers[0].ID {
+		t.Fatal("the id was reused, so this test proves nothing")
+	}
+	if got := to.GetSetting("desktop."+landed[0].ID, ""); got != "vnc:5901" {
+		t.Fatalf("the setting is not attached to the host that arrived: %q", got)
+	}
+}

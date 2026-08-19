@@ -199,6 +199,11 @@ func importHosts(st *store.Store, b Bundle, res *Result) (map[string]string, err
 				return nil, err
 			}
 		}
+		for name, value := range h.Settings {
+			if err := st.SetSetting(name+"."+saved.ID, value); err != nil {
+				return nil, err
+			}
+		}
 		ids[h.ID] = saved.ID
 		byIdentity[key] = saved.ID
 		byIdentity[fold(h.Name)] = saved.ID

@@ -4,6 +4,9 @@ import type {
   ConfigImport,
   ConfigManifest,
   ConnStatus,
+  DesktopEndpoint,
+  DesktopOffer,
+  DesktopSession,
   Diagnostics,
   ExportOptions,
   Folder,
@@ -232,6 +235,21 @@ export const config = {
     call<ConfigManifest>('ConfigService', 'Inspect', path, passphrase),
   import: (path: string, passphrase: string) =>
     call<ConfigImport>('ConfigService', 'Import', path, passphrase),
+}
+
+/**
+ * A host's screen, opened in this computer's own viewer.
+ *
+ * The backend forwards a port through the SSH connection it already holds and
+ * starts whichever client this machine has, so nothing here knows anything
+ * about RDP or VNC beyond their names.
+ */
+export const desktop = {
+  probe: (serverId: string) => call<DesktopOffer>('DesktopService', 'Probe', serverId),
+  open: (serverId: string, endpoint: DesktopEndpoint) =>
+    call<DesktopSession>('DesktopService', 'Open', serverId, endpoint),
+  close: (serverId: string) => call<void>('DesktopService', 'Close', serverId),
+  forget: (serverId: string) => call<void>('DesktopService', 'Forget', serverId),
 }
 
 export const llm = {

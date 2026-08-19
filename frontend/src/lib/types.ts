@@ -774,3 +774,26 @@ export interface ConfigImport {
   settings: ImportTally
   notes: string[]
 }
+
+/** How a desktop is spoken to. */
+export type DesktopProtocol = 'rdp' | 'vnc'
+
+/** A desktop service on a host: a protocol, on a port. */
+export interface DesktopEndpoint {
+  protocol: DesktopProtocol
+  port: number
+}
+
+/** What a host can show, and what it was last shown with. */
+export interface DesktopOffer {
+  found: DesktopEndpoint[]
+  saved: DesktopEndpoint | null
+  reachable: boolean
+}
+
+/** An open door to a host's desktop, and the viewer pointed at it. */
+export interface DesktopSession {
+  endpoint: DesktopEndpoint
+  local: string
+  client: string
+}

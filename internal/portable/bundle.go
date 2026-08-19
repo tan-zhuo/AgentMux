@@ -69,6 +69,11 @@ type Host struct {
 	Favorite     bool             `json:"favorite"`
 	HostKey      string           `json:"hostKey,omitempty"`
 	TrustLevel   store.TrustLevel `json:"trustLevel"`
+	// Settings are the preferences that belong to this host rather than to the
+	// installation — which desktop it serves, so far. The store keys them by
+	// the host's id, and an id is the one thing that does not survive the trip,
+	// so they travel attached to the host instead of loose in the settings map.
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // Workspace binds a project to a path on a host.

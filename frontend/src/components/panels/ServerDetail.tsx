@@ -1,4 +1,4 @@
-import { Link2, Link2Off, Pencil, ShieldAlert, Sparkles, Zap } from 'lucide-react'
+import { Link2, Link2Off, Monitor, Pencil, ShieldAlert, Sparkles, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { errText, servers as serverApi } from '../../lib/api'
 import type { Probe, Server } from '../../lib/types'
@@ -125,6 +125,11 @@ export function ServerDetail({ server }: { server: Server }) {
               }}
             >
               <Link2 size={11} /> {t('serverDetail.connect')}
+            </Button>
+          )}
+          {server.kind !== 'local' && server.kind !== 'localwin' && (
+            <Button size="sm" onClick={() => openDialog({ kind: 'desktop', server })}>
+              <Monitor size={11} /> {t('tree.openDesktop')}
             </Button>
           )}
           <Button

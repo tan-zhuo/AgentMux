@@ -34,6 +34,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useFmt, useI18n, useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
+import { DesktopDialog } from './DesktopDialog'
 import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
 import { SplitDialog } from './SplitDialog'
 import { TransferDialog } from './TransferDialog'
@@ -61,6 +62,8 @@ export function Dialogs() {
       return <SplitDialog />
     case 'transfer':
       return <TransferDialog mode={dialog.mode} />
+    case 'desktop':
+      return <DesktopDialog server={dialog.server} />
   }
 }
 

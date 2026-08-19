@@ -24,6 +24,11 @@ var TravellingSettings = []string{
 	"llm.embedModel",
 }
 
+// PerHostSettings are the settings the store keys by a host's id. Read by name
+// here and written under whatever id the host is given on arrival, so a
+// remembered desktop still points at the machine it was remembered for.
+var PerHostSettings = []string{"desktop"}
+
 // Build reads this installation into a bundle.
 //
 // Local hosts travel with everything else. A row for "this computer" describes
@@ -79,6 +84,14 @@ func Build(st *store.Store, opt Options) (Bundle, error) {
 			Favorite:     s.Favorite,
 			HostKey:      s.HostKey,
 			TrustLevel:   s.TrustLevel,
+		}
+		for _, name := range PerHostSettings {
+			if v := st.GetSetting(name+"."+s.ID, ""); v != "" {
+				if h.Settings == nil {
+					h.Settings = map[string]string{}
+				}
+				h.Settings[name] = v
+			}
 		}
 		if opt.IncludeSecrets && (s.HasPassword || s.HasPassphrase) {
 			// Decrypted here and re-encrypted under the passphrase by Seal. It

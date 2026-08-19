@@ -64,6 +64,7 @@ func main() {
 			application.NewService(app.NewSkillService(core)),
 			application.NewService(app.NewOrchService(core)),
 			application.NewService(app.NewConfigService(core)),
+			application.NewService(app.NewDesktopService(core)),
 			application.NewService(agentSvc),
 		},
 		Assets: application.AssetOptions{

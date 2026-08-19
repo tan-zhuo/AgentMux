@@ -11,6 +11,7 @@ import {
   Layers,
   Link2,
   Link2Off,
+  Monitor,
   Play,
   Plus,
   Radio,
@@ -710,6 +711,16 @@ export function Sidebar() {
                         })
                       },
                     },
+                    // Opening a desktop on the computer you are sitting at is
+                    // not a thing anybody wants, so it is offered only for the
+                    // machines that are somewhere else.
+                    isLocalKind(s.kind)
+                      ? {}
+                      : {
+                          label: t('tree.openDesktop'),
+                          icon: Monitor,
+                          onSelect: () => openDialog({ kind: 'desktop', server: s }),
+                        },
                     separator,
                     {
                       label: t('tree.metrics'),

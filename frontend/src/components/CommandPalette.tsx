@@ -6,6 +6,7 @@ import {
   FolderTree,
   Laptop,
   Minimize2,
+  Monitor,
   Palette,
   Play,
   Plus,
@@ -188,6 +189,15 @@ export function CommandPalette() {
           setRightPanel('metrics')
         },
       })
+      if (s.kind !== 'local' && s.kind !== 'localwin') {
+        out.push({
+          id: `desktop:${s.id}`,
+          label: t('desktop.title', { name: s.name }),
+          hint: t('palette.desktop.hint'),
+          icon: Monitor,
+          run: () => openDialog({ kind: 'desktop', server: s }),
+        })
+      }
       out.push({
         id: `shell:${s.id}`,
         label: t('palette.shell', { name: s.name }),

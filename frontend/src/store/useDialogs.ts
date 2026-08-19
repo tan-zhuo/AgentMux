@@ -13,6 +13,8 @@ export type Dialog =
   | { kind: 'split' }
   /** Carries this installation to another machine, or brings one in. */
   | { kind: 'transfer'; mode: 'export' | 'import' }
+  /** Asks which of a host's desktops to open. */
+  | { kind: 'desktop'; server: Server }
   | null
 
 interface DialogState {
