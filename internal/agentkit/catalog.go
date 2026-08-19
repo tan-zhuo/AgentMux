@@ -19,6 +19,11 @@ type Method struct {
 	NeedsRoot bool `json:"needsRoot"`
 	// Script is the shell command run inside the install tmux session.
 	Script string `json:"script"`
+	// Retry is run when Script fails: the same install pointed at a mirror,
+	// for the networks where the vendor's default host is a timeout. Empty
+	// means one attempt is all there is — except for npm methods, which get a
+	// registry fallback derived for them.
+	Retry string `json:"retry"`
 }
 
 // Tool is an installable agent CLI or runtime.
@@ -166,6 +171,32 @@ func Agents() []Tool {
 	}
 }
 
+// dockerPostInstall is appended to every Docker install command that installs
+// an engine, because an installed Docker is not yet a usable one. The daemon
+// is not started by every package, and a non-root user who is not in the
+// docker group gets "permission denied while trying to connect to the Docker
+// daemon socket" — which reads like a broken install rather than a group
+// membership that needs a fresh login. So the same run starts the daemon, adds
+// the user to the group, and says out loud that the group needs a new login.
+//
+// It opens by preserving the install's own exit code: without that, the
+// best-effort tail would report success for an install that never happened,
+// and the mirror retry would never fire.
+const dockerPostInstall = `
+drc=$?
+[ $drc -eq 0 ] || exit $drc
+if [ "$(id -u)" = 0 ]; then S=; else S=sudo; fi
+$S systemctl enable --now docker >/dev/null 2>&1 || \
+  { $S rc-update add docker default >/dev/null 2>&1; $S service docker start >/dev/null 2>&1; } || true
+if [ "$(id -u)" != 0 ]; then
+  $S usermod -aG docker "$(id -un)" >/dev/null 2>&1 || \
+    $S addgroup "$(id -un)" docker >/dev/null 2>&1 || true
+  docker info >/dev/null 2>&1 || \
+    echo '=== AgentMux: you are in the docker group now — log out and back in (or run: newgrp docker) before docker works without sudo ==='
+fi
+docker --version
+`
+
 // Runtimes lists the plumbing agents depend on, including tmux itself — without
 // which AgentMux cannot keep anything alive on that server.
 func Runtimes() []Tool {
@@ -209,6 +240,64 @@ func Runtimes() []Tool {
 				},
 				{ID: "apt", Label: "apt", Requires: "apt-get", NeedsRoot: true, Script: `sudo apt-get update && sudo apt-get install -y nodejs npm`},
 				{ID: "brew", Label: "Homebrew", Requires: "brew", Script: `brew install node`},
+			},
+		},
+		{
+			ID:          "docker",
+			Name:        "Docker",
+			Vendor:      "",
+			Description: "Containers for builds, databases and sandboxes an agent can wreck and rebuild.",
+			Binary:      "docker",
+			RunCommand:  "docker",
+			VersionArgs: "--version",
+			Docs:        "https://docs.docker.com/engine/install/",
+			Kind:        "runtime",
+			Methods: []Method{
+				{
+					ID:        "script",
+					Label:     "Official script",
+					Requires:  "curl",
+					NeedsRoot: true,
+					Script:    `curl -fsSL https://get.docker.com | sh` + dockerPostInstall,
+					// Same script, packages pulled from Aliyun: get.docker.com is
+					// usually reachable from mainland China while download.docker.com
+					// — where the packages themselves live — is not.
+					Retry: `curl -fsSL https://get.docker.com | sh -s -- --mirror Aliyun` + dockerPostInstall,
+				},
+				{
+					ID:        "apt",
+					Label:     "apt",
+					Requires:  "apt-get",
+					NeedsRoot: true,
+					// docker.io is the distribution's own build, so it needs no
+					// third-party repository — but it ships no compose plugin, and
+					// the package holding one is named differently across releases.
+					Script: `sudo apt-get update && sudo apt-get install -y docker.io && ` +
+						`{ sudo apt-get install -y docker-compose-v2 || sudo apt-get install -y docker-compose-plugin || true; }` +
+						dockerPostInstall,
+				},
+				{
+					ID:        "dnf",
+					Label:     "dnf",
+					Requires:  "dnf",
+					NeedsRoot: true,
+					Script:    `sudo dnf install -y docker` + dockerPostInstall,
+				},
+				{
+					ID:        "pacman",
+					Label:     "pacman",
+					Requires:  "pacman",
+					NeedsRoot: true,
+					Script:    `sudo pacman -S --noconfirm docker docker-compose` + dockerPostInstall,
+				},
+				{
+					ID:        "apk",
+					Label:     "apk",
+					Requires:  "apk",
+					NeedsRoot: true,
+					Script:    `sudo apk add docker docker-cli-compose` + dockerPostInstall,
+				},
+				{ID: "brew", Label: "Homebrew (Docker Desktop)", Requires: "brew", Script: `brew install --cask docker`},
 			},
 		},
 		{

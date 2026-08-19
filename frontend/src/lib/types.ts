@@ -127,6 +127,8 @@ export interface InstallMethod {
   requires: string
   needsRoot: boolean
   script: string
+  /** Run when script fails — the same install pointed at a mirror. */
+  retry: string
 }
 
 export interface Tool {

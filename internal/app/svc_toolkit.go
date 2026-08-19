@@ -110,7 +110,7 @@ func (t *ToolkitService) Install(serverID, toolID, methodID string) (InstallStar
 		banner := fmt.Sprintf("echo '=== AgentMux: installing %s via %s ==='", tool.Name, method.Label)
 		return t.startTyped(serverID, banner+"; "+method.Script, started)
 	}
-	full := agentkit.InstallScript(tool.Name+" via "+method.Label, method.Script, method.Requires == "npm")
+	full := agentkit.MethodScript(tool.Name+" via "+method.Label, method)
 	return t.start(serverID, tool.ID, full, started)
 }
 
@@ -127,7 +127,7 @@ func (t *ToolkitService) InstallCustom(serverID, label, script string) (InstallS
 	if t.core.IsWinHost(serverID) {
 		return t.startTyped(serverID, fmt.Sprintf("echo '=== AgentMux: %s ==='; %s", label, script), started)
 	}
-	full := agentkit.InstallScript(label, script, false)
+	full := agentkit.InstallScript(label, script)
 	return t.start(serverID, "custom", full, started)
 }
 

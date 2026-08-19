@@ -35,32 +35,52 @@ fi
 // bare timeout.
 const npmMirror = "https://registry.npmmirror.com"
 
-// InstallScript wraps one catalogue install command into the script actually
-// run on the server. The wrapping exists because a fresh server fails the bare
-// vendor command in predictable ways:
+// MethodScript wraps one catalogue install method into the script actually run
+// on the server, including the mirror fallback the method declares. npm methods
+// need no declaration: the registry fallback is the same edit to every npm
+// command, so it is derived here rather than repeated in the catalogue.
+func MethodScript(label string, m Method) string {
+	viaNpm := m.Requires == "npm"
+	retry := m.Retry
+	if retry == "" && viaNpm {
+		retry = m.Script + " --registry=" + npmMirror
+	}
+	return installScript(label, m.Script, retry, viaNpm)
+}
+
+// InstallScript wraps a script that is not in the catalogue — the custom
+// install box — with the same PATH prelude and outcome banner, and nothing
+// else: there is no way to know what a hand-written command would want retried.
+func InstallScript(label, script string) string {
+	return installScript(label, script, "", false)
+}
+
+// installScript builds the script run on the server. The wrapping exists
+// because a fresh server fails the bare vendor command in predictable ways:
 //
 //   - the shell the install runs in never read the profile, so a runtime
 //     installed minutes earlier into $HOME is not on PATH — the same trap
 //     detection already works around, so the same prelude is applied;
 //   - `npm install -g` needs root when node came from a system package;
-//   - the default npm registry is unreachable from some networks.
+//   - the vendor's default download host is unreachable from some networks,
+//     which is what retry is for.
 //
 // The script ends by reporting success or the exit code in a banner and then
 // exec'ing a login shell, so the outcome is readable in the pane and the
 // window survives to show it.
-func InstallScript(label, script string, viaNpm bool) string {
+func installScript(label, script, retry string, npmGuard bool) string {
 	var b strings.Builder
 	b.WriteString(pathPrelude)
-	if viaNpm {
+	if npmGuard {
 		b.WriteString(npmPrefixGuard)
 	}
 	l := bannerSafe(label)
 	b.WriteString("echo '=== AgentMux: installing " + l + " ==='\n")
 	b.WriteString("(\n" + script + "\n)\nrc=$?\n")
-	if viaNpm {
+	if retry != "" {
 		b.WriteString("if [ $rc -ne 0 ]; then\n")
-		b.WriteString("  echo '=== AgentMux: install failed, retrying via " + npmMirror + " ==='\n")
-		b.WriteString("  (\n" + script + " --registry=" + npmMirror + "\n)\n  rc=$?\nfi\n")
+		b.WriteString("  echo '=== AgentMux: install failed, retrying via a mirror ==='\n")
+		b.WriteString("  (\n" + retry + "\n)\n  rc=$?\nfi\n")
 	}
 	b.WriteString(`if [ $rc -eq 0 ]; then
   echo '=== AgentMux: ` + l + ` — install finished OK ==='
