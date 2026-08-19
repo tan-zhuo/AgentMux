@@ -178,11 +178,25 @@ func TestMoveFileFallsBackToCopy(t *testing.T) {
 	}
 }
 
+// Paths are built with the host's own separator: on Windows the literal POSIX
+// strings come back cleaned into backslashes, so a hardcoded comparison tests
+// nothing there — and the walk itself has to terminate on a `C:\` root, which
+// it once did not.
 func TestBundleRoot(t *testing.T) {
-	if got := bundleRoot("/Applications/AgentMux.app/Contents/MacOS/AgentMux"); got != "/Applications/AgentMux.app" {
-		t.Errorf("bundleRoot = %q", got)
+	root := string(filepath.Separator)
+	app := filepath.Join(root, "Applications", "AgentMux.app")
+	if got := bundleRoot(filepath.Join(app, "Contents", "MacOS", "AgentMux")); got != app {
+		t.Errorf("bundleRoot = %q, want %q", got, app)
 	}
-	if got := bundleRoot("/usr/local/bin/agentmux"); got != "" {
+	if got := bundleRoot(filepath.Join(root, "usr", "local", "bin", "agentmux")); got != "" {
 		t.Errorf("bundleRoot on a bare binary = %q", got)
+	}
+	// A relative path, and a bare name whose parent is ".", must also come back
+	// rather than walk on for ever.
+	if got := bundleRoot(filepath.Join("build", "bin", "agentmux")); got != "" {
+		t.Errorf("bundleRoot on a relative path = %q", got)
+	}
+	if got := bundleRoot("agentmux"); got != "" {
+		t.Errorf("bundleRoot on a bare name = %q", got)
 	}
 }

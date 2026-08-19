@@ -121,11 +121,21 @@ func applyDarwin(archivePath, stagingDir, exe string) (string, error) {
 
 // bundleRoot walks up from the executable to the .app directory, or returns
 // empty when there is none.
+//
+// The walk stops where the parent stops changing, which is the only portable
+// way to recognise a filesystem root: comparing against "/" holds on macOS and
+// spins forever on Windows, where filepath.Dir(`C:\`) is `C:\` — and this
+// runs on every start, from CleanupOld, on every platform.
 func bundleRoot(exe string) string {
-	for dir := filepath.Dir(exe); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+	for dir := filepath.Dir(exe); dir != "."; {
 		if strings.HasSuffix(dir, ".app") {
 			return dir
 		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
 	return ""
 }
