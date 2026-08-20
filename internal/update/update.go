@@ -16,6 +16,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/mattn/go-ieproxy"
 )
 
 // repo is where releases live. The API shape is GitHub's "latest release".
@@ -50,14 +53,39 @@ type releaseJSON struct {
 	} `json:"assets"`
 }
 
+// Client builds an HTTP client that reaches the network the way the OS is
+// configured to: the system proxy on Windows, environment proxies elsewhere.
+// Go's default transport reads only the environment, which on a desktop with
+// a system-wide proxy set in the OS means silently bypassing it — and for
+// many users behind such a proxy, a direct connection to the release feed
+// goes nowhere at all.
+func Client(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: &http.Transport{Proxy: ieproxy.GetProxyFunc()},
+	}
+}
+
+// Mirrored prefixes a URL with a user-chosen acceleration mirror — the
+// "https://mirror.example/https://github.com/…" convention GitHub proxies
+// use. Empty mirror means the URL as published.
+func Mirrored(mirror, url string) string {
+	mirror = strings.TrimSpace(mirror)
+	if mirror == "" {
+		return url
+	}
+	return strings.TrimSuffix(mirror, "/") + "/" + url
+}
+
 // Latest asks the release feed for the newest published version and picks the
-// asset built for this platform. apiBase is DefaultAPI outside of tests.
-func Latest(ctx context.Context, client *http.Client, apiBase string) (Release, error) {
+// asset built for this platform. apiBase is DefaultAPI outside of tests;
+// mirror, when set, is a proxy prefix for networks that cannot reach GitHub.
+func Latest(ctx context.Context, client *http.Client, apiBase, mirror string) (Release, error) {
 	if apiBase == "" {
 		apiBase = DefaultAPI
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		apiBase+"/repos/"+repo+"/releases/latest", nil)
+		Mirrored(mirror, apiBase+"/repos/"+repo+"/releases/latest"), nil)
 	if err != nil {
 		return Release{}, err
 	}

@@ -1,9 +1,9 @@
 import { ArrowUpCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { errText, isDesktop, on, update as updateApi } from '../lib/api'
+import { useEffect, useRef, useState } from 'react'
+import { errText, isDesktop, on, tree as treeApi, update as updateApi } from '../lib/api'
 import type { UpdateInfo, UpdateProgress } from '../lib/types'
 import { useT } from '../store/useI18n'
-import { Button } from './ui'
+import { Button, inputClass } from './ui'
 
 function bytes(n: number): string {
   if (!n) return '0 B'
@@ -11,6 +11,45 @@ function bytes(n: number): string {
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
   const v = n / Math.pow(1024, i)
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
+}
+
+/**
+ * The acceleration-mirror setting, for networks where GitHub is unreachable:
+ * a proxy prefix that both the version check and the download travel through.
+ * Saved on blur; the next check simply uses it.
+ */
+export function UpdateMirrorField() {
+  const t = useT()
+  const [value, setValue] = useState('')
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    treeApi
+      .getSetting('update.mirror', '')
+      .then((v) => {
+        setValue(v)
+        loaded.current = true
+      })
+      .catch(() => {})
+  }, [])
+
+  const save = () => {
+    // Never write before the stored value has been read, or a quick open and
+    // close of the dialog would blank a configured mirror.
+    if (loaded.current) void treeApi.setSetting('update.mirror', value.trim()).catch(() => {})
+  }
+
+  return (
+    <input
+      className={inputClass}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      placeholder={t('update.mirror.placeholder')}
+      title={t('update.mirror.hint')}
+      spellCheck={false}
+    />
+  )
 }
 
 /**

@@ -7,7 +7,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -65,10 +64,14 @@ func (u *UpdateService) stagingDir() string {
 	return filepath.Join(u.core.Store.Dir, "update-staging")
 }
 
+func (u *UpdateService) mirror() string {
+	return u.core.Store.GetSetting(SettingUpdateMirror, "")
+}
+
 // Check asks the release feed for the newest version. Any check that finds
 // one also announces it, so the banner appears no matter who asked.
 func (u *UpdateService) Check() UpdateInfo {
-	rel, info := fetchLatest()
+	rel, info := fetchLatest(u.mirror())
 	if info.Error != "" {
 		return info
 	}
@@ -155,7 +158,7 @@ func (u *UpdateService) Apply() UpdateResult {
 
 	// No overall timeout: a slow connection downloading a large build is not
 	// an error. Cancellation rides on the app quitting.
-	archive, err := update.Download(context.Background(), &http.Client{}, *rel, staging, onProgress)
+	archive, err := update.Download(context.Background(), update.Client(0), *rel, staging, u.mirror(), onProgress)
 	if err != nil {
 		return UpdateResult{Error: fmt.Sprintf("download failed: %v", err)}
 	}

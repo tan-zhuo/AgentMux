@@ -63,7 +63,7 @@ func TestLatestPicksThisPlatformsAsset(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rel, err := Latest(context.Background(), srv.Client(), srv.URL)
+	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestLatestRejectsMissingAsset(t *testing.T) {
 		fmt.Fprint(w, `{"tag_name": "v0.9.0", "assets": []}`)
 	}))
 	defer srv.Close()
-	if _, err := Latest(context.Background(), srv.Client(), srv.URL); err == nil {
+	if _, err := Latest(context.Background(), srv.Client(), srv.URL, ""); err == nil {
 		t.Fatal("expected an error for a release with no asset for this platform")
 	}
 }
@@ -99,7 +99,7 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 
 	rel := Release{AssetName: "asset.bin", AssetURL: srv.URL + "/asset", SumURL: srv.URL + "/asset.sha256"}
 	var calls int
-	path, err := Download(context.Background(), srv.Client(), rel, t.TempDir(),
+	path, err := Download(context.Background(), srv.Client(), rel, t.TempDir(), "",
 		func(done, total int64) { calls++ })
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 	}
 
 	rel.SumURL = srv.URL + "/bad.sha256"
-	if _, err := Download(context.Background(), srv.Client(), rel, t.TempDir(), nil); err == nil {
+	if _, err := Download(context.Background(), srv.Client(), rel, t.TempDir(), "", nil); err == nil {
 		t.Fatal("a wrong checksum must fail the download")
 	}
 }
@@ -198,5 +198,19 @@ func TestBundleRoot(t *testing.T) {
 	}
 	if got := bundleRoot("agentmux"); got != "" {
 		t.Errorf("bundleRoot on a bare name = %q", got)
+	}
+}
+
+func TestMirrored(t *testing.T) {
+	url := "https://github.com/o/r/releases/download/v1/x.zip"
+	if got := Mirrored("", url); got != url {
+		t.Errorf("no mirror should leave the URL alone, got %q", got)
+	}
+	want := "https://ghfast.example/" + url
+	if got := Mirrored("https://ghfast.example", url); got != want {
+		t.Errorf("Mirrored = %q, want %q", got, want)
+	}
+	if got := Mirrored("https://ghfast.example/", url); got != want {
+		t.Errorf("trailing slash: Mirrored = %q, want %q", got, want)
 	}
 }

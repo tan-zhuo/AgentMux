@@ -38,7 +38,7 @@ import { DesktopDialog } from './DesktopDialog'
 import { SkillDialog, SkillHistoryDialog } from './SkillDialogs'
 import { SplitDialog } from './SplitDialog'
 import { TransferDialog } from './TransferDialog'
-import { UpdateCheckButton } from './UpdateBanner'
+import { UpdateCheckButton, UpdateMirrorField } from './UpdateBanner'
 import { Button, Field, Modal, Segmented, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
@@ -957,6 +957,10 @@ function SettingsDialog() {
         <dd className="flex items-center gap-2 font-mono text-ink-200">
           {diagnostics?.version ?? t('common.none')}
           <UpdateCheckButton current={diagnostics?.version ?? ''} />
+        </dd>
+        <dt className="self-center text-ink-500">{t('update.mirror')}</dt>
+        <dd>
+          <UpdateMirrorField />
         </dd>
         <dt className="text-ink-500">{t('settings.dataDir')}</dt>
         <dd className="font-mono break-all text-ink-200">

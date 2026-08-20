@@ -51,6 +51,9 @@ export const ja: Messages = {
   'update.foundWeb': '{version} が公開されています — このビルドは自己更新できないため、リリースページから入手してください',
   'update.releasePage': 'リリースページ',
   'update.checkFailed': '確認できませんでした: {error}',
+  'update.mirror': '更新ミラー',
+  'update.mirror.placeholder': 'プロキシ接頭辞（例: https://ghfast.top）。空欄で直接接続',
+  'update.mirror.hint': 'バージョン確認とダウンロードの両方がこの接頭辞を経由します。信頼できるホストを使ってください。',
 
   'status.connected': '{n}/{total} 接続中',
   'status.running': '{n}/{total} 実行中',

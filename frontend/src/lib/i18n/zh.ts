@@ -49,6 +49,9 @@ export const zh: Messages = {
   'update.foundWeb': '{version} 已发布 —— 这个端不能自更新，请从发布页下载',
   'update.releasePage': '发布页',
   'update.checkFailed': '检查失败：{error}',
+  'update.mirror': '更新加速',
+  'update.mirror.placeholder': '加速站前缀，如 https://ghfast.top，留空直连',
+  'update.mirror.hint': '版本检查和下载都会经过这个前缀，请使用你信任的站点。',
 
   'status.connected': '已连接 {n}/{total}',
   'status.running': '运行中 {n}/{total}',

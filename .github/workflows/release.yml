@@ -391,6 +391,16 @@ jobs:
             v="dev-$(git rev-parse --short HEAD)"
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+          # Android needs a monotonically growing integer; derive it from the
+          # tag so v0.2.4 becomes 204 and every release installs over the last.
+          code=1
+          name="$v"
+          if [[ "$v" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            code=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+            name="${v#v}"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Embed the core
         run: |
@@ -415,7 +425,8 @@ jobs:
           mkdir -p ../../dist-apk
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > release.keystore
-            ./gradlew assembleRelease
+            ./gradlew assembleRelease \
+              -PverCode="${{ steps.ver.outputs.code }}" -PverName="${{ steps.ver.outputs.name }}"
             bt="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
             "$bt/zipalign" -f 4 \
               app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
@@ -423,7 +434,8 @@ jobs:
               --ks release.keystore --ks-pass "pass:$KEYSTORE_PASS" \
               --out ../../dist-apk/agentmux-android.apk aligned.apk
           else
-            ./gradlew assembleDebug
+            ./gradlew assembleDebug \
+              -PverCode="${{ steps.ver.outputs.code }}" -PverName="${{ steps.ver.outputs.name }}"
             cp app/build/outputs/apk/debug/app-debug.apk ../../dist-apk/agentmux-android.apk
           fi
 

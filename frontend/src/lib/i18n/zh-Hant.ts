@@ -49,6 +49,9 @@ export const zhHant: Messages = {
   'update.foundWeb': '{version} 已發佈 —— 這個端不能自我更新，請從發佈頁下載',
   'update.releasePage': '發佈頁',
   'update.checkFailed': '檢查失敗：{error}',
+  'update.mirror': '更新加速',
+  'update.mirror.placeholder': '加速站前綴，如 https://ghfast.top，留空直連',
+  'update.mirror.hint': '版本檢查和下載都會經過這個前綴，請使用你信任的站點。',
 
   'status.connected': '已連線 {n}/{total}',
   'status.running': '執行中 {n}/{total}',

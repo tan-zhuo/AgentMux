@@ -16,7 +16,11 @@ import (
 // verifying the published checksum before handing the file back. A file that
 // fails verification is deleted, not returned: a corrupt download must never
 // be one code path away from becoming the running executable.
-func Download(ctx context.Context, client *http.Client, rel Release, destDir string,
+//
+// mirror routes both the asset and its checksum through the same proxy, so
+// verification still holds against transfer corruption — though a mirror the
+// user chose is, necessarily, a host the user chose to trust.
+func Download(ctx context.Context, client *http.Client, rel Release, destDir, mirror string,
 	progress func(done, total int64)) (string, error) {
 
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
@@ -25,14 +29,14 @@ func Download(ctx context.Context, client *http.Client, rel Release, destDir str
 
 	wantSum := ""
 	if rel.SumURL != "" {
-		sum, err := fetchSum(ctx, client, rel.SumURL)
+		sum, err := fetchSum(ctx, client, Mirrored(mirror, rel.SumURL))
 		if err != nil {
 			return "", fmt.Errorf("could not read the release checksum: %w", err)
 		}
 		wantSum = sum
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rel.AssetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, Mirrored(mirror, rel.AssetURL), nil)
 	if err != nil {
 		return "", err
 	}

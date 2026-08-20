@@ -2,11 +2,15 @@ package app
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"agentmux/internal/update"
 )
+
+// SettingUpdateMirror is a user-chosen proxy prefix for release checks and
+// downloads — the way through for networks where GitHub is unreachable.
+// Empty means direct.
+const SettingUpdateMirror = "update.mirror"
 
 // UpdateInfo is what a version check found. Shared between the desktop's
 // self-updating service and the check-only service every build carries.
@@ -23,13 +27,12 @@ type UpdateInfo struct {
 
 // fetchLatest asks the release feed for the newest version and reports how it
 // compares to this build.
-func fetchLatest() (update.Release, UpdateInfo) {
+func fetchLatest(mirror string) (update.Release, UpdateInfo) {
 	info := UpdateInfo{CurrentVersion: Version}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	client := &http.Client{Timeout: 20 * time.Second}
-	rel, err := update.Latest(ctx, client, "")
+	rel, err := update.Latest(ctx, update.Client(20*time.Second), "", mirror)
 	if err != nil {
 		info.Error = err.Error()
 		return rel, info
@@ -48,16 +51,16 @@ func fetchLatest() (update.Release, UpdateInfo) {
 // It exists because knowing about a release is useful everywhere — the phone,
 // a served browser, a headless box — while replacing the running binary only
 // makes sense for the desktop app, which has its own service for that.
-type UpdateCheckService struct{}
+type UpdateCheckService struct{ core *Core }
 
 // NewUpdateCheckService builds the check-only service.
-func NewUpdateCheckService() *UpdateCheckService { return &UpdateCheckService{} }
+func NewUpdateCheckService(c *Core) *UpdateCheckService { return &UpdateCheckService{core: c} }
 
 // ServiceName identifies the service in logs.
 func (s *UpdateCheckService) ServiceName() string { return "UpdateCheckService" }
 
 // Check asks the release feed for the newest version.
 func (s *UpdateCheckService) Check() UpdateInfo {
-	_, info := fetchLatest()
+	_, info := fetchLatest(s.core.Store.GetSetting(SettingUpdateMirror, ""))
 	return info
 }

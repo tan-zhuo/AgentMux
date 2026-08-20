@@ -55,6 +55,9 @@ export const en = {
   'update.foundWeb': '{version} is out — this build can\'t update itself, grab it from the release page',
   'update.releasePage': 'Release page',
   'update.checkFailed': 'Could not check: {error}',
+  'update.mirror': 'Update mirror',
+  'update.mirror.placeholder': 'Proxy prefix, e.g. https://ghfast.top — empty for direct',
+  'update.mirror.hint': 'The version check and the download both travel through this prefix. Use a host you trust.',
 
   'status.connected': '{n}/{total} connected',
   'status.running': '{n}/{total} running',

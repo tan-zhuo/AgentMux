@@ -99,7 +99,7 @@ func serveMain(args []string) {
 		app.NewSkillService(core),
 		app.NewOrchService(core),
 		app.NewConfigService(core),
-		app.NewUpdateCheckService(),
+		app.NewUpdateCheckService(core),
 		agentSvc,
 	)
 	hub := webserve.NewHub()
