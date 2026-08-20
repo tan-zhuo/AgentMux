@@ -376,6 +376,17 @@ func writeIconset(dir string, src *image.NRGBA) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
+	// Apple's icon grid: the tile occupies 824 of the 1024 canvas and the rest
+	// is transparent margin — every system icon obeys it, and a tile drawn
+	// edge to edge sits in the Dock visibly larger than all of them. The
+	// margin belongs only here: Windows and Linux icons are full-bleed by
+	// their own conventions, so the master itself stays untouched.
+	const tile = 824
+	inset := image.NewNRGBA(image.Rect(0, 0, master, master))
+	art := resize(src, tile)
+	off := (master - tile) / 2
+	draw.Draw(inset, image.Rect(off, off, off+tile, off+tile), art, image.Point{}, draw.Src)
+	src = inset
 	names := map[string]int{
 		"icon_16x16.png": 16, "icon_16x16@2x.png": 32,
 		"icon_32x32.png": 32, "icon_32x32@2x.png": 64,
