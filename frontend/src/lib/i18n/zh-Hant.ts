@@ -797,6 +797,15 @@ export const zhHant: Messages = {
   'term.detached': '已中斷連線 —— 遠端的 tmux 工作階段還在跑。',
   'term.reattach': '重新接入',
 
+  // 螢幕功能鍵列：軟體鍵盤上沒有的那些鍵。
+  'keys.show': '顯示終端機功能鍵',
+  'keys.hide': '隱藏終端機功能鍵',
+  'keys.more': '更多按鍵',
+  'keys.less': '收起按鍵',
+  'keys.keyboardShow': '開啟鍵盤',
+  'keys.keyboardHide': '收起鍵盤',
+  'keys.modHint': '點一下對下一個鍵生效；長按鎖定',
+
   'detached.badge': '獨立視窗',
   'detached.cannotOpen': '無法開啟這個分頁',
   'detached.opening': '正在開啟',

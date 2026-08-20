@@ -10,11 +10,12 @@ import { Sidebar } from './components/Sidebar'
 import { Splitter } from './components/Splitter'
 import { StatusBar } from './components/StatusBar'
 import { TerminalArea } from './components/TerminalArea'
+import { TerminalKeyBar } from './components/TerminalKeyBar'
 import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
 import { UpdateBanner } from './components/UpdateBanner'
 import { on } from './lib/api'
-import { useCompact } from './lib/useCompact'
+import { useCompact, useKeyboardInset, useTouchDevice } from './lib/useCompact'
 import type { Agent, ConnState } from './lib/types'
 import {
   RIGHT_DEFAULT,
@@ -26,6 +27,7 @@ import {
   useAppStore,
 } from './store/useAppStore'
 import { useI18n } from './store/useI18n'
+import { useTermKeys } from './store/useTermKeys'
 import { useTheme } from './store/useTheme'
 
 export default function App() {
@@ -44,7 +46,15 @@ export default function App() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const toggleRight = useAppStore((s) => s.toggleRight)
   const activeTabId = useAppStore((s) => s.activeTabId)
+  const activeKind = useAppStore((s) => s.tabs.find((tb) => tb.id === s.activeTabId)?.kind)
+  const initTermKeys = useTermKeys((s) => s.init)
   const compact = useCompact()
+  const touch = useTouchDevice()
+  const keyboardInset = useKeyboardInset()
+
+  // The key bar belongs to a terminal. A file browser or an editor has its own
+  // controls, and Esc into either of them means nothing.
+  const onTerminal = activeKind !== undefined && activeKind !== 'files' && activeKind !== 'editor'
 
   // A phone starts with the terminal, not with two open drawers.
   useEffect(() => {
@@ -79,8 +89,9 @@ export default function App() {
     // the right colours before the (slower) tree snapshot lands.
     void initTheme()
     void initI18n()
+    void initTermKeys()
     void loadAll()
-  }, [loadAll, initTheme, initI18n])
+  }, [loadAll, initTheme, initI18n, initTermKeys])
 
   // Backend pushes: agent status polling and connection state changes.
   useEffect(() => {
@@ -163,7 +174,14 @@ export default function App() {
   }, [setPaletteOpen])
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-ink-900">
+    <div
+      className="flex h-full w-full flex-col overflow-hidden bg-ink-900"
+      // On iOS the page keeps its full height behind the keyboard, so the
+      // terminal's last lines and the key bar would both sit under it. Giving
+      // the covered height back as padding compresses the whole app above the
+      // keyboard instead. Elsewhere this is zero and changes nothing.
+      style={keyboardInset ? { paddingBottom: keyboardInset } : undefined}
+    >
       <TitleBar />
       <UpdateBanner />
 
@@ -232,6 +250,7 @@ export default function App() {
           ))}
       </div>
 
+      {touch && onTerminal && <TerminalKeyBar />}
       {compact ? <MobileNav /> : <StatusBar />}
       <Dialogs />
       <CommandPalette />

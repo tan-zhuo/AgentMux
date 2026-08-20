@@ -799,6 +799,15 @@ export const ja: Messages = {
   'term.detached': '切り離されました — リモートの tmux セッションは動き続けています。',
   'term.reattach': '接続し直す',
 
+  // 画面上のキーバー：ソフトウェアキーボードにないキー。
+  'keys.show': 'ターミナルキーを表示',
+  'keys.hide': 'ターミナルキーを隠す',
+  'keys.more': 'キーを増やす',
+  'keys.less': 'キーを減らす',
+  'keys.keyboardShow': 'キーボードを表示',
+  'keys.keyboardHide': 'キーボードを閉じる',
+  'keys.modHint': 'タップで次の1キーに適用、長押しで固定',
+
   'detached.badge': '切り離し',
   'detached.cannotOpen': 'このタブを開けませんでした',
   'detached.opening': '開いています',

@@ -6,10 +6,19 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 import { errText, on, terminal as termApi } from '../lib/api'
+import { applyMods } from '../lib/termKeys'
 import type { ShellInfo } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useT } from '../store/useI18n'
+import {
+  anyModArmed,
+  clearKeySink,
+  currentMods,
+  setKeySink,
+  useTermKeys,
+  type KeySink,
+} from '../store/useTermKeys'
 import { useTheme } from '../store/useTheme'
 import { Button } from './ui'
 
@@ -147,7 +156,17 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     // UTF-8 text (mouse reports and the like).
     term.onData((data) => {
       const id = shellIdRef.current
-      if (id) void termApi.write(id, toBase64(data)).catch(() => {})
+      if (!id) return
+      // A phone has no Ctrl key, so the key bar arms one and the next character
+      // typed on the software keyboard becomes the control code. It has to
+      // happen here rather than on key events: Android delivers letters through
+      // composition, and what arrives as a keydown is often nothing at all.
+      let out = data
+      if (anyModArmed()) {
+        out = applyMods(data, currentMods())
+        useTermKeys.getState().spendOnce()
+      }
+      void termApi.write(id, toBase64(out)).catch(() => {})
     })
     term.onBinary((data) => {
       const id = shellIdRef.current
@@ -306,6 +325,21 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   useEffect(() => {
     if (termRef.current) termRef.current.options.theme = terminalTheme
   }, [terminalTheme])
+
+  // While this pane has focus, the on-screen key bar types into it.
+  useEffect(() => {
+    if (!active) return
+    const own: KeySink = {
+      send: (data) => {
+        const id = shellIdRef.current
+        if (id) void termApi.write(id, toBase64(data)).catch(() => {})
+      },
+      focus: () => termRef.current?.focus(),
+      blur: () => termRef.current?.blur(),
+    }
+    setKeySink(own)
+    return () => clearKeySink(own)
+  }, [active])
 
   // Re-fit and focus when this pane becomes visible.
   useEffect(() => {

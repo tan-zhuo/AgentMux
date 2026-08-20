@@ -803,6 +803,15 @@ export const en = {
   'term.detached': 'Detached — the remote tmux session is still running.',
   'term.reattach': 'Reattach',
 
+  // The on-screen key bar: what a software keyboard does not have.
+  'keys.show': 'Show the terminal keys',
+  'keys.hide': 'Hide the terminal keys',
+  'keys.more': 'More keys',
+  'keys.less': 'Fewer keys',
+  'keys.keyboardShow': 'Show the keyboard',
+  'keys.keyboardHide': 'Hide the keyboard',
+  'keys.modHint': 'Tap to arm for the next key; hold to lock it on',
+
   'detached.badge': 'detached',
   'detached.cannotOpen': 'Could not open this tab',
   'detached.opening': 'Opening',

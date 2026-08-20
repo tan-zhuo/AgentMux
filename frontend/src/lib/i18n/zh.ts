@@ -797,6 +797,15 @@ export const zh: Messages = {
   'term.detached': '已断开 —— 远端的 tmux 会话还在跑。',
   'term.reattach': '重新接入',
 
+  // 屏幕功能键栏：软键盘上没有的那些键。
+  'keys.show': '显示终端功能键',
+  'keys.hide': '隐藏终端功能键',
+  'keys.more': '更多按键',
+  'keys.less': '收起按键',
+  'keys.keyboardShow': '打开键盘',
+  'keys.keyboardHide': '收起键盘',
+  'keys.modHint': '点一下对下一个键生效；长按锁定',
+
   'detached.badge': '独立窗口',
   'detached.cannotOpen': '打不开这个标签',
   'detached.opening': '正在打开',
