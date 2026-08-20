@@ -301,6 +301,29 @@ func Runtimes() []Tool {
 			},
 		},
 		{
+			ID:          "ollama",
+			Name:        "Ollama",
+			Vendor:      "",
+			Description: "Local LLM runtime — serve models on this server's own hardware.",
+			Binary:      "ollama",
+			RunCommand:  "ollama",
+			VersionArgs: "--version",
+			Docs:        "https://ollama.com",
+			Kind:        "runtime",
+			Methods: []Method{
+				{
+					ID:       "script",
+					Label:    "Install script",
+					Requires: "curl",
+					// The script escalates with sudo by itself when not root, to
+					// install the binary and register the systemd service.
+					NeedsRoot: true,
+					Script:    `curl -fsSL https://ollama.com/install.sh | sh && ollama --version`,
+				},
+				{ID: "brew", Label: "Homebrew", Requires: "brew", Script: `brew install ollama && ollama --version`},
+			},
+		},
+		{
 			ID:          "uv",
 			Name:        "uv",
 			Vendor:      "Astral",

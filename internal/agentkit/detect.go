@@ -28,6 +28,7 @@ const fieldSep = "~@~"
 // down with it.
 const pathPrelude = `
 for d in "$HOME/.local/bin" "$HOME/bin" "$HOME/.claude/local" "$HOME/.grok/bin" \
+         "$HOME/.opencode/bin" \
          "$HOME/.npm-global/bin" "$HOME/.node_modules/bin" "$HOME/.yarn/bin" \
          "$HOME/.bun/bin" "$HOME/.deno/bin" "$HOME/.cargo/bin" "$HOME/go/bin" \
          "$HOME/.volta/bin" "$HOME/.pyenv/shims" "$HOME/.rye/shims" \
