@@ -29,7 +29,32 @@ public class CoreService extends Service {
     private static final String CHANNEL = "core";
     public static final int PORT = 8642;
 
-    private Process core;
+    private static Process core;
+
+    // The last lines the core printed, kept so the connect page can show a
+    // real reason when the boot fails — "didn't start" with no evidence is
+    // undebuggable on a phone.
+    private static final java.util.ArrayDeque<String> recentLog = new java.util.ArrayDeque<>();
+
+    private static void remember(String line) {
+        synchronized (recentLog) {
+            recentLog.addLast(line);
+            while (recentLog.size() > 60) recentLog.removeFirst();
+        }
+    }
+
+    /** A snapshot of the core's recent output, newest last. */
+    public static String recentLog() {
+        synchronized (recentLog) {
+            return String.join("\n", recentLog);
+        }
+    }
+
+    /** Whether the core process is currently running. */
+    public static boolean alive() {
+        Process p = core;
+        return p != null && p.isAlive();
+    }
 
     /** The token the WebView authenticates with, minted once per install. */
     public static String token(android.content.Context ctx) {
@@ -78,6 +103,11 @@ public class CoreService extends Service {
         if (core != null && core.isAlive()) return;
 
         String bin = getApplicationInfo().nativeLibraryDir + "/libagentmux.so";
+        if (!new File(bin).exists()) {
+            remember("core binary missing: " + bin);
+            Log.e(TAG, "core binary missing at " + bin);
+            return;
+        }
         File data = new File(getFilesDir(), "agentmux");
         //noinspection ResultOfMethodCallIgnored
         data.mkdirs();
@@ -88,9 +118,12 @@ public class CoreService extends Service {
         env.put("AGENTMUX_TOKEN", token(this));
         env.put("AGENTMUX_DATA_DIR", data.getAbsolutePath());
         env.put("HOME", getFilesDir().getAbsolutePath());
+        env.put("TMPDIR", getCacheDir().getAbsolutePath());
         try {
             core = pb.start();
+            remember("core started: " + bin);
         } catch (Exception e) {
+            remember("could not start the core: " + e);
             Log.e(TAG, "could not start the core", e);
             return;
         }
@@ -101,11 +134,23 @@ public class CoreService extends Service {
             try (java.io.BufferedReader r = new java.io.BufferedReader(
                     new java.io.InputStreamReader(p.getInputStream()))) {
                 String line;
-                while ((line = r.readLine()) != null) Log.i(TAG, line);
+                while ((line = r.readLine()) != null) {
+                    remember(line);
+                    Log.i(TAG, line);
+                }
             } catch (Exception ignored) {
             }
+            remember("core process ended (exit " + safeExit(p) + ")");
             Log.w(TAG, "core process ended");
         }, "agentmux-core-log").start();
+    }
+
+    private static String safeExit(Process p) {
+        try {
+            return String.valueOf(p.exitValue());
+        } catch (IllegalThreadStateException e) {
+            return "?";
+        }
     }
 
     @Override

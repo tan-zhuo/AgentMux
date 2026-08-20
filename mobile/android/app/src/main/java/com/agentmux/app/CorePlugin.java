@@ -26,4 +26,17 @@ public class CorePlugin extends Plugin {
         out.put("token", CoreService.token(getContext()));
         call.resolve(out);
     }
+
+    /**
+     * What the connect page shows when the boot fails: is the process alive,
+     * and what did it last say. Without this a phone failure is a blank
+     * shrug; with it the error explains itself.
+     */
+    @PluginMethod
+    public void status(PluginCall call) {
+        JSObject out = new JSObject();
+        out.put("alive", CoreService.alive());
+        out.put("log", CoreService.recentLog());
+        call.resolve(out);
+    }
 }

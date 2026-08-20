@@ -13,6 +13,11 @@ const config: CapacitorConfig = {
     allowNavigation: ['*'],
     // Plain http, so a LAN or VPN address works without a certificate.
     cleartext: true,
+    // The connect page must fetch-probe http://127.0.0.1 (the embedded core)
+    // and plain-http remote serves. Under the default https://localhost
+    // origin those probes are mixed content and the WebView silently blocks
+    // them — the core runs, the page never learns.
+    androidScheme: 'http',
   },
   android: {
     backgroundColor: '#080a0f',

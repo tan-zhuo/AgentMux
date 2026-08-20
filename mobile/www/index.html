@@ -31,6 +31,9 @@
       <div id="boot">
         <h1>AgentMux</h1>
         <p id="bootmsg">正在启动本机核心…</p>
+        <pre id="bootlog" style="display:none; text-align:left; font-size:11px; line-height:1.5;
+             background:#0b0d12; border:1px solid #232a35; border-radius:8px; padding:10px;
+             max-height:40vh; overflow:auto; white-space:pre-wrap; word-break:break-all;"></pre>
       </div>
       <div id="form">
         <h1>AgentMux</h1>
@@ -55,7 +58,9 @@
       }
 
       // The manifest is tiny, unauthenticated, and only AgentMux serves it at
-      // this path — a good "is this really our server" probe.
+      // this path — a good "is this really our server" probe. Newer cores send
+      // a CORS header so the status is readable; older ones do not, so an
+      // opaque no-cors response — proof something answered — also counts.
       async function reachable(base) {
         const ctl = new AbortController()
         const timer = setTimeout(() => ctl.abort(), 4000)
@@ -63,7 +68,15 @@
           const res = await fetch(base + '/manifest.webmanifest', { signal: ctl.signal })
           return res.ok
         } catch {
-          return false
+          try {
+            const res = await fetch(base + '/manifest.webmanifest', {
+              signal: ctl.signal,
+              mode: 'no-cors',
+            })
+            return res.type === 'opaque'
+          } catch {
+            return false
+          }
         } finally {
           clearTimeout(timer)
         }
@@ -81,8 +94,21 @@
           }
           await new Promise((r) => setTimeout(r, 500))
         }
+        // Failing without evidence is undebuggable on a phone: say whether
+        // the process is running and show what it last printed.
+        let detail = ''
+        try {
+          const s = await core.status()
+          detail = (s.alive ? '核心进程在运行，但端口探测不通。' : '核心进程没有存活。') +
+            '\n--- 核心日志 ---\n' + (s.log || '(无输出)')
+        } catch (e) {
+          detail = 'status 调用失败: ' + e
+        }
         document.getElementById('bootmsg').textContent =
-          '本机核心没有启动起来 —— 重新打开应用试试；仍不行请反馈。'
+          '本机核心没有启动起来 —— 截图此页反馈：'
+        const pre = document.getElementById('bootlog')
+        pre.textContent = detail
+        pre.style.display = 'block'
       }
 
       async function connectRemote(base, quiet) {

@@ -113,9 +113,13 @@ func (s *Server) handleAssets(w http.ResponseWriter, r *http.Request) {
 	if f, err := s.assets.Open(p); err == nil {
 		_ = f.Close()
 		// Go's mime table does not know the PWA manifest, and a wrong type
-		// here quietly breaks home-screen install.
+		// here quietly breaks home-screen install. The CORS header is for the
+		// Android shell's connect page, which probes this file from its own
+		// origin to learn whether the core is up — without it the browser
+		// hides the response and a running core looks dead.
 		if strings.HasSuffix(p, ".webmanifest") {
 			w.Header().Set("Content-Type", "application/manifest+json")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 		http.FileServerFS(s.assets).ServeHTTP(w, r)
 		return
