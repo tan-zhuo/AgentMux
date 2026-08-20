@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { CommandPalette } from './components/CommandPalette'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { ContextMenu } from './components/ContextMenu'
@@ -13,6 +13,7 @@ import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
 import { UpdateBanner } from './components/UpdateBanner'
 import { on } from './lib/api'
+import { useCompact } from './lib/useCompact'
 import type { Agent, ConnState } from './lib/types'
 import {
   RIGHT_DEFAULT,
@@ -39,6 +40,38 @@ export default function App() {
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
   const setRightWidth = useAppStore((s) => s.setRightWidth)
   const setPaletteOpen = useAppStore((s) => s.setPaletteOpen)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const toggleRight = useAppStore((s) => s.toggleRight)
+  const activeTabId = useAppStore((s) => s.activeTabId)
+  const compact = useCompact()
+
+  // A phone starts with the terminal, not with two open drawers.
+  useEffect(() => {
+    if (!compact) return
+    const s = useAppStore.getState()
+    if (s.sidebarOpen) s.toggleSidebar()
+    if (s.rightOpen) s.toggleRight()
+    // Only on entering compact — the user may reopen them afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact])
+
+  // Picking a tab from the drawer means "show me that", so the drawer yields.
+  useEffect(() => {
+    if (!compact || !activeTabId) return
+    const s = useAppStore.getState()
+    if (s.sidebarOpen) s.toggleSidebar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId])
+
+  // One drawer at a time on a phone: whichever was opened second wins.
+  const prevDrawers = useRef({ side: sidebarOpen, right: rightOpen })
+  useEffect(() => {
+    const prev = prevDrawers.current
+    prevDrawers.current = { side: sidebarOpen, right: rightOpen }
+    if (!compact || !sidebarOpen || !rightOpen) return
+    if (!prev.right) toggleSidebar()
+    else if (!prev.side) toggleRight()
+  }, [compact, sidebarOpen, rightOpen, toggleSidebar, toggleRight])
 
   useEffect(() => {
     // Theme first: it only needs one settings read, so the window is painted in
@@ -133,41 +166,69 @@ export default function App() {
       <TitleBar />
       <UpdateBanner />
 
-      <div className="flex min-h-0 flex-1">
-        {sidebarOpen && (
-          <>
-            <div style={{ width: sidebarWidth }} className="shrink-0">
-              <Sidebar />
-            </div>
-            <Splitter
-              label="Sidebar width"
-              value={sidebarWidth}
-              min={SIDEBAR_MIN}
-              max={SIDEBAR_MAX}
-              resetTo={SIDEBAR_DEFAULT}
-              onChange={(w) => setSidebarWidth(w)}
-              onCommit={(w) => setSidebarWidth(w, true)}
-            />
-          </>
-        )}
+      <div className="relative flex min-h-0 flex-1">
+        {sidebarOpen &&
+          (compact ? (
+            // On a phone there is no room to dock three columns, so the tree
+            // rides over the terminal as a drawer; picking something closes it.
+            <>
+              <button
+                type="button"
+                aria-label="Close sidebar"
+                className="absolute inset-0 z-30 bg-black/45"
+                onClick={toggleSidebar}
+              />
+              <div className="absolute inset-y-0 left-0 z-40 w-[min(320px,85vw)] border-r hairline bg-ink-900 shadow-2xl">
+                <Sidebar />
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ width: sidebarWidth }} className="shrink-0">
+                <Sidebar />
+              </div>
+              <Splitter
+                label="Sidebar width"
+                value={sidebarWidth}
+                min={SIDEBAR_MIN}
+                max={SIDEBAR_MAX}
+                resetTo={SIDEBAR_DEFAULT}
+                onChange={(w) => setSidebarWidth(w)}
+                onCommit={(w) => setSidebarWidth(w, true)}
+              />
+            </>
+          ))}
         <TerminalArea />
-        {rightOpen && (
-          <>
-            <Splitter
-              label="Panel width"
-              value={rightWidth}
-              min={RIGHT_MIN}
-              max={RIGHT_MAX}
-              resetTo={RIGHT_DEFAULT}
-              invert
-              onChange={(w) => setRightWidth(w)}
-              onCommit={(w) => setRightWidth(w, true)}
-            />
-            <div style={{ width: rightWidth }} className="shrink-0">
-              <RightPanel />
-            </div>
-          </>
-        )}
+        {rightOpen &&
+          (compact ? (
+            <>
+              <button
+                type="button"
+                aria-label="Close panel"
+                className="absolute inset-0 z-30 bg-black/45"
+                onClick={toggleRight}
+              />
+              <div className="absolute inset-y-0 right-0 z-40 w-[min(360px,92vw)] border-l hairline bg-ink-900 shadow-2xl">
+                <RightPanel />
+              </div>
+            </>
+          ) : (
+            <>
+              <Splitter
+                label="Panel width"
+                value={rightWidth}
+                min={RIGHT_MIN}
+                max={RIGHT_MAX}
+                resetTo={RIGHT_DEFAULT}
+                invert
+                onChange={(w) => setRightWidth(w)}
+                onCommit={(w) => setRightWidth(w, true)}
+              />
+              <div style={{ width: rightWidth }} className="shrink-0">
+                <RightPanel />
+              </div>
+            </>
+          ))}
       </div>
 
       <StatusBar />

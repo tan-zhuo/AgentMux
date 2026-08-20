@@ -196,7 +196,7 @@ export function TitleBar() {
       {/* Centred document title, the way a native window titles itself. */}
       <span
         className={clsx(
-          'pointer-events-none absolute inset-x-0 mx-auto max-w-[46%] truncate text-center text-[11px] transition-colors',
+          'pointer-events-none absolute inset-x-0 mx-auto hidden max-w-[46%] truncate text-center text-[11px] transition-colors sm:block',
           focused ? 'text-ink-400' : 'text-ink-600',
         )}
       >

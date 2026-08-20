@@ -8,8 +8,26 @@
  * knows which transport it is on.
  */
 
-/** True when running inside the Wails webview rather than a plain browser. */
-export const isDesktop = typeof window !== 'undefined' && '_wails' in window
+/**
+ * True when running inside the Wails webview rather than a plain browser.
+ *
+ * Checking `window._wails` is the obvious and wrong way: the Wails JS runtime
+ * creates it wherever it is imported, browser included. What only the real
+ * webview has is the native message channel the runtime posts to — WebView2's
+ * `chrome.webview` on Windows, WebKit's `messageHandlers.external` on macOS
+ * and Linux — the same probe the runtime itself uses.
+ */
+export const isDesktop =
+  typeof window !== 'undefined' &&
+  Boolean(
+    (window as { chrome?: { webview?: { postMessage?: unknown } } }).chrome?.webview
+      ?.postMessage ??
+      (
+        window as {
+          webkit?: { messageHandlers?: { external?: { postMessage?: unknown } } }
+        }
+      ).webkit?.messageHandlers?.external?.postMessage,
+  )
 
 const TOKEN_KEY = 'agentmux.token'
 

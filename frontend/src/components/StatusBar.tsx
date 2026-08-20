@@ -64,7 +64,7 @@ export function StatusBar() {
         </button>
       )}
 
-      <span className="text-ink-600">{t('status.refreshedAgo', { n: ago })}</span>
+      <span className="hidden text-ink-600 sm:inline">{t('status.refreshedAgo', { n: ago })}</span>
       <button
         onClick={refresh}
         disabled={busy}
@@ -80,7 +80,8 @@ export function StatusBar() {
       >
         <Settings size={12} />
       </button>
-      <span className="text-ink-600">⌘K</span>
+      {/* A keyboard hint means nothing where there is no keyboard. */}
+      <span className="hidden text-ink-600 sm:inline">⌘K</span>
     </footer>
   )
 }
