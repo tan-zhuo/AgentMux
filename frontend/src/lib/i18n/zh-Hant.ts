@@ -46,6 +46,8 @@ export const zhHant: Messages = {
   'update.upToDate': '已經是最新版本',
   'update.found': '{version} 已發佈 —— 見上方橫幅',
   'update.devBuild': 'dev 建置透過 git 更新，不走發佈通道',
+  'update.foundWeb': '{version} 已發佈 —— 這個端不能自我更新，請從發佈頁下載',
+  'update.releasePage': '發佈頁',
   'update.checkFailed': '檢查失敗：{error}',
 
   'status.connected': '已連線 {n}/{total}',

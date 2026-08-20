@@ -48,6 +48,8 @@ export const ja: Messages = {
   'update.upToDate': 'これが最新バージョンです',
   'update.found': '{version} が公開されています — 上のバナーをご覧ください',
   'update.devBuild': 'dev ビルドは git で更新します（リリース経由ではありません）',
+  'update.foundWeb': '{version} が公開されています — このビルドは自己更新できないため、リリースページから入手してください',
+  'update.releasePage': 'リリースページ',
   'update.checkFailed': '確認できませんでした: {error}',
 
   'status.connected': '{n}/{total} 接続中',

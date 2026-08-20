@@ -52,6 +52,8 @@ export const en = {
   'update.upToDate': 'This is the latest version',
   'update.found': '{version} is available — see the banner above',
   'update.devBuild': 'A dev build updates through git, not the release feed',
+  'update.foundWeb': '{version} is out — this build can\'t update itself, grab it from the release page',
+  'update.releasePage': 'Release page',
   'update.checkFailed': 'Could not check: {error}',
 
   'status.connected': '{n}/{total} connected',

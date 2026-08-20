@@ -200,7 +200,12 @@ export const windows = {
 }
 
 export const update = {
-  check: () => call<UpdateInfo>('UpdateService', 'Check'),
+  // The desktop's service also raises the upgrade banner; everywhere else —
+  // browser, phone — only the check-only service exists.
+  check: () =>
+    isDesktop
+      ? call<UpdateInfo>('UpdateService', 'Check')
+      : call<UpdateInfo>('UpdateCheckService', 'Check'),
   apply: () => call<UpdateResult>('UpdateService', 'Apply'),
   openReleasePage: () => call<void>('UpdateService', 'OpenReleasePage'),
 }

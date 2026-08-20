@@ -35,18 +35,6 @@ const (
 	eventUpdateProgress  = "update:progress"
 )
 
-// UpdateInfo is what a version check found.
-type UpdateInfo struct {
-	CurrentVersion string `json:"currentVersion"`
-	LatestVersion  string `json:"latestVersion"`
-	PublishedAt    string `json:"publishedAt"`
-	PageURL        string `json:"pageUrl"`
-	Notes          string `json:"notes"`
-	AssetSize      int64  `json:"assetSize"`
-	HasUpdate      bool   `json:"hasUpdate"`
-	Error          string `json:"error"`
-}
-
 // UpdateProgress narrates one step of an upgrade to the UI.
 type UpdateProgress struct {
 	// Phase is download, install or restart.
@@ -80,14 +68,8 @@ func (u *UpdateService) stagingDir() string {
 // Check asks the release feed for the newest version. Any check that finds
 // one also announces it, so the banner appears no matter who asked.
 func (u *UpdateService) Check() UpdateInfo {
-	info := UpdateInfo{CurrentVersion: Version}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	client := &http.Client{Timeout: 20 * time.Second}
-	rel, err := update.Latest(ctx, client, "")
-	if err != nil {
-		info.Error = err.Error()
+	rel, info := fetchLatest()
+	if info.Error != "" {
 		return info
 	}
 
@@ -95,12 +77,6 @@ func (u *UpdateService) Check() UpdateInfo {
 	u.latest = &rel
 	u.mu.Unlock()
 
-	info.LatestVersion = rel.Tag
-	info.PublishedAt = rel.PublishedAt
-	info.PageURL = rel.PageURL
-	info.Notes = rel.Notes
-	info.AssetSize = rel.AssetSize
-	info.HasUpdate = update.Newer(Version, rel.Tag)
 	if info.HasUpdate {
 		u.core.Emit(eventUpdateAvailable, info)
 	}

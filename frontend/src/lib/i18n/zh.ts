@@ -46,6 +46,8 @@ export const zh: Messages = {
   'update.upToDate': '已经是最新版本',
   'update.found': '{version} 已发布 —— 见上方横幅',
   'update.devBuild': 'dev 构建通过 git 更新，不走发布渠道',
+  'update.foundWeb': '{version} 已发布 —— 这个端不能自更新，请从发布页下载',
+  'update.releasePage': '发布页',
   'update.checkFailed': '检查失败：{error}',
 
   'status.connected': '已连接 {n}/{total}',

@@ -22,15 +22,26 @@ export function UpdateCheckButton({ current }: { current: string }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
+  const [pageUrl, setPageUrl] = useState('')
 
   const check = async () => {
     setBusy(true)
     setNote('')
+    setPageUrl('')
     try {
       const info = await updateApi.check()
       if (info.error) setNote(t('update.checkFailed', { error: info.error }))
-      else if (info.hasUpdate) setNote(t('update.found', { version: info.latestVersion }))
-      else if (current === 'dev') setNote(t('update.devBuild'))
+      else if (info.hasUpdate) {
+        // The desktop announces the banner with its upgrade button; a browser
+        // or phone cannot replace its own binary, so the release page link is
+        // the actionable answer there.
+        setNote(
+          isDesktop
+            ? t('update.found', { version: info.latestVersion })
+            : t('update.foundWeb', { version: info.latestVersion }),
+        )
+        if (!isDesktop) setPageUrl(info.pageUrl)
+      } else if (current === 'dev') setNote(t('update.devBuild'))
       else setNote(t('update.upToDate'))
     } catch (e) {
       setNote(t('update.checkFailed', { error: errText(e) }))
@@ -40,11 +51,21 @@ export function UpdateCheckButton({ current }: { current: string }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex flex-wrap items-center gap-2">
       <Button size="sm" variant="subtle" disabled={busy} onClick={() => void check()}>
         {busy ? t('update.checking') : t('update.check')}
       </Button>
       {note && <span className="font-sans text-[11px] text-ink-400">{note}</span>}
+      {pageUrl && (
+        <a
+          href={pageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="font-sans text-[11px] text-accent hover:underline"
+        >
+          {t('update.releasePage')}
+        </a>
+      )}
     </span>
   )
 }
