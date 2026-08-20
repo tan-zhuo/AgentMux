@@ -340,6 +340,19 @@ export function TerminalArea() {
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
+
+  // A tab activated from the tree, a palette jump or a phone tap may sit past
+  // the edge of a crowded strip; bring it into view. 'nearest' makes this a
+  // no-op whenever the tab is already visible.
+  useEffect(() => {
+    const strip = stripRef.current
+    if (!strip || !activeTabId || strip.scrollWidth <= strip.clientWidth) return
+    const index = tabs.findIndex((t) => t.id === activeTabId)
+    if (index < 0) return
+    strip
+      .querySelector(`[data-tab-index="${index}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeTabId, tabs])
   const [dragId, setDragId] = useState<string | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [tearing, setTearing] = useState(false)
@@ -385,7 +398,10 @@ export function TerminalArea() {
     d.moved = true
 
     const strip = stripRef.current?.getBoundingClientRect()
+    // Tearing into a native window only exists on the desktop; in a browser
+    // or on a phone a stray vertical drag must not try to open one.
     const outside =
+      isDesktop &&
       !!strip &&
       (e.clientY > strip.bottom + TEAR_OFF_DISTANCE ||
         e.clientY < strip.top - TEAR_OFF_DISTANCE ||
@@ -570,7 +586,10 @@ export function TerminalArea() {
                   ])
                 }
                 className={clsx(
-                  'group relative flex min-w-0 shrink-0 cursor-default touch-none items-center gap-1.5 border-r hairline px-3 text-xs select-none',
+                  // touch-pan-x: a finger swiping sideways scrolls the strip
+                  // natively (the browser cancels our pointer drag, which
+                  // onPointerCancel tidies up); a mouse still reorders tabs.
+                  'group relative flex min-w-0 shrink-0 cursor-default touch-pan-x items-center gap-1.5 border-r hairline px-3 text-xs select-none',
                   onScreen
                     ? active
                       ? 'bg-ink-950 text-ink-100'

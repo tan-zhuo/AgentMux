@@ -30,6 +30,72 @@ function fromBase64(b64: string): Uint8Array {
 }
 
 /**
+ * xterm ships no touch handling at all — its gesture module is never wired
+ * up — so on a phone the terminal simply would not scroll. Vertical touch
+ * drags become synthetic wheel events instead of scrolling anything directly:
+ * xterm's wheel pipeline already knows what a scroll means in every mode
+ * (scrollback in the normal buffer, arrow keys in a full-screen app, mouse
+ * reports when the app asked for them). A little inertia after the finger
+ * lifts, because that is what a finger expects.
+ */
+function enableTouchScroll(host: HTMLElement): () => void {
+  let lastX = 0
+  let lastY = 0
+  let lastT = 0
+  let velocity = 0
+  let target: Element = host
+  let raf = 0
+
+  const wheel = (dy: number) => {
+    target.dispatchEvent(
+      new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: dy, deltaMode: 0 }),
+    )
+  }
+  const glide = () => {
+    velocity *= 0.94
+    if (Math.abs(velocity) < 0.7) return
+    wheel(velocity)
+    raf = requestAnimationFrame(glide)
+  }
+  const onStart = (e: TouchEvent) => {
+    cancelAnimationFrame(raf)
+    velocity = 0
+    if (e.touches.length !== 1) return
+    lastX = e.touches[0].clientX
+    lastY = e.touches[0].clientY
+    lastT = e.timeStamp
+    if (e.target instanceof Element) target = e.target
+  }
+  const onMove = (e: TouchEvent) => {
+    if (e.touches.length !== 1) return
+    const dx = lastX - e.touches[0].clientX
+    const dy = lastY - e.touches[0].clientY
+    lastX = e.touches[0].clientX
+    lastY = e.touches[0].clientY
+    // A mostly-horizontal drag is not a scroll; leave it to whoever wants it.
+    if (dy === 0 || Math.abs(dy) < Math.abs(dx)) return
+    e.preventDefault()
+    const dt = Math.max(1, e.timeStamp - lastT)
+    lastT = e.timeStamp
+    velocity = (dy / dt) * 16 // px per 60fps frame, for the glide
+    wheel(dy)
+  }
+  const onEnd = () => {
+    if (Math.abs(velocity) > 2) raf = requestAnimationFrame(glide)
+  }
+
+  host.addEventListener('touchstart', onStart, { passive: true })
+  host.addEventListener('touchmove', onMove, { passive: false })
+  host.addEventListener('touchend', onEnd)
+  return () => {
+    cancelAnimationFrame(raf)
+    host.removeEventListener('touchstart', onStart)
+    host.removeEventListener('touchmove', onMove)
+    host.removeEventListener('touchend', onEnd)
+  }
+}
+
+/**
  * One xterm instance bound to one backend PTY. Every open tab keeps its
  * instance mounted (hidden when inactive) so switching tabs never loses
  * scrollback or forces a reattach.
@@ -71,6 +137,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     term.loadAddon(search)
     term.loadAddon(new WebLinksAddon())
     term.open(hostRef.current)
+    const offTouch = enableTouchScroll(hostRef.current)
 
     termRef.current = term
     fitRef.current = fit
@@ -114,6 +181,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     return () => {
       mountedRef.current = false
       window.clearTimeout(tellFar)
+      offTouch()
       observer.disconnect()
       for (const d of disposersRef.current) d()
       disposersRef.current = []
