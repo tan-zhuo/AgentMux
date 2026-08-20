@@ -373,9 +373,13 @@ jobs:
           npx cap add android
           npx cap sync android
           # The shell talks plain http to LAN and VPN addresses; Android
-          # blocks cleartext unless the manifest says otherwise.
-          sed -i 's/<application /<application android:usesCleartextTraffic="true" /' \
+          # blocks cleartext unless the manifest says otherwise. The template
+          # puts a newline straight after <application>, so no trailing space
+          # in the pattern — and the grep makes a silent non-match fail the
+          # build instead of shipping an APK that cannot connect.
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' \
             android/app/src/main/AndroidManifest.xml
+          grep -q 'usesCleartextTraffic="true"' android/app/src/main/AndroidManifest.xml
 
       - name: Build the APK
         working-directory: mobile/android

@@ -20,7 +20,7 @@ npm install
 npx cap add android
 npx cap sync android
 # 允许明文 http（内网/VPN 地址无需证书）：
-sed -i 's/<application /<application android:usesCleartextTraffic="true" /' \
+sed -i 's/<application/<application android:usesCleartextTraffic="true"/' \
   android/app/src/main/AndroidManifest.xml
 npx cap open android   # Build → Build APK
 ```
