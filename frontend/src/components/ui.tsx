@@ -253,7 +253,7 @@ export function Modal({
     // No click-to-dismiss on the backdrop: these hold forms, and losing a
     // half-typed server password to a stray click outside the panel is a worse
     // outcome than having to aim for Cancel. Escape still closes.
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-10 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 backdrop-blur-[2px] sm:p-10">
       <div
         className={clsx(
           // A sheet: rounded, floating on a wide soft shadow, with no border.

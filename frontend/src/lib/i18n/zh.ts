@@ -10,6 +10,10 @@ export const zh: Messages = {
   'common.loading': '加载中…',
   'common.none': '—',
 
+  'nav.tree': '目录',
+  'nav.palette': '命令',
+  'nav.panel': '面板',
+  'nav.settings': '设置',
   'settings.title': '设置',
   'settings.theme': '主题',
   'settings.language': '语言',

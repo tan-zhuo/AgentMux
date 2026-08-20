@@ -10,6 +10,10 @@ export const ja: Messages = {
   'common.loading': '読み込み中…',
   'common.none': '—',
 
+  'nav.tree': 'ツリー',
+  'nav.palette': 'コマンド',
+  'nav.panel': 'パネル',
+  'nav.settings': '設定',
   'settings.title': '設定',
   'settings.theme': 'テーマ',
   'settings.language': '言語',

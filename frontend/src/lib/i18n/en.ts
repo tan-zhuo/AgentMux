@@ -15,6 +15,10 @@ export const en = {
   'common.loading': 'Loading…',
   'common.none': '—',
 
+  'nav.tree': 'Tree',
+  'nav.palette': 'Commands',
+  'nav.panel': 'Panel',
+  'nav.settings': 'Settings',
   'settings.title': 'Settings',
   'settings.theme': 'Theme',
   'settings.language': 'Language',

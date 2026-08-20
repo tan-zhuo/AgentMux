@@ -10,6 +10,10 @@ export const zhHant: Messages = {
   'common.loading': '載入中…',
   'common.none': '—',
 
+  'nav.tree': '目錄',
+  'nav.palette': '命令',
+  'nav.panel': '面板',
+  'nav.settings': '設定',
   'settings.title': '設定',
   'settings.theme': '主題',
   'settings.language': '語言',

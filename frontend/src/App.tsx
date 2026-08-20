@@ -4,6 +4,7 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { ContextMenu } from './components/ContextMenu'
 import { Dialogs } from './components/Dialogs'
 import { showEditMenu } from './lib/editMenu'
+import { MobileNav } from './components/MobileNav'
 import { RightPanel } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
 import { Splitter } from './components/Splitter'
@@ -231,7 +232,7 @@ export default function App() {
           ))}
       </div>
 
-      <StatusBar />
+      {compact ? <MobileNav /> : <StatusBar />}
       <Dialogs />
       <CommandPalette />
       <ConfirmDialog />
