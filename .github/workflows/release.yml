@@ -341,8 +341,11 @@ jobs:
             "dist/agentmux-server-linux-${{ matrix.arch }}.tar.gz.sha256" \
             --clobber
 
-  # The Android shell: a WebView that asks for the serve address at runtime,
-  # so one generic APK serves everyone — nothing is baked in at build time.
+  # The Android app is standalone: the same static Go core the Linux server
+  # release ships is cross-compiled for Android and embedded as a native
+  # library, started by a foreground service and joined by the WebView on
+  # localhost — the tablet needs no other machine. Connecting to a remote
+  # `agentmux --serve` remains available from the same launch page.
   # With ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD secrets set the APK is
   # release-signed with a stable identity (upgrades install over the old
   # version); without them it falls back to a debug-signed build, which
@@ -357,6 +360,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -365,21 +373,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Generate the Android project
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Work out the version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            v="${{ github.event.release.tag_name }}"
+          else
+            v="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Embed the core
+        run: |
+          mkdir -p mobile/android/app/src/main/jniLibs/arm64-v8a
+          CGO_ENABLED=0 GOOS=android GOARCH=arm64 \
+            go build -tags headless -trimpath \
+            -ldflags "-s -w -X agentmux/internal/app.Version=${{ steps.ver.outputs.version }}" \
+            -o mobile/android/app/src/main/jniLibs/arm64-v8a/libagentmux.so .
+
+      - name: Sync web assets into the project
         working-directory: mobile
         run: |
           npm install
-          npx cap add android
           npx cap sync android
-          # The shell talks plain http to LAN and VPN addresses; Android
-          # blocks cleartext unless the manifest says otherwise. The template
-          # puts a newline straight after <application>, so no trailing space
-          # in the pattern — and the grep makes a silent non-match fail the
-          # build instead of shipping an APK that cannot connect.
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' \
-            android/app/src/main/AndroidManifest.xml
-          grep -q 'usesCleartextTraffic="true"' android/app/src/main/AndroidManifest.xml
 
       - name: Build the APK
         working-directory: mobile/android

@@ -1,7 +1,8 @@
 <!doctype html>
-<!-- The connect page: asks where `agentmux --serve` runs, proves the address
-     answers before leaving, remembers it, and navigates there. Clearing the
-     app's data is the way back to this page. -->
+<!-- The launch page. Inside the Android app the embedded core is started and
+     joined automatically — this page is only a splash while it boots. In a
+     plain browser (no Capacitor bridge) it falls back to asking for the
+     address of a remote `agentmux --serve`. -->
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -11,7 +12,7 @@
       :root { color-scheme: dark; }
       body { background: #080a0f; color: #9aa4b2; font: 15px/1.6 system-ui, sans-serif;
              display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-      main { width: min(420px, 86vw); }
+      main { width: min(420px, 86vw); text-align: left; }
       h1 { color: #d5dbe4; font-size: 17px; margin: 0 0 4px; }
       p { font-size: 13px; margin: 0 0 16px; }
       input { width: 100%; box-sizing: border-box; background: #0b0d12; color: #d5dbe4;
@@ -21,16 +22,24 @@
                border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 600; }
       button:disabled { opacity: 0.5; }
       .err { color: #ff6b6b; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+      #form { display: none; }
+      #boot { text-align: center; }
     </style>
   </head>
   <body>
     <main>
-      <h1>AgentMux</h1>
-      <p>输入运行 <code>agentmux --serve</code> 的服务器地址</p>
-      <input id="addr" type="url" placeholder="http://192.168.1.10:8642"
-             autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" />
-      <button id="go">连接</button>
-      <div class="err" id="err"></div>
+      <div id="boot">
+        <h1>AgentMux</h1>
+        <p id="bootmsg">正在启动本机核心…</p>
+      </div>
+      <div id="form">
+        <h1>AgentMux</h1>
+        <p>输入运行 <code>agentmux --serve</code> 的服务器地址</p>
+        <input id="addr" type="url" placeholder="http://192.168.1.10:8642"
+               autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" />
+        <button id="go">连接</button>
+        <div class="err" id="err"></div>
+      </div>
     </main>
     <script>
       const KEY = 'agentmux.server'
@@ -49,7 +58,7 @@
       // this path — a good "is this really our server" probe.
       async function reachable(base) {
         const ctl = new AbortController()
-        const timer = setTimeout(() => ctl.abort(), 6000)
+        const timer = setTimeout(() => ctl.abort(), 4000)
         try {
           const res = await fetch(base + '/manifest.webmanifest', { signal: ctl.signal })
           return res.ok
@@ -60,7 +69,23 @@
         }
       }
 
-      async function connect(base, quiet) {
+      // Local mode: the app's own core, started through the Capacitor plugin.
+      // It needs a moment to boot, so poll before jumping.
+      async function bootLocal(core) {
+        const info = await core.getServerInfo()
+        const base = `http://127.0.0.1:${info.port}`
+        for (let i = 0; i < 40; i++) {
+          if (await reachable(base)) {
+            location.replace(`${base}/#token=${encodeURIComponent(info.token)}`)
+            return
+          }
+          await new Promise((r) => setTimeout(r, 500))
+        }
+        document.getElementById('bootmsg').textContent =
+          '本机核心没有启动起来 —— 重新打开应用试试；仍不行请反馈。'
+      }
+
+      async function connectRemote(base, quiet) {
         go.disabled = true
         err.textContent = ''
         if (await reachable(base)) {
@@ -72,20 +97,24 @@
         if (!quiet) err.textContent = '连不上这个地址 —— 确认 agentmux --serve 正在运行、端口可达。'
       }
 
-      go.addEventListener('click', () => {
-        const base = normalize(addr.value)
-        if (base) void connect(base, false)
-      })
-      addr.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') go.click()
-      })
-
-      // A remembered server is tried silently; if it moved, the form is
-      // already on screen with the old address filled in.
-      const saved = localStorage.getItem(KEY)
-      if (saved) {
-        addr.value = saved
-        void connect(saved, true)
+      const core = window.Capacitor?.Plugins?.Core
+      if (core) {
+        void bootLocal(core)
+      } else {
+        document.getElementById('boot').style.display = 'none'
+        document.getElementById('form').style.display = 'block'
+        go.addEventListener('click', () => {
+          const base = normalize(addr.value)
+          if (base) void connectRemote(base, false)
+        })
+        addr.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') go.click()
+        })
+        const saved = localStorage.getItem(KEY)
+        if (saved) {
+          addr.value = saved
+          void connectRemote(saved, true)
+        }
       }
     </script>
   </body>

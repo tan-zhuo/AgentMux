@@ -13,6 +13,21 @@ export const isDesktop = typeof window !== 'undefined' && '_wails' in window
 
 const TOKEN_KEY = 'agentmux.token'
 
+// A native shell (the Android app with its embedded core) hands the token
+// over in the hash on first navigation: http://127.0.0.1:8642/#token=…
+// It is claimed into storage and scrubbed from the address before anything
+// else — the other hash params (a detached tab's 'd') stay untouched.
+if (!isDesktop && typeof window !== 'undefined') {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const handed = params.get('token')
+  if (handed) {
+    localStorage.setItem(TOKEN_KEY, handed)
+    params.delete('token')
+    const rest = params.toString()
+    window.history.replaceState(null, '', window.location.pathname + (rest ? '#' + rest : ''))
+  }
+}
+
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? ''
 }

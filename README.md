@@ -231,12 +231,12 @@ The first start generates an access token and prints it in the log (persisted
 as `serve-token` in the data directory; `AGENTMUX_TOKEN` overrides it). Open
 `http://host:8642` on the tablet, enter the token once, and everything —
 terminals, agents, the toolkit, file browsing — works. "Add to Home Screen"
-(Safari on iPad, Chrome on Android) installs it as a standalone app; Android
-can alternatively install the `agentmux-android.apk` attached to each release,
-which asks for the server address on first launch (see `mobile/`). Closing
-the browser stops nothing, exactly like closing the desktop window — the
-agents live in remote tmux. Put a HTTPS reverse proxy in front for use over
-the public internet.
+(Safari on iPad, Chrome on Android) installs it as a standalone app. Android
+goes one step further: the `agentmux-android.apk` attached to each release
+embeds the full core, so SSH runs from the device itself and no always-on
+machine is needed (see `mobile/`). Closing the browser stops nothing, exactly
+like closing the desktop window — the agents live in remote tmux. Put a HTTPS
+reverse proxy in front for use over the public internet.
 
 ## Architecture
 
