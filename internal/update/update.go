@@ -122,19 +122,30 @@ func Latest(ctx context.Context, client *http.Client, apiBase, mirror string) (R
 			rel.SumURL = a.URL
 		}
 	}
-	if rel.AssetURL == "" {
-		return rel, fmt.Errorf("release %s has no build for %s/%s", rj.TagName, runtime.GOOS, runtime.GOARCH)
-	}
+	// A release with no build for this platform is still a release. Knowing a
+	// newer version exists is useful on every build — the phone, an ARM server
+	// running the headless binary — while only installing one needs the asset,
+	// and the installer says so itself. Failing the check here is how "check
+	// for updates" came to report an error on platforms that update by hand.
 	return rel, nil
 }
 
 // AssetName is the file the release workflow publishes for a platform.
+//
+// Not every platform has one: the desktop archives cover amd64 Linux, Windows
+// and universal macOS, the phone has its APK, and anything else — an arm64
+// Linux desktop, a *BSD build — comes back with a name the release does not
+// carry, which Latest reports as a release without an asset.
 func AssetName(goos, goarch string) string {
 	switch goos {
 	case "darwin":
 		return "agentmux-macos-universal.zip"
 	case "windows":
 		return "agentmux-windows-" + goarch + ".zip"
+	case "android":
+		// The phone carries the same core inside its APK, which is what a
+		// newer version arrives as — installed by Android, not by us.
+		return "agentmux-android.apk"
 	default:
 		return "agentmux-linux-" + goarch + ".tar.gz"
 	}

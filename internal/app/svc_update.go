@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -131,6 +132,14 @@ func (u *UpdateService) Apply() UpdateResult {
 	}
 	if rel == nil || !update.Newer(Version, rel.Tag) {
 		return UpdateResult{Error: "there is no newer version to install"}
+	}
+	// The check no longer fails on a release that has no build for this
+	// platform — it is still news worth showing — so this is where a platform
+	// that updates by hand is told to do that.
+	if rel.AssetURL == "" {
+		return UpdateResult{Error: fmt.Sprintf(
+			"%s has no build for %s/%s — install it from the release page",
+			rel.Tag, runtime.GOOS, runtime.GOARCH)}
 	}
 
 	staging := u.stagingDir()

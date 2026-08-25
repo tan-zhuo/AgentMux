@@ -73,13 +73,40 @@ func TestLatestPicksThisPlatformsAsset(t *testing.T) {
 	}
 }
 
-func TestLatestRejectsMissingAsset(t *testing.T) {
+// A release that publishes nothing for this platform is still a release: the
+// phone and an arm64 server update by hand, and both deserve to be told a new
+// version exists rather than shown an error. Only the install needs the asset.
+func TestLatestKeepsAReleaseWithNoAssetHere(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"tag_name": "v0.9.0", "assets": []}`)
+		fmt.Fprint(w, `{"tag_name": "v0.9.0", "html_url": "https://example.test/rel", "assets": []}`)
 	}))
 	defer srv.Close()
-	if _, err := Latest(context.Background(), srv.Client(), srv.URL, ""); err == nil {
-		t.Fatal("expected an error for a release with no asset for this platform")
+	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "")
+	if err != nil {
+		t.Fatalf("a release without this platform's asset must still come back: %v", err)
+	}
+	if rel.Tag != "v0.9.0" || rel.PageURL != "https://example.test/rel" {
+		t.Errorf("release = %+v", rel)
+	}
+	if rel.AssetURL != "" {
+		t.Errorf("no asset was published for this platform, got %q", rel.AssetURL)
+	}
+}
+
+// The APK is what a newer version arrives as on the phone, whose core is a
+// Go binary built for android/arm64 — asking for the Linux tarball there is
+// how every check on the phone came back as "no build for android/arm64".
+func TestAssetNamePerPlatform(t *testing.T) {
+	cases := map[[2]string]string{
+		{"android", "arm64"}: "agentmux-android.apk",
+		{"darwin", "arm64"}:  "agentmux-macos-universal.zip",
+		{"windows", "amd64"}: "agentmux-windows-amd64.zip",
+		{"linux", "amd64"}:   "agentmux-linux-amd64.tar.gz",
+	}
+	for in, want := range cases {
+		if got := AssetName(in[0], in[1]); got != want {
+			t.Errorf("AssetName(%q, %q) = %q, want %q", in[0], in[1], got, want)
+		}
 	}
 }
 
