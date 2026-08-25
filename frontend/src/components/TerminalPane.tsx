@@ -24,6 +24,14 @@ import { Button } from './ui'
 
 const encoder = new TextEncoder()
 
+// ⌘C is what a Mac keyboard reaches for; everywhere else the terminal
+// convention is Ctrl+Shift+C, because Ctrl+C is spoken for — it is the
+// interrupt, and a terminal that copied instead would be a broken terminal.
+const isMac =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+const copyHint = isMac ? '⌘C' : 'Ctrl+Shift+C'
+const pasteHint = isMac ? '⌘V' : 'Ctrl+Shift+V'
+
 function toBase64(text: string): string {
   const bytes = encoder.encode(text)
   let binary = ''
@@ -229,6 +237,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   // The key bar copies through the sink, which is registered once per focus
   // change; this keeps it pointed at the current render's copy.
   const copyRef = useRef<() => Promise<void>>(async () => {})
+  const pasteRef = useRef<() => Promise<void>>(async () => {})
 
   const setTabState = useAppStore((s) => s.setTabState)
   const toast = useAppStore((s) => s.toast)
@@ -254,6 +263,30 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     term.loadAddon(fit)
     term.loadAddon(search)
     term.loadAddon(new WebLinksAddon())
+    // The clipboard shortcuts. xterm has no opinion about them — it forwards
+    // the keystroke to the shell like any other — so the menu's Ctrl+Shift+C
+    // was a promise nothing kept: on a desktop the right-click menu was the
+    // only way to copy anything out of a terminal.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      const combo = isMac ? e.metaKey && !e.ctrlKey && !e.altKey : e.ctrlKey && e.shiftKey && !e.altKey
+      if (!combo) return true
+      const key = e.key.toLowerCase()
+      if (key === 'c') {
+        // Nothing selected is not this shortcut's business; on a Mac ⌘C then
+        // means whatever the platform wants it to mean.
+        if (!term.hasSelection()) return true
+        e.preventDefault()
+        void copyRef.current()
+        return false
+      }
+      if (key === 'v') {
+        e.preventDefault()
+        void pasteRef.current()
+        return false
+      }
+      return true
+    })
     term.open(hostRef.current)
     const offTouch = enableTouchScroll(
       hostRef.current,
@@ -522,6 +555,8 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     await termApi.write(id, toBase64(text))
   }
 
+  pasteRef.current = pasteIntoTerminal
+
   function terminalMenu(e: React.MouseEvent) {
     const term = termRef.current
     const selection = term?.getSelection() ?? ''
@@ -529,14 +564,14 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       {
         label: t('term.copy'),
         icon: Copy,
-        hint: 'Ctrl+Shift+C',
+        hint: copyHint,
         disabled: !selection,
         onSelect: () => void copySelection(),
       },
       {
         label: t('term.paste'),
         icon: ClipboardPaste,
-        hint: 'Ctrl+Shift+V',
+        hint: pasteHint,
         disabled: !shellIdRef.current,
         onSelect: () => void pasteIntoTerminal(),
       },
