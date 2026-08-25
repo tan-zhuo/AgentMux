@@ -1,4 +1,3 @@
-import { Clipboard } from '@wailsio/runtime'
 import clsx from 'clsx'
 import {
   Activity,
@@ -29,6 +28,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { agents as agentApi, errText, isDesktop, servers as serverApi, tree as treeApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
+import { copyText } from '../lib/clipboard'
 import type { MsgKey } from '../lib/i18n'
 import { isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
@@ -432,7 +432,7 @@ export function Sidebar() {
                       {
                         label: t('tree.copyRemotePath'),
                         icon: ClipboardCopy,
-                        onSelect: () => void Clipboard.SetText(row.workspace.remotePath),
+                        onSelect: () => void copyText(row.workspace.remotePath),
                       },
                       separator,
                       {
@@ -577,7 +577,7 @@ export function Sidebar() {
                       {
                         label: t('tree.copySessionName'),
                         icon: ClipboardCopy,
-                        onSelect: () => void Clipboard.SetText(a.tmuxSession),
+                        onSelect: () => void copyText(a.tmuxSession),
                       },
                       separator,
                       {

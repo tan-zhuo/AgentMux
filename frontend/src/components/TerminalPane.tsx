@@ -1,4 +1,3 @@
-import { Clipboard } from '@wailsio/runtime'
 import { ClipboardPaste, Copy, Eraser, Search, TextSelect } from 'lucide-react'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -6,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 import { errText, on, terminal as termApi } from '../lib/api'
+import { copyText, readText } from '../lib/clipboard'
 import { applyMods } from '../lib/termKeys'
 import type { ShellInfo } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
@@ -40,43 +40,74 @@ function fromBase64(b64: string): Uint8Array {
 
 /**
  * xterm ships no touch handling at all — its gesture module is never wired
- * up — so on a phone the terminal simply would not scroll. Vertical touch
- * drags become synthetic wheel events instead of scrolling anything directly:
- * xterm's wheel pipeline already knows what a scroll means in every mode
- * (scrollback in the normal buffer, arrow keys in a full-screen app, mouse
- * reports when the app asked for them). A little inertia after the finger
- * lifts, because that is what a finger expects.
+ * up — so on a phone the terminal would not scroll.
+ *
+ * Where a drag goes depends on what the terminal is showing. Scrollback lives
+ * in xterm's own virtual viewport, which nothing in the page can scroll from
+ * the outside: it moves for a real wheel and ignores a synthesised one, so
+ * those drags are handed to `scrollLines` instead, in whole rows with the
+ * remainder carried to the next frame. A full-screen program — vim, less, an
+ * agent's UI — has no scrollback to move, and there a scroll means arrow keys
+ * or a mouse report, which xterm's wheel handling already produces from an
+ * event the page makes itself. A little inertia after the finger lifts,
+ * because that is what a finger expects.
+ *
+ * `blocked` is select mode: there, the same drag is drawing a selection, and a
+ * pane that scrolled at the same time would never let a finger reach the end
+ * of what it was selecting.
  */
-function enableTouchScroll(host: HTMLElement): () => void {
+function enableTouchScroll(
+  host: HTMLElement,
+  term: () => Terminal | null,
+  blocked: () => boolean,
+): () => void {
   let lastX = 0
   let lastY = 0
   let lastT = 0
   let velocity = 0
   let target: Element = host
   let raf = 0
+  // One row in CSS pixels, measured when the finger lands, and the fraction of
+  // a row left over from the last frame.
+  let rowPx = 16
+  let carry = 0
 
-  const wheel = (dy: number) => {
-    target.dispatchEvent(
-      new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: dy, deltaMode: 0 }),
-    )
+  const scrollBy = (dy: number) => {
+    const t = term()
+    if (!t) return
+    if (t.buffer.active.type === 'alternate') {
+      target.dispatchEvent(
+        new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: dy, deltaMode: 0 }),
+      )
+      return
+    }
+    carry += dy / rowPx
+    const lines = Math.trunc(carry)
+    if (!lines) return
+    carry -= lines
+    t.scrollLines(lines)
   }
   const glide = () => {
     velocity *= 0.94
     if (Math.abs(velocity) < 0.7) return
-    wheel(velocity)
+    scrollBy(velocity)
     raf = requestAnimationFrame(glide)
   }
   const onStart = (e: TouchEvent) => {
     cancelAnimationFrame(raf)
     velocity = 0
-    if (e.touches.length !== 1) return
+    carry = 0
+    if (blocked() || e.touches.length !== 1) return
     lastX = e.touches[0].clientX
     lastY = e.touches[0].clientY
     lastT = e.timeStamp
     if (e.target instanceof Element) target = e.target
+    const row = host.querySelector('.xterm-rows > div')
+    const h = row?.getBoundingClientRect().height ?? 0
+    if (h > 0) rowPx = h
   }
   const onMove = (e: TouchEvent) => {
-    if (e.touches.length !== 1) return
+    if (blocked() || e.touches.length !== 1) return
     const dx = lastX - e.touches[0].clientX
     const dy = lastY - e.touches[0].clientY
     lastX = e.touches[0].clientX
@@ -87,7 +118,7 @@ function enableTouchScroll(host: HTMLElement): () => void {
     const dt = Math.max(1, e.timeStamp - lastT)
     lastT = e.timeStamp
     velocity = (dy / dt) * 16 // px per 60fps frame, for the glide
-    wheel(dy)
+    scrollBy(dy)
   }
   const onEnd = () => {
     if (Math.abs(velocity) > 2) raf = requestAnimationFrame(glide)
@@ -101,6 +132,76 @@ function enableTouchScroll(host: HTMLElement): () => void {
     host.removeEventListener('touchstart', onStart)
     host.removeEventListener('touchmove', onMove)
     host.removeEventListener('touchend', onEnd)
+  }
+}
+
+/**
+ * Select text with a finger.
+ *
+ * xterm draws its own selection from mouse events, and its rows are marked
+ * `user-select: none`, so a touch screen has nothing to drag with: no mouse,
+ * and the browser's own selection turned off. Touches become mouse events on
+ * the element xterm listens to.
+ *
+ * Shift is held for exactly one case. When a full-screen program has asked for
+ * the mouse — vim, tmux, an agent's UI, which is where copying is hardest —
+ * Shift is xterm's "select anyway" and the only way to get a selection at all.
+ * Everywhere else a shift-drag means "extend the selection I already have",
+ * and with nothing selected yet it does nothing whatsoever. Which mode the
+ * terminal is in is on the element: xterm marks it `enable-mouse-events`.
+ */
+function enableTouchSelect(host: HTMLElement): () => void {
+  const screen: Element = host.querySelector('.xterm-screen') ?? host
+  const xterm = host.querySelector('.xterm')
+  // Decided once per drag, at the press: a program that turns mouse reporting
+  // on mid-drag must not change what this gesture means half way through.
+  let force = false
+
+  const send = (type: 'mousedown' | 'mousemove' | 'mouseup', t: Touch, buttons: number) => {
+    screen.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        detail: 1,
+        button: 0,
+        buttons,
+        clientX: t.clientX,
+        clientY: t.clientY,
+        shiftKey: force,
+      }),
+    )
+  }
+
+  // Every one of these cancels its default: an uncancelled touch becomes the
+  // WebView's own tap — scrolling, a text magnifier, and the keyboard coming
+  // back up over the very text being selected.
+  const onStart = (e: TouchEvent) => {
+    if (e.touches.length !== 1) return
+    e.preventDefault()
+    force = xterm?.classList.contains('enable-mouse-events') ?? false
+    send('mousedown', e.touches[0], 1)
+  }
+  const onMove = (e: TouchEvent) => {
+    if (e.touches.length !== 1) return
+    e.preventDefault()
+    send('mousemove', e.touches[0], 1)
+  }
+  const onEnd = (e: TouchEvent) => {
+    const t = e.changedTouches[0]
+    if (!t) return
+    send('mouseup', t, 0)
+  }
+
+  host.addEventListener('touchstart', onStart, { passive: false })
+  host.addEventListener('touchmove', onMove, { passive: false })
+  host.addEventListener('touchend', onEnd)
+  host.addEventListener('touchcancel', onEnd)
+  return () => {
+    host.removeEventListener('touchstart', onStart)
+    host.removeEventListener('touchmove', onMove)
+    host.removeEventListener('touchend', onEnd)
+    host.removeEventListener('touchcancel', onEnd)
   }
 }
 
@@ -122,10 +223,18 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   // separate "the component went away" from "the status changed".
   const mountedRef = useRef(true)
   const attachingRef = useRef(false)
+  // Read inside the touch handlers, which are bound once and outlive any
+  // render: a ref is what they can see.
+  const selectingRef = useRef(false)
+  // The key bar copies through the sink, which is registered once per focus
+  // change; this keeps it pointed at the current render's copy.
+  const copyRef = useRef<() => Promise<void>>(async () => {})
 
   const setTabState = useAppStore((s) => s.setTabState)
   const toast = useAppStore((s) => s.toast)
   const terminalTheme = useTheme((s) => s.theme.terminal)
+  // Select mode belongs to whichever pane has focus; an inactive pane ignores it.
+  const selectMode = useTermKeys((s) => s.selecting) && active
 
   // Create the xterm instance once per tab.
   useEffect(() => {
@@ -146,7 +255,11 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     term.loadAddon(search)
     term.loadAddon(new WebLinksAddon())
     term.open(hostRef.current)
-    const offTouch = enableTouchScroll(hostRef.current)
+    const offTouch = enableTouchScroll(
+      hostRef.current,
+      () => termRef.current,
+      () => selectingRef.current,
+    )
 
     termRef.current = term
     fitRef.current = fit
@@ -321,6 +434,20 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.status])
 
+  // Select mode: a finger draws a selection instead of scrolling the pane.
+  useEffect(() => {
+    selectingRef.current = selectMode
+    if (!selectMode || !hostRef.current) return
+    const off = enableTouchSelect(hostRef.current)
+    return () => {
+      off()
+      selectingRef.current = false
+      // Leaving with a highlight still painted reads as a selection that is
+      // still live, when the next tap would already have replaced it.
+      termRef.current?.clearSelection()
+    }
+  }, [selectMode])
+
   // Repaint the terminal when the app theme changes.
   useEffect(() => {
     if (termRef.current) termRef.current.options.theme = terminalTheme
@@ -336,9 +463,12 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       },
       focus: () => termRef.current?.focus(),
       blur: () => termRef.current?.blur(),
+      selectAll: () => termRef.current?.selectAll(),
+      copySelection: () => void copyRef.current(),
     }
     setKeySink(own)
     return () => clearKeySink(own)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
 
   // Re-fit and focus when this pane becomes visible.
@@ -360,6 +490,38 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
 
   const dead = tab.status === 'closed' || tab.status === 'error'
 
+  // One copy path for the menu, the select-mode bar and every platform: the
+  // desktop's native clipboard, a browser's, or the old execCommand on a LAN
+  // address that is not a secure context.
+  async function copySelection() {
+    const text = termRef.current?.getSelection() ?? ''
+    if (!text) {
+      toast('info', t('term.select.empty'))
+      return
+    }
+    if (await copyText(text)) {
+      toast('ok', t('term.copied', { n: text.length }))
+      useTermKeys.getState().setSelecting(false)
+    } else {
+      toast('error', t('term.copyFailed'))
+    }
+  }
+
+  copyRef.current = copySelection
+
+  async function pasteIntoTerminal() {
+    const id = shellIdRef.current
+    if (!id) return
+    const text = await readText()
+    if (!text) {
+      // Android has no clipboard-read permission to grant, so this is where a
+      // paste ends on a phone — and the keyboard's own paste still works.
+      toast('info', t('term.pasteUnavailable'))
+      return
+    }
+    await termApi.write(id, toBase64(text))
+  }
+
   function terminalMenu(e: React.MouseEvent) {
     const term = termRef.current
     const selection = term?.getSelection() ?? ''
@@ -369,18 +531,14 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
         icon: Copy,
         hint: 'Ctrl+Shift+C',
         disabled: !selection,
-        onSelect: () => void Clipboard.SetText(selection),
+        onSelect: () => void copySelection(),
       },
       {
         label: t('term.paste'),
         icon: ClipboardPaste,
         hint: 'Ctrl+Shift+V',
         disabled: !shellIdRef.current,
-        onSelect: async () => {
-          const text = await Clipboard.Text()
-          const id = shellIdRef.current
-          if (text && id) await termApi.write(id, toBase64(text))
-        },
+        onSelect: () => void pasteIntoTerminal(),
       },
       {
         label: t('term.selectAll'),

@@ -801,6 +801,12 @@ export const ja: Messages = {
   'term.sessionEnded': 'セッションが終了しました。',
   'term.detached': '切り離されました — リモートの tmux セッションは動き続けています。',
   'term.reattach': '接続し直す',
+  'term.copied': '{n} 文字をコピーしました',
+  'term.copyFailed': 'この環境ではページからクリップボードに書き込めません',
+  'term.pasteUnavailable': 'この環境ではページからクリップボードを読めません。キーボードの貼り付けをお使いください',
+  'term.select.hint': 'ドラッグで選択してからコピー',
+  'term.select.empty': 'まだ何も選択されていません — 文字の上をドラッグしてください',
+  'term.select.done': '選択モードを終了',
 
   // 画面上のキーバー：ソフトウェアキーボードにないキー。
   'keys.show': 'ターミナルキーを表示',
@@ -810,6 +816,7 @@ export const ja: Messages = {
   'keys.keyboardShow': 'キーボードを表示',
   'keys.keyboardHide': 'キーボードを閉じる',
   'keys.modHint': 'タップで次の1キーに適用、長押しで固定',
+  'keys.select': 'テキストを選択してコピー',
 
   'detached.badge': '切り離し',
   'detached.cannotOpen': 'このタブを開けませんでした',

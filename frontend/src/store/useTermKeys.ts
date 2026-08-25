@@ -26,6 +26,9 @@ export interface KeySink {
   send: (data: string) => void
   focus: () => void
   blur: () => void
+  /** Select mode's two actions, which belong to the pane's xterm instance. */
+  selectAll: () => void
+  copySelection: () => void
 }
 
 let sink: KeySink | null = null
@@ -41,6 +44,7 @@ export function clearKeySink(own: KeySink): void {
   if (sink !== own) return
   sink = null
   useTermKeys.getState().clearMods()
+  useTermKeys.getState().setSelecting(false)
 }
 
 /** True while a live terminal is listening — the bar has nothing to do otherwise. */
@@ -63,6 +67,14 @@ export function blurTerminal(): void {
   sink?.blur()
 }
 
+export function selectAllInTerminal(): void {
+  sink?.selectAll()
+}
+
+export function copyTerminalSelection(): void {
+  sink?.copySelection()
+}
+
 /** What is armed right now, for the bar and for characters typed on the keyboard. */
 export function currentMods(): Mods {
   const s = useTermKeys.getState()
@@ -81,6 +93,12 @@ interface TermKeysState {
   hidden: boolean
   /** The second tier of keys is showing. Also persisted. */
   expanded: boolean
+  /**
+   * The focused terminal is in select mode: a finger drags out a selection
+   * instead of scrolling. Never persisted — it is a moment, not a preference,
+   * and it ends with the copy it was opened for.
+   */
+  selecting: boolean
 
   init: () => Promise<void>
   /** Tap: off → armed for one key → off. */
@@ -92,6 +110,7 @@ interface TermKeysState {
   clearMods: () => void
   setHidden: (hidden: boolean) => void
   toggleExpanded: () => void
+  setSelecting: (selecting: boolean) => void
 }
 
 export const useTermKeys = create<TermKeysState>((set, get) => ({
@@ -99,6 +118,7 @@ export const useTermKeys = create<TermKeysState>((set, get) => ({
   alt: 'off',
   hidden: false,
   expanded: false,
+  selecting: false,
 
   async init() {
     try {
@@ -141,6 +161,14 @@ export const useTermKeys = create<TermKeysState>((set, get) => ({
     const expanded = !get().expanded
     set({ expanded })
     void tree.setSetting(EXPANDED_KEY, expanded ? '1' : '0').catch(() => {})
+  },
+
+  setSelecting(selecting) {
+    if (get().selecting === selecting) return
+    set({ selecting })
+    // The keyboard has nothing to type into a selection, and it covers half of
+    // what the user is trying to select.
+    if (selecting) blurTerminal()
   },
 }))
 

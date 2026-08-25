@@ -1,5 +1,5 @@
-import { Clipboard } from '@wailsio/runtime'
 import { ClipboardPaste, Copy, Scissors, TextCursorInput } from 'lucide-react'
+import { copyText, readText } from './clipboard'
 import { useContextMenu } from '../store/useContextMenu'
 import { t } from '../store/useI18n'
 
@@ -37,7 +37,7 @@ export async function showEditMenu(e: MouseEvent, target: HTMLElement) {
       hint: 'Ctrl+X',
       disabled: !selected || readOnly,
       onSelect: async () => {
-        await Clipboard.SetText(selected)
+        await copyText(selected)
         insert('')
       },
     },
@@ -46,7 +46,7 @@ export async function showEditMenu(e: MouseEvent, target: HTMLElement) {
       icon: Copy,
       hint: 'Ctrl+C',
       disabled: !selected,
-      onSelect: () => void Clipboard.SetText(selected),
+      onSelect: () => void copyText(selected),
     },
     {
       label: t('edit.paste'),
@@ -54,7 +54,7 @@ export async function showEditMenu(e: MouseEvent, target: HTMLElement) {
       hint: 'Ctrl+V',
       disabled: readOnly,
       onSelect: async () => {
-        const text = await Clipboard.Text()
+        const text = await readText()
         if (text) insert(text)
       },
     },

@@ -799,6 +799,12 @@ export const zhHant: Messages = {
   'term.sessionEnded': '工作階段已結束。',
   'term.detached': '已中斷連線 —— 遠端的 tmux 工作階段還在跑。',
   'term.reattach': '重新接入',
+  'term.copied': '已複製 {n} 個字元',
+  'term.copyFailed': '目前環境不允許網頁寫入剪貼簿',
+  'term.pasteUnavailable': '目前環境不允許網頁讀取剪貼簿，請用輸入法自帶的貼上',
+  'term.select.hint': '拖曳選取文字，再點複製',
+  'term.select.empty': '還沒有選取內容 —— 先在文字上拖曳',
+  'term.select.done': '離開選取模式',
 
   // 螢幕功能鍵列：軟體鍵盤上沒有的那些鍵。
   'keys.show': '顯示終端機功能鍵',
@@ -808,6 +814,7 @@ export const zhHant: Messages = {
   'keys.keyboardShow': '開啟鍵盤',
   'keys.keyboardHide': '收起鍵盤',
   'keys.modHint': '點一下對下一個鍵生效；長按鎖定',
+  'keys.select': '選取文字以複製',
 
   'detached.badge': '獨立視窗',
   'detached.cannotOpen': '無法開啟這個分頁',

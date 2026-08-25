@@ -1,11 +1,13 @@
 import clsx from 'clsx'
-import { ChevronDown, ChevronUp, Keyboard, KeyboardOff } from 'lucide-react'
+import { ChevronDown, ChevronUp, Keyboard, KeyboardOff, TextSelect } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { EXTRA_KEYS, PRIMARY_KEYS, keyBytes, type KeyCap } from '../lib/termKeys'
 import {
   blurTerminal,
+  copyTerminalSelection,
   currentMods,
   focusTerminal,
+  selectAllInTerminal,
   sendKeys,
   useTermKeys,
   type ModState,
@@ -32,8 +34,10 @@ export function TerminalKeyBar() {
   const t = useT()
   const hidden = useTermKeys((s) => s.hidden)
   const expanded = useTermKeys((s) => s.expanded)
+  const selecting = useTermKeys((s) => s.selecting)
   const setHidden = useTermKeys((s) => s.setHidden)
   const toggleExpanded = useTermKeys((s) => s.toggleExpanded)
+  const setSelecting = useTermKeys((s) => s.setSelecting)
 
   if (hidden) {
     return (
@@ -78,12 +82,34 @@ export function TerminalKeyBar() {
         style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))' }}
       >
         {/* The keys themselves scroll; the two controls stay put, because a
-            control that scrolls out of reach is one that is not there. */}
-        <div className="no-scrollbar flex flex-1 gap-[2px] overflow-x-auto">
-          {PRIMARY_KEYS.map((cap) => (
-            <Cap key={cap.id} cap={cap} />
-          ))}
-        </div>
+            control that scrolls out of reach is one that is not there.
+
+            In select mode the keys give their place to what select mode is
+            for. A strip over the terminal would have been simpler and would
+            have covered the top line of the very output being copied. */}
+        {selecting ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-1">
+            <span className="min-w-0 flex-1 truncate text-[11px] text-ink-400">
+              {t('term.select.hint')}
+            </span>
+            <TextButton label={t('term.selectAll')} onPress={selectAllInTerminal} />
+            <TextButton label={t('term.copy')} onPress={copyTerminalSelection} primary />
+          </div>
+        ) : (
+          <div className="no-scrollbar flex flex-1 gap-[2px] overflow-x-auto">
+            {PRIMARY_KEYS.map((cap) => (
+              <Cap key={cap.id} cap={cap} />
+            ))}
+          </div>
+        )}
+        {/* Copying out of a terminal is a two-handed, mouse-shaped act
+            everywhere else; on a phone it needs a switch of its own. */}
+        <Control
+          label={<TextSelect size={16} />}
+          title={selecting ? t('term.select.done') : t('keys.select')}
+          active={selecting}
+          onPress={() => setSelecting(!selecting)}
+        />
         <SoftKeyboardToggle />
         <Control
           label={expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
@@ -238,6 +264,38 @@ function KeyButton({
       {...handlers}
     >
       {cap.label}
+    </button>
+  )
+}
+
+/**
+ * A labelled button in the bar. Like the keys, it acts on the release and
+ * cancels its default, so the terminal keeps focus and the keyboard — if it is
+ * up — stays where it is.
+ */
+function TextButton({
+  label,
+  onPress,
+  primary,
+}: {
+  label: string
+  onPress: () => void
+  primary?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className={clsx(
+        'h-9 shrink-0 rounded-control px-2.5 text-[12px] leading-none select-none touch-manipulation',
+        primary ? 'bg-accent text-white' : 'bg-ink-750 text-ink-200 active:bg-ink-700',
+      )}
+      onPointerDown={(e) => e.preventDefault()}
+      onPointerUp={(e) => {
+        e.preventDefault()
+        onPress()
+      }}
+    >
+      {label}
     </button>
   )
 }

@@ -805,6 +805,12 @@ export const en = {
   'term.sessionEnded': 'Session ended.',
   'term.detached': 'Detached — the remote tmux session is still running.',
   'term.reattach': 'Reattach',
+  'term.copied': 'Copied {n} characters',
+  'term.copyFailed': 'This browser would not let the page write to the clipboard',
+  'term.pasteUnavailable': 'This platform will not hand the page its clipboard — use the keyboard\u2019s own paste',
+  'term.select.hint': 'Drag to select, then copy',
+  'term.select.empty': 'Nothing selected yet — drag across the text first',
+  'term.select.done': 'Leave select mode',
 
   // The on-screen key bar: what a software keyboard does not have.
   'keys.show': 'Show the terminal keys',
@@ -814,6 +820,7 @@ export const en = {
   'keys.keyboardShow': 'Show the keyboard',
   'keys.keyboardHide': 'Hide the keyboard',
   'keys.modHint': 'Tap to arm for the next key; hold to lock it on',
+  'keys.select': 'Select text to copy',
 
   'detached.badge': 'detached',
   'detached.cannotOpen': 'Could not open this tab',

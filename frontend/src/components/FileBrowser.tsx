@@ -1,4 +1,4 @@
-import { Clipboard, Dialogs } from '@wailsio/runtime'
+import { Dialogs } from '@wailsio/runtime'
 import clsx from 'clsx'
 import {
   ArrowUp,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { errText, files as filesApi, on, tree as treeApi, windows as windowsApi } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import type { MsgKey, TFunc } from '../lib/i18n'
 import type { FileEntry, Listing, Transfer } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
@@ -540,12 +541,12 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                       {
                         label: t('files.menu.copyPath'),
                         icon: ClipboardCopy,
-                        onSelect: () => void Clipboard.SetText(e.path),
+                        onSelect: () => void copyText(e.path),
                       },
                       {
                         label: t('files.menu.copyName'),
                         icon: ClipboardCopy,
-                        onSelect: () => void Clipboard.SetText(e.name),
+                        onSelect: () => void copyText(e.name),
                       },
                       separator,
                       {

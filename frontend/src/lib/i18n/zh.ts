@@ -799,6 +799,12 @@ export const zh: Messages = {
   'term.sessionEnded': '会话已结束。',
   'term.detached': '已断开 —— 远端的 tmux 会话还在跑。',
   'term.reattach': '重新接入',
+  'term.copied': '已复制 {n} 个字符',
+  'term.copyFailed': '当前环境不允许网页写入剪贴板',
+  'term.pasteUnavailable': '当前环境不允许网页读取剪贴板，请用输入法自带的粘贴',
+  'term.select.hint': '拖动选中文本，再点复制',
+  'term.select.empty': '还没有选中内容 —— 先在文字上拖动',
+  'term.select.done': '退出选择模式',
 
   // 屏幕功能键栏：软键盘上没有的那些键。
   'keys.show': '显示终端功能键',
@@ -808,6 +814,7 @@ export const zh: Messages = {
   'keys.keyboardShow': '打开键盘',
   'keys.keyboardHide': '收起键盘',
   'keys.modHint': '点一下对下一个键生效；长按锁定',
+  'keys.select': '选中文本以复制',
 
   'detached.badge': '独立窗口',
   'detached.cannotOpen': '打不开这个标签',
