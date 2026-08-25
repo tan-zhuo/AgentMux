@@ -238,6 +238,12 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   // change; this keeps it pointed at the current render's copy.
   const copyRef = useRef<() => Promise<void>>(async () => {})
   const pasteRef = useRef<() => Promise<void>>(async () => {})
+  // The selection as it stood the instant a click arrived, captured before
+  // anything the engine does with that click can drop it. Some webviews clear
+  // xterm's selection on the right-click that opens the menu, which left the
+  // menu's Copy pointing at nothing — and on a desktop that menu is the whole
+  // of copying.
+  const clickedSelectionRef = useRef('')
 
   const setTabState = useAppStore((s) => s.setTabState)
   const toast = useAppStore((s) => s.toast)
@@ -526,8 +532,8 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   // One copy path for the menu, the select-mode bar and every platform: the
   // desktop's native clipboard, a browser's, or the old execCommand on a LAN
   // address that is not a secure context.
-  async function copySelection() {
-    const text = termRef.current?.getSelection() ?? ''
+  async function copySelection(explicit?: string) {
+    const text = explicit ?? termRef.current?.getSelection() ?? ''
     if (!text) {
       toast('info', t('term.select.empty'))
       return
@@ -559,14 +565,16 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
 
   function terminalMenu(e: React.MouseEvent) {
     const term = termRef.current
-    const selection = term?.getSelection() ?? ''
+    const selection = term?.getSelection() || clickedSelectionRef.current
     openContextMenu(e, [
       {
         label: t('term.copy'),
         icon: Copy,
         hint: copyHint,
         disabled: !selection,
-        onSelect: () => void copySelection(),
+        // The text, not the live selection: by the time this runs the click
+        // that opened the menu may have taken the selection with it.
+        onSelect: () => void copySelection(selection),
       },
       {
         label: t('term.paste'),
@@ -598,7 +606,17 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   }
 
   return (
-    <div className="relative h-full w-full bg-ink-950" onContextMenu={terminalMenu}>
+    <div
+      className="relative h-full w-full bg-ink-950"
+      // Capture phase: ahead of xterm's own listeners and of whatever the
+      // webview does with a right-click.
+      // Unconditional, so a click that follows a cleared selection replaces
+      // the remembered text rather than leaving a stale one behind.
+      onMouseDownCapture={() => {
+        clickedSelectionRef.current = termRef.current?.getSelection() ?? ''
+      }}
+      onContextMenu={terminalMenu}
+    >
       <div ref={hostRef} className="h-full w-full px-2 py-1.5" />
       {dead && (
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t hairline bg-ink-850 px-3 py-2">
