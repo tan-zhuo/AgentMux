@@ -84,7 +84,8 @@ func terminalEnv(opts sshx.ShellOptions) []string {
 	for _, k := range keys {
 		env = append(env, k+"="+opts.Env[k])
 	}
-	return env
+	// Last, so a workspace that sets its own locale wins over the fallback.
+	return withUTF8Locale(env)
 }
 
 // localSession is the local half of an open terminal.

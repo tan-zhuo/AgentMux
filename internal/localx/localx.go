@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -56,6 +57,11 @@ func (r *Runner) Exec(_ string, cmd string) (sshx.ExecResult, error) {
 	}
 	name, args := shellCommand(cmd)
 	c := exec.Command(name, args...)
+	// Explicit rather than inherited, so the locale this machine may be
+	// missing can be filled in — tmux copies the environment of the client
+	// that creates a session into the session, which is how an agent's pane
+	// ends up able to read what is typed into it.
+	c.Env = withUTF8Locale(os.Environ())
 	var out, errBuf bytes.Buffer
 	c.Stdout = &out
 	c.Stderr = &errBuf
