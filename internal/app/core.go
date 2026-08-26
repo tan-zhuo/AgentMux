@@ -62,6 +62,12 @@ type Core struct {
 	remoteMuxMu sync.Mutex
 	remoteMux   map[string]*natmux.Client
 
+	// Which kernel each host runs, asked once and remembered. A machine does
+	// not change operating system while AgentMux is looking at it, and the
+	// question is asked on every metrics poll.
+	unameMu sync.Mutex
+	uname   map[string]string
+
 	// llmMu guards the client, which is rebuilt whenever the user points
 	// AgentMux at a different Ollama.
 	llmMu sync.RWMutex
@@ -250,6 +256,52 @@ func (c *Core) IsSSHWin(serverID string) bool {
 func (c *Core) IsWinHost(serverID string) bool {
 	kind := c.Store.ServerKindOf(serverID)
 	return kind == store.KindLocalWin || kind == store.KindSSHWin
+}
+
+// IsDarwinHost reports whether a host is a Mac — this computer when AgentMux
+// runs on macOS, or a Mac reached over SSH.
+//
+// macOS is a POSIX host in every way that matters to shells and tmux, so it
+// has no kind of its own; where it differs is in what it can be asked about
+// itself, which is /proc on Linux and sysctl here. The local answer is free.
+// A remote one costs one `uname -s`, kept for the session.
+func (c *Core) IsDarwinHost(serverID string) bool {
+	kind := c.Store.ServerKindOf(serverID)
+	if kind == store.KindLocalWin || kind == store.KindSSHWin {
+		return false
+	}
+	if kind == store.KindLocal {
+		return runtime.GOOS == "darwin"
+	}
+	return c.unameOf(serverID) == "Darwin"
+}
+
+// unameOf reports a remote host's kernel name, asking it at most once. A failed
+// probe is not remembered: a server that was offline is asked again rather than
+// being treated as something it is not for the rest of the session.
+func (c *Core) unameOf(serverID string) string {
+	c.unameMu.Lock()
+	if c.uname == nil {
+		c.uname = map[string]string{}
+	}
+	if v, ok := c.uname[serverID]; ok {
+		c.unameMu.Unlock()
+		return v
+	}
+	c.unameMu.Unlock()
+
+	res, err := c.Run.Exec(serverID, "uname -s 2>/dev/null")
+	if err != nil {
+		return ""
+	}
+	name := strings.TrimSpace(res.Stdout)
+	if name == "" {
+		return ""
+	}
+	c.unameMu.Lock()
+	c.uname[serverID] = name
+	c.unameMu.Unlock()
+	return name
 }
 
 // NatMuxFor returns the session daemon client for a Windows host: the local

@@ -37,6 +37,9 @@ func (m *MetricsService) collect(serverID string, at int64) metrics.Sample {
 	if m.core.IsWinHost(serverID) {
 		return metrics.CollectWindows(m.core.Run, serverID, at)
 	}
+	if m.core.IsDarwinHost(serverID) {
+		return metrics.CollectDarwin(m.core.Run, serverID, at)
+	}
 	return metrics.Collect(m.core.Run, serverID, at)
 }
 
@@ -53,9 +56,12 @@ func (m *MetricsService) Hardware(serverID string) metrics.Hardware {
 	m.hwMu.Unlock()
 
 	var h metrics.Hardware
-	if m.core.IsWinHost(serverID) {
+	switch {
+	case m.core.IsWinHost(serverID):
 		h = metrics.CollectWindowsHardware(m.core.Run, serverID)
-	} else {
+	case m.core.IsDarwinHost(serverID):
+		h = metrics.CollectDarwinHardware(m.core.Run, serverID)
+	default:
 		h = metrics.CollectHardware(m.core.Run, serverID)
 	}
 	if h.OK {
