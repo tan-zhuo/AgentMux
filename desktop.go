@@ -56,6 +56,17 @@ func runApp() {
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},
+		Mac: application.MacOptions{
+			// macOS keeps an application alive after its last window closes, on
+			// the understanding that clicking the Dock icon brings a window
+			// back. Wails has no reopen handler, so there is nothing to bring
+			// back: the process sits there with no window, the Dock icon
+			// activates an app that cannot present one, and the only way out is
+			// Force Quit. AgentMux has one window and closing it is the user
+			// saying they are done — the work itself lives in tmux on the
+			// servers and is not affected either way.
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
 		OnShutdown: func() { core.Shutdown() },
 	})
 
