@@ -1,6 +1,7 @@
 package natmux
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -266,5 +267,57 @@ func TestLastLines(t *testing.T) {
 	// A progress bar's carriage returns resolve to the final state.
 	if got := lastLines("10%\r50%\r100%", 5); got != "100%" {
 		t.Fatalf("lastLines with CR = %q", got)
+	}
+}
+
+// A detach is a detach even when the daemon hangs up first.
+//
+// Closing an attachment sends a detach frame, and the daemon answers by
+// dropping the connection — which the pump reads as the daemon being lost. The
+// two endings race, and on a loaded machine the loss can win: the terminal
+// then closes with "lost the session daemon" written across it and Wait
+// returns an error, for a detach that went exactly to plan.
+//
+// hangUpOnWrite pins that race to its worst ordering rather than hoping for
+// it: the far end goes away as the frame is written, and the write does not
+// come back until the pump has settled on an ending.
+type hangUpOnWrite struct {
+	at   *attached
+	gone chan struct{}
+	once sync.Once
+}
+
+func (h *hangUpOnWrite) Read([]byte) (int, error) {
+	<-h.gone
+	return 0, io.EOF
+}
+
+func (h *hangUpOnWrite) Write(p []byte) (int, error) {
+	h.hangUp()
+	<-h.at.done
+	return len(p), nil
+}
+
+func (h *hangUpOnWrite) Close() error {
+	h.hangUp()
+	return nil
+}
+
+func (h *hangUpOnWrite) hangUp() { h.once.Do(func() { close(h.gone) }) }
+
+func TestDetachOutlastsTheDaemonHangingUp(t *testing.T) {
+	conn := &hangUpOnWrite{gone: make(chan struct{})}
+	at := &attached{conn: conn, done: make(chan struct{})}
+	conn.at = at
+
+	pr, pw := io.Pipe()
+	go at.pump(bufio.NewScanner(conn), pw)
+	go func() { _, _ = io.Copy(io.Discard, pr) }()
+
+	if err := at.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if err := at.Wait(); err != nil {
+		t.Fatalf("a detach the user asked for reported %v", err)
 	}
 }

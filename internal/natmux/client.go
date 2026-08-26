@@ -378,7 +378,12 @@ func (a *attached) Wait() error {
 
 // Close detaches. The session and everything inside it keeps running.
 func (a *attached) Close() error {
-	_ = a.send(frame{Stream: "detach"})
+	// The ending is recorded before the frame goes out, because the daemon
+	// hangs up the moment it reads a detach: the pump would see that hangup as
+	// a lost daemon and, being first, would name the ending. A detach the user
+	// asked for has to read as a detach — in the terminal's closing line, and
+	// to Wait, which is the difference between a quiet return and an error.
 	a.finish("detached")
+	_ = a.send(frame{Stream: "detach"})
 	return a.conn.Close()
 }
