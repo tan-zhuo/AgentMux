@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { desktop as desktopApi, errText } from '../lib/api'
 import { getToken } from '../lib/webTransport'
 import type { DesktopInApp, DesktopProtocol } from '../lib/types'
+import { useTouchDevice } from '../lib/useCompact'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { useT } from '../store/useI18n'
 import { Button, inputClass } from './ui'
@@ -43,6 +44,7 @@ function socketURL(session: DesktopInApp): string {
  */
 export function DesktopPane({ tab }: { tab: Tab }) {
   const t = useT()
+  const touch = useTouchDevice()
   const toast = useAppStore((s) => s.toast)
   const setTabState = useAppStore((s) => s.setTabState)
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -172,6 +174,14 @@ export function DesktopPane({ tab }: { tab: Tab }) {
                 <p className="text-[10.5px] leading-relaxed text-ink-500">
                   {t('desktop.pane.credentialsHint')}
                 </p>
+                {touch && (
+                  // Said before connecting rather than discovered afterwards:
+                  // the RDP client draws the screen but takes mouse and
+                  // keyboard only, so a finger gets taps and little else.
+                  <p className="text-[10.5px] leading-relaxed text-warn">
+                    {t('desktop.pane.touchLimited')}
+                  </p>
+                )}
                 <Button type="submit" variant="primary" className="w-full" disabled={connecting}>
                   {connecting ? t('desktop.pane.connecting') : t('desktop.pane.connect')}
                 </Button>

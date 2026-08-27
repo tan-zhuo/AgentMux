@@ -12,7 +12,9 @@ package webserve
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"reflect"
+	"runtime/debug"
 	"strings"
 )
 
@@ -44,7 +46,23 @@ var errType = reflect.TypeOf((*error)(nil)).Elem()
 // Call invokes a bound method with positional JSON arguments and returns the
 // result marshalled to JSON. The name may carry the package-path prefix the
 // frontend sends; only the final "Service.Method" is used.
-func (r *Registry) Call(name string, args []json.RawMessage) (json.RawMessage, error) {
+func (r *Registry) Call(name string, args []json.RawMessage) (out json.RawMessage, err error) {
+	// A panic in one service call fails that call and nothing else. Without
+	// this the HTTP server catches it a layer up, which means the connection
+	// dies rather than the request: the browser sees a network failure with no
+	// sentence in it, the event stream on the same connection goes with it,
+	// and the bug that caused it leaves no trace in front of the person who
+	// hit it. The desktop's binder has recovered like this since it learned
+	// the same lesson.
+	defer func() {
+		e := recover()
+		if e == nil {
+			return
+		}
+		log.Printf("panic in %s: %v\n%s", name, e, debug.Stack())
+		out, err = nil, fmt.Errorf("%s failed with an internal error: %v", name, e)
+	}()
+
 	parts := strings.Split(name, ".")
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("malformed method name %q", name)
@@ -71,26 +89,26 @@ func (r *Registry) Call(name string, args []json.RawMessage) (json.RawMessage, e
 		in[i] = p.Elem()
 	}
 
-	out := m.Call(in)
+	returned := m.Call(in)
 
 	// The service surface uses (), (T), (error) and (T, error). Trailing error
 	// first, then whatever value remains.
-	if n := len(out); n > 0 && mt.Out(n-1).Implements(errType) {
-		if !out[n-1].IsNil() {
-			return nil, out[n-1].Interface().(error)
+	if n := len(returned); n > 0 && mt.Out(n-1).Implements(errType) {
+		if !returned[n-1].IsNil() {
+			return nil, returned[n-1].Interface().(error)
 		}
-		out = out[:n-1]
+		returned = returned[:n-1]
 	}
-	switch len(out) {
+	switch len(returned) {
 	case 0:
 		return json.RawMessage("null"), nil
 	case 1:
-		b, err := json.Marshal(out[0].Interface())
+		b, err := json.Marshal(returned[0].Interface())
 		if err != nil {
 			return nil, fmt.Errorf("%s result: %w", key, err)
 		}
 		return b, nil
 	default:
-		return nil, fmt.Errorf("%s returns %d values, which the wire format cannot carry", key, len(out))
+		return nil, fmt.Errorf("%s returns %d values, which the wire format cannot carry", key, len(returned))
 	}
 }

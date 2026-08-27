@@ -879,6 +879,7 @@ export const ja: Messages = {
   'desktop.pane.password': 'パスワード',
   'desktop.pane.domain': 'ドメイン（任意）',
   'desktop.pane.credentialsHint': 'ホストの SSH 接続を通して送られ、手元には残りません。',
+  'desktop.pane.touchLimited': 'タッチ画面ではタップ程度しか効きません。RDP はタッチ非対応で、VNC は対応しています。',
   'desktop.pane.connect': '接続',
   'desktop.pane.connecting': '接続中…',
   'desktop.pane.ended': 'セッションが終了しました。',

@@ -877,6 +877,7 @@ export const zhHant: Messages = {
   'desktop.pane.password': '密碼',
   'desktop.pane.domain': '網域（選填）',
   'desktop.pane.credentialsHint': '經這台主機的 SSH 連線送過去，本機不保存。',
+  'desktop.pane.touchLimited': '觸控螢幕上這條只能點一下，拖曳和右鍵都沒有——RDP 用戶端不支援觸控，VNC 支援。',
   'desktop.pane.connect': '連線',
   'desktop.pane.connecting': '正在連線…',
   'desktop.pane.ended': '工作階段已結束。',

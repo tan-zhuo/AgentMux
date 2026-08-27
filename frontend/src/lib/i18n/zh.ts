@@ -877,6 +877,7 @@ export const zh: Messages = {
   'desktop.pane.password': '密码',
   'desktop.pane.domain': '域（可选）',
   'desktop.pane.credentialsHint': '经这台主机的 SSH 连接送过去，本地不保存。',
+  'desktop.pane.touchLimited': '触摸屏上这条只能点一下，拖动和右键都没有——RDP 客户端不支持触摸，VNC 支持。',
   'desktop.pane.connect': '连接',
   'desktop.pane.connecting': '正在连接…',
   'desktop.pane.ended': '会话已结束。',

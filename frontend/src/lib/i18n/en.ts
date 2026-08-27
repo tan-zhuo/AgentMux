@@ -883,6 +883,7 @@ export const en = {
   'desktop.pane.password': 'Password',
   'desktop.pane.domain': 'Domain (optional)',
   'desktop.pane.credentialsHint': 'Sent to the host over its SSH connection, and kept nowhere.',
+  'desktop.pane.touchLimited': 'On a touch screen this one takes taps and not much else — RDP has no touch support here, while VNC does.',
   'desktop.pane.connect': 'Connect',
   'desktop.pane.connecting': 'Connecting…',
   'desktop.pane.ended': 'The session ended.',

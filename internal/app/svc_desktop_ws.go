@@ -91,9 +91,21 @@ func (d *DesktopService) InApp(serverID string, ep desktop.Endpoint) (InAppSessi
 	d.tickets[id] = ticket{serverID: serverID, endpoint: ep, expires: time.Now().Add(ticketTTL)}
 	d.mu.Unlock()
 
+	d.mu.Lock()
+	wants, listener := d.wantsLoopback, d.loopback
+	d.mu.Unlock()
+
 	base := WSPath
-	if d.loopback != nil {
-		base = "ws://" + d.loopback.Addr().String() + WSPath
+	switch {
+	case listener != nil:
+		base = "ws://" + listener.Addr().String() + WSPath
+	case wants:
+		// The desktop app asked for a listener and did not get one. Its page
+		// has no origin to make a relative URL out of, so handing one back
+		// would be a socket address of "wails.localhost" and an error nobody
+		// can act on.
+		return InAppSession{}, fmt.Errorf(
+			"this window has no local listener for desktop sessions — open it in a system client instead")
 	}
 	return InAppSession{
 		URL:         base + "?ticket=" + id,
@@ -174,6 +186,7 @@ func (d *DesktopService) ServeWS(w http.ResponseWriter, r *http.Request) {
 func (d *DesktopService) EnableLoopback() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.wantsLoopback = true
 	if d.loopback != nil {
 		return nil
 	}

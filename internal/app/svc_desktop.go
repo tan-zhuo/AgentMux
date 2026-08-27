@@ -35,6 +35,9 @@ type DesktopService struct {
 	// hands those sessions to. Both are nil until something asks.
 	tickets  map[string]ticket
 	loopback net.Listener
+	// Set by the build that needs a listener, so a failure to open one is a
+	// clear answer rather than a URL that cannot work.
+	wantsLoopback bool
 }
 
 // NewDesktopService binds a desktop service to the core.
