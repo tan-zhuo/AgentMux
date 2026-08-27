@@ -3,6 +3,7 @@ package app
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"agentmux/internal/store"
@@ -25,14 +26,32 @@ func (c *Core) StartPoller(svc *AgentService, interval time.Duration) {
 			case <-c.stopCh:
 				return
 			case <-ticker.C:
-				for _, serverID := range svc.connectedServersWithAgents() {
+				// Servers are polled together rather than one after another.
+				// A host that stops answering at the TCP level holds its
+				// command open until the keepalive gives up on it, which is
+				// most of a minute — and in a queue that is most of a minute
+				// in which every other host's agents are frozen too, for a
+				// problem none of them have. The cap is the same one the
+				// metrics panel uses for the same reason: enough to overlap
+				// the waiting, not so many that a fleet becomes a stampede.
+				ids := svc.connectedServersWithAgents()
+				sem := make(chan struct{}, 6)
+				var wg sync.WaitGroup
+				for _, serverID := range ids {
 					select {
 					case <-c.stopCh:
 						return
 					default:
 					}
-					_ = svc.pollServer(serverID)
+					wg.Add(1)
+					go func(id string) {
+						defer wg.Done()
+						sem <- struct{}{}
+						defer func() { <-sem }()
+						_ = svc.pollServer(id)
+					}(serverID)
 				}
+				wg.Wait()
 
 				agents, err := c.Store.ListAgents()
 				if err != nil {
