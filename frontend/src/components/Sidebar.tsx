@@ -59,12 +59,16 @@ function TabBtn({
   icon,
   label,
   count,
+  highlight,
   onClick,
 }: {
   active: boolean
   icon: React.ReactNode
   label: string
   count: number
+  /** The filter found something here, which matters most when it is the tab
+   *  nobody is looking at. */
+  highlight?: boolean
   onClick: () => void
 }) {
   return (
@@ -78,7 +82,14 @@ function TabBtn({
     >
       {icon}
       {label}
-      <span className={clsx('tabular-nums', active ? 'text-ink-400' : 'text-ink-600')}>{count}</span>
+      <span
+        className={clsx(
+          'tabular-nums',
+          highlight ? 'text-accent' : active ? 'text-ink-400' : 'text-ink-600',
+        )}
+      >
+        {count}
+      </span>
     </button>
   )
 }
@@ -132,6 +143,30 @@ export function Sidebar() {
     ],
     [snapshot.projects, snapshot.workspaces],
   )
+
+  // What each tab holds — and while filtering, how much of it the filter
+  // found. Without this a search made on one tab looks like no result at all,
+  // when the match is sitting on the other one.
+  const counts = useMemo(() => {
+    const hit = (...vals: string[]) => !q || vals.some((v) => v.toLowerCase().includes(q))
+    const wsByProject = new Map<string, Workspace[]>()
+    for (const w of snapshot.workspaces) {
+      wsByProject.set(w.projectId, [...(wsByProject.get(w.projectId) ?? []), w])
+    }
+    const projects = snapshot.projects.filter(
+      (p) =>
+        hit(p.name) ||
+        (wsByProject.get(p.id) ?? []).some(
+          (w) =>
+            hit(w.name, w.remotePath) ||
+            snapshot.agents.some((a) => a.workspaceId === w.id && hit(a.name, a.command)),
+        ),
+    ).length
+    const servers = snapshot.servers.filter((s) =>
+      hit(s.name, s.host, s.username, ...s.tags),
+    ).length
+    return { projects, servers }
+  }, [snapshot, q])
 
   const rows = useMemo<Row[]>(() => {
     const { projects, workspaces, servers, agents } = snapshot
@@ -365,14 +400,16 @@ export function Sidebar() {
           active={sidebarTab === 'projects'}
           icon={<FolderTree size={11} />}
           label={t('tree.projects')}
-          count={snapshot.projects.length}
+          count={counts.projects}
+          highlight={!!q && counts.projects > 0}
           onClick={() => setSidebarTab('projects')}
         />
         <TabBtn
           active={sidebarTab === 'servers'}
           icon={<ServerIcon size={11} />}
           label={t('tree.servers')}
-          count={snapshot.servers.length}
+          count={counts.servers}
+          highlight={!!q && counts.servers > 0}
           onClick={() => setSidebarTab('servers')}
         />
         <span className="flex-1" />
@@ -406,7 +443,11 @@ export function Sidebar() {
         // buttons wrap into a paragraph in it.
         <div className="flex items-center gap-1 border-b hairline bg-ink-850 px-2 py-1">
           <span className="text-[11px] text-ink-300">
-            {t('tree.selected', { n: selectedServers.length })}
+            {/* Counted against the tree rather than the tick list: a host
+                removed elsewhere leaves its id behind, and a bar claiming
+                three when two remain is a bar that lies about what it is
+                about to do. */}
+            {t('tree.selected', { n: selectedList().length })}
           </span>
           <span className="flex-1" />
           <RowBtn

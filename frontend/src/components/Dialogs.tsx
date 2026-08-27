@@ -31,6 +31,7 @@ import type {
   TrustLevel,
   Workspace,
 } from '../lib/types'
+import { isDesktopKind, isLocalKind } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useFmt, useI18n, useT } from '../store/useI18n'
@@ -493,7 +494,9 @@ function ServerDialog() {
           >
             <option value="">{t('server.jumpHost.none')}</option>
             {servers
-              .filter((s) => s.id !== form.id && s.kind !== 'local')
+              // A jump host is a machine an SSH connection is made through,
+              // which rules out this computer and anything with no SSH on it.
+              .filter((s) => s.id !== form.id && !isLocalKind(s.kind) && !isDesktopKind(s.kind))
               .map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.host})
@@ -579,7 +582,13 @@ function WorkspaceDialog() {
   const [form, setForm] = useState<Workspace>({
     id: existing?.id ?? '',
     projectId: existing?.projectId ?? presetProject ?? snapshot.projects[0]?.id ?? '',
-    serverId: existing?.serverId ?? snapshot.servers[0]?.id ?? '',
+    serverId:
+      existing?.serverId ??
+      // A workspace is a directory somebody works in, which a host with no
+      // shell does not have. Defaulting to one would put the wrong answer in
+      // the field before the question was read.
+      snapshot.servers.find((s) => !isDesktopKind(s.kind))?.id ??
+      '',
     name: existing?.name ?? '',
     remotePath: existing?.remotePath ?? '',
     defaultTmuxSession: existing?.defaultTmuxSession ?? '',
@@ -637,7 +646,9 @@ function WorkspaceDialog() {
               value={form.serverId}
               onChange={(e) => setForm({ ...form, serverId: e.target.value })}
             >
-              {snapshot.servers.map((s) => (
+              {snapshot.servers
+                .filter((s) => !isDesktopKind(s.kind))
+                .map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} (
                   {s.kind === 'local'

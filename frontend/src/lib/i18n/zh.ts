@@ -930,6 +930,7 @@ export const zh: Messages = {
   'desktop.forgotten': '已忘记。下次打开会重新问。',
   'desktop.close': '关掉转发的端口',
   'desktop.closed': '转发的端口已关闭。',
+  'palette.desktop.hintDirect': 'RDP 或 VNC，直接连它的地址',
   'palette.desktop.hint': '走 SSH 连接的 RDP 或 VNC',
   // §END
 }

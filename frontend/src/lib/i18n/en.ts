@@ -936,6 +936,7 @@ export const en = {
   'desktop.forgotten': 'Forgotten. The next opening asks again.',
   'desktop.close': 'Close the forwarded port',
   'desktop.closed': 'The forwarded port is closed.',
+  'palette.desktop.hintDirect': 'RDP or VNC, straight to the address',
   'palette.desktop.hint': 'RDP or VNC, through the SSH connection',
   // §END
 } as const

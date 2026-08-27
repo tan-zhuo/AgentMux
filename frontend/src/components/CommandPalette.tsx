@@ -18,8 +18,9 @@ import {
   TerminalSquare,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { agents as agentApi, errText, isDesktop } from '../lib/api'
+import { agents as agentApi, errText } from '../lib/api'
 import { themes } from '../lib/themes'
+import { isDesktopKind, isLocalKind } from '../lib/types'
 import { MAX_PANES, refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
@@ -152,6 +153,29 @@ export function CommandPalette() {
     }
 
     for (const s of snapshot.servers) {
+      if (isDesktopKind(s.kind)) {
+        // Everything else here asks the host a question through its shell.
+        // This one has none, so it is offered the only thing it can do.
+        out.push({
+          id: `desktop:${s.id}`,
+          label: t('desktop.title', { name: s.name }),
+          // Not "through the SSH connection": this one has none.
+          hint: t('palette.desktop.hintDirect'),
+          icon: Monitor,
+          run: () => {
+            openTab({
+              title: s.name,
+              kind: 'desktop',
+              serverId: s.id,
+              workspaceId: '',
+              agentId: '',
+              tmuxSession: '',
+              command: `${s.desktopOs === 'windows' ? 'rdp' : 'vnc'}:${s.port || (s.desktopOs === 'windows' ? 3389 : 5900)}`,
+            })
+          },
+        })
+        continue
+      }
       out.push({
         id: `toolkit:${s.id}`,
         label: t('palette.toolkit', { name: s.name }),
@@ -189,7 +213,9 @@ export function CommandPalette() {
           setRightPanel('metrics')
         },
       })
-      if (isDesktop && s.kind !== 'local' && s.kind !== 'localwin') {
+      // Not gated on the desktop app any more: the viewer runs in a pane
+      // here, which a browser and a phone have as much as a window does.
+      if (!isLocalKind(s.kind)) {
         out.push({
           id: `desktop:${s.id}`,
           label: t('desktop.title', { name: s.name }),

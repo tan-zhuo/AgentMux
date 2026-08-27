@@ -932,6 +932,7 @@ export const ja: Messages = {
   'desktop.forgotten': '忘れました。次に開くときにまた尋ねます。',
   'desktop.close': '転送したポートを閉じる',
   'desktop.closed': '転送したポートを閉じました。',
+  'palette.desktop.hintDirect': 'RDP か VNC で、アドレスに直接',
   'palette.desktop.hint': 'SSH 接続の上で RDP または VNC',
   // §END
 }

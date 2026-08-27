@@ -930,6 +930,7 @@ export const zhHant: Messages = {
   'desktop.forgotten': '已忘記。下次開啟會重新問。',
   'desktop.close': '關掉轉發的連接埠',
   'desktop.closed': '轉發的連接埠已關閉。',
+  'palette.desktop.hintDirect': 'RDP 或 VNC，直接連它的位址',
   'palette.desktop.hint': '走 SSH 連線的 RDP 或 VNC',
   // §END
 }
