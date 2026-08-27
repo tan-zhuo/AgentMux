@@ -398,6 +398,26 @@ async function startRDP(
  * Windows login usually needs the domain in front of the name, or `.\` for a
  * local account.
  */
+/**
+ * The Windows logon statuses that come back through CredSSP, in words.
+ *
+ * A refusal from a Windows host arrives as an NT status inside the error's
+ * detail — "STATUS_ACCOUNT_LOCKED_OUT [0xc0000234]" — which is precise and
+ * says nothing to the person reading it. These are the ones a remote desktop
+ * actually produces, and each of them has a different thing to go and do.
+ */
+const NT_STATUS: Array<[string, MsgKey]> = [
+  ['STATUS_ACCOUNT_LOCKED_OUT', 'desktop.nt.lockedOut'],
+  ['STATUS_LOGON_FAILURE', 'desktop.nt.logonFailure'],
+  ['STATUS_ACCOUNT_DISABLED', 'desktop.nt.disabled'],
+  ['STATUS_PASSWORD_EXPIRED', 'desktop.nt.passwordExpired'],
+  ['STATUS_PASSWORD_MUST_CHANGE', 'desktop.nt.passwordExpired'],
+  ['STATUS_LOGON_TYPE_NOT_GRANTED', 'desktop.nt.notGranted'],
+  ['STATUS_ACCOUNT_RESTRICTION', 'desktop.nt.restricted'],
+  ['STATUS_INVALID_LOGON_HOURS', 'desktop.nt.logonHours'],
+  ['STATUS_INVALID_WORKSTATION', 'desktop.nt.workstation'],
+]
+
 function ironErrorText(e: unknown, t: (k: MsgKey, v?: Record<string, string | number>) => string): string {
   const err = e as Partial<IronError> | null
   if (!err || typeof err.kind !== 'function') return errText(e)
@@ -414,6 +434,13 @@ function ironErrorText(e: unknown, t: (k: MsgKey, v?: Record<string, string | nu
     kind = Number(err.kind())
   } catch {
     return detail || errText(e)
+  }
+
+  // A named status in the detail beats the kind: the kind says "general
+  // failure" for every one of them, while the status says which door was
+  // shut.
+  for (const [status, message] of NT_STATUS) {
+    if (detail.includes(status)) return t(message)
   }
 
   const key: MsgKey =
