@@ -159,6 +159,12 @@ type hostRunner struct{ core *Core }
 // spelling that survives whichever default shell its sshd hands commands to.
 func (r hostRunner) Exec(serverID, cmd string) (sshx.ExecResult, error) {
 	switch r.core.Store.ServerKindOf(serverID) {
+	case store.KindDesktop:
+		// A desktop host is a screen at an address and nothing else. Reaching
+		// for a shell on one is a bug in the caller, and saying so beats
+		// opening an SSH connection to a machine that was never described as
+		// having one.
+		return sshx.ExecResult{}, fmt.Errorf("this host was added for its desktop; there is no shell on it")
 	case store.KindLocal:
 		return r.core.Local.Exec(serverID, cmd)
 	case store.KindLocalWin:

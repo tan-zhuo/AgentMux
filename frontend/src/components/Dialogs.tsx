@@ -18,6 +18,7 @@ import {
 } from '../lib/i18n'
 import { themes } from '../lib/themes'
 import type {
+  DesktopOS,
   Agent,
   AgentChoice,
   AuthType,
@@ -90,6 +91,11 @@ function useDialogPlumbing() {
   return { close, submit, saving, toast }
 }
 
+/** Where a system's own remote desktop listens, before anybody edits it. */
+function desktopPort(os: DesktopOS): number {
+  return os === 'windows' ? 3389 : 5900
+}
+
 function ServerDialog() {
   const t = useT()
   const dialog = useDialogs((s) => s.dialog)
@@ -119,6 +125,10 @@ function ServerDialog() {
   // not stop being this computer, and the fields it would need do not exist.
   const [kind, setKind] = useState<ServerKind>(existing?.kind ?? 'ssh')
   const local = kind === 'local' || kind === 'localwin'
+  // A desktop host is an address and a screen: no shell to log into, so none of
+  // the fields that describe how to log in apply to it.
+  const desk = kind === 'desktop'
+  const [desktopOs, setDesktopOs] = useState<DesktopOS>(existing?.desktopOs || 'windows')
   const [posixSupport, setPosixSupport] = useState<LocalHost | null>(null)
   const [winSupport, setWinSupport] = useState<LocalHost | null>(null)
   const [platform, setPlatform] = useState('')
@@ -199,7 +209,12 @@ function ServerDialog() {
                     return kind === 'localwin'
                       ? serverApi.addLocalWin(form.name)
                       : serverApi.addLocal(form.name)
-                  return serverApi.save({ ...form, kind, tags })
+                  return serverApi.save({
+                    ...form,
+                    kind,
+                    tags,
+                    desktopOs: kind === 'desktop' ? desktopOs : '',
+                  })
                 },
                 existing ? t('server.updated') : t('server.added'),
               )
@@ -221,7 +236,9 @@ function ServerDialog() {
                 ? t('server.kind.localHint')
                 : kind === 'sshwin'
                 ? t('server.kind.sshwinHint')
-                : t('server.kind.sshHint')
+                : kind === 'desktop'
+                  ? t('server.kind.desktopHint')
+                  : t('server.kind.sshHint')
             }
           >
             <Segmented<ServerKind>
@@ -232,6 +249,8 @@ function ServerDialog() {
                 const s = v === 'localwin' ? winSupport : posixSupport
                 if ((v === 'local' || v === 'localwin') && s?.name && !form.name)
                   set('name', s.name)
+                if (v === 'desktop') set('port', desktopPort(desktopOs))
+                else if (form.port === 3389 || form.port === 5900) set('port', 22)
               }}
               options={[
                 {
@@ -243,6 +262,11 @@ function ServerDialog() {
                   value: 'sshwin',
                   label: t('server.kind.sshwin'),
                   title: t('server.kind.sshwinTitle'),
+                },
+                {
+                  value: 'desktop',
+                  label: t('server.kind.desktop'),
+                  title: t('server.kind.desktopTitle'),
                 },
                 {
                   value: 'local',
@@ -301,10 +325,50 @@ function ServerDialog() {
           )}
         </div>
 
+        {desk && (
+          <Field label={t('server.desktopOs')} hint={t('server.desktopOs.hint')}>
+            <Segmented<DesktopOS>
+              size="sm"
+              value={desktopOs}
+              onChange={(v) => {
+                setDesktopOs(v)
+                // The port follows the system until somebody types over it,
+                // the same way the desktop dialog's does.
+                if (form.port === 0 || form.port === 3389 || form.port === 5900)
+                  set('port', desktopPort(v))
+              }}
+              options={[
+                { value: 'windows', label: t('server.os.windows'), title: t('server.os.windowsTitle') },
+                { value: 'macos', label: t('server.os.macos'), title: t('server.os.macosTitle') },
+                { value: 'linux', label: t('server.os.linux'), title: t('server.os.linuxTitle') },
+              ]}
+            />
+          </Field>
+        )}
+
         {local ? (
           <p className="rounded-control border hairline bg-ink-800 px-2 py-1.5 text-[11px] leading-relaxed text-ink-400">
             {t('server.localBlurb')}
           </p>
+        ) : desk ? (
+          <div className="grid grid-cols-[2fr_1fr] gap-3">
+            <Field label={t('server.host')}>
+              <input
+                className={inputClass}
+                value={form.host}
+                onChange={(e) => set('host', e.target.value)}
+                placeholder="10.0.0.12"
+              />
+            </Field>
+            <Field label={t('server.port')}>
+              <input
+                type="number"
+                className={inputClass}
+                value={form.port}
+                onChange={(e) => set('port', Number(e.target.value) || desktopPort(desktopOs))}
+              />
+            </Field>
+          </div>
         ) : (
         <div className="grid grid-cols-[2fr_1fr_1.5fr] gap-3">
           <Field label={t('server.host')}>
@@ -334,6 +398,7 @@ function ServerDialog() {
         </div>
         )}
 
+        {!desk && (
         <Field label={t('server.trust')} hint={t('server.trust.hint')}>
           <Segmented<TrustLevel>
             size="sm"
@@ -358,8 +423,9 @@ function ServerDialog() {
             ]}
           />
         </Field>
+        )}
 
-        {!local && (
+        {!local && !desk && (
         <Field label={t('server.auth')}>
           <Segmented<AuthType>
             size="sm"
@@ -374,7 +440,7 @@ function ServerDialog() {
         </Field>
         )}
 
-        {!local && form.authType === 'key' && (
+        {!local && !desk && form.authType === 'key' && (
           <>
             <Field label={t('server.keyPath')} hint={t('server.keyPath.hint')}>
               <input
@@ -403,7 +469,7 @@ function ServerDialog() {
           </>
         )}
 
-        {!local && form.authType === 'password' && (
+        {!local && !desk && form.authType === 'password' && (
           <Field
             label={t('server.auth.password')}
             hint={existing?.hasPassword ? t('server.secret.stored') : t('server.secret.encrypted')}
@@ -418,7 +484,7 @@ function ServerDialog() {
           </Field>
         )}
 
-        {!local && (
+        {!local && !desk && (
         <Field label={t('server.jumpHost')} hint={t('server.jumpHost.hint')}>
           <select
             className={inputClass}

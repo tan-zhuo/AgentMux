@@ -16,7 +16,7 @@ var ErrNotFound = errors.New("not found")
 const serverCols = `id, kind, name, host, port, username, auth_type, key_path,
 	secret_password IS NOT NULL AND length(secret_password) > 0,
 	secret_passphrase IS NOT NULL AND length(secret_passphrase) > 0,
-	jump_server_id, tags, favorite, host_key, created_at, last_ok_at, trust_level`
+	jump_server_id, tags, favorite, host_key, created_at, last_ok_at, trust_level, desktop_os`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var (
@@ -29,7 +29,8 @@ func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 		hasPhras int
 	)
 	err := sc.Scan(&s.ID, &s.Kind, &s.Name, &s.Host, &s.Port, &s.Username, &s.AuthType, &s.KeyPath,
-		&hasPass, &hasPhras, &jump, &tagsRaw, &fav, &s.HostKey, &s.CreatedAt, &lastOK, &s.TrustLevel)
+		&hasPass, &hasPhras, &jump, &tagsRaw, &fav, &s.HostKey, &s.CreatedAt, &lastOK, &s.TrustLevel,
+		&s.DesktopOS)
 	if err != nil {
 		return Server{}, err
 	}
@@ -93,6 +94,8 @@ func (s *Store) ServerKindOf(id string) ServerKind {
 		return KindLocalWin
 	case KindSSHWin:
 		return KindSSHWin
+	case KindDesktop:
+		return KindDesktop
 	}
 	return KindSSH
 }
@@ -105,11 +108,34 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 	switch in.Kind {
 	case "":
 		in.Kind = KindSSH
-	case KindSSH, KindSSHWin, KindLocal, KindLocalWin:
+	case KindSSH, KindSSHWin, KindLocal, KindLocalWin, KindDesktop:
 	default:
 		return Server{}, fmt.Errorf("%q is not a kind of host", in.Kind)
 	}
-	if in.Kind == KindLocal || in.Kind == KindLocalWin {
+	if in.Kind == KindDesktop {
+		// A desktop host is an address and a screen. There is no shell to log
+		// into, so the fields that describe how to log in are cleared rather
+		// than demanded — and the credentials a desktop asks for are its own,
+		// typed when the session opens and kept nowhere.
+		if strings.TrimSpace(in.Host) == "" {
+			return Server{}, errors.New("host is required")
+		}
+		switch in.DesktopOS {
+		case "":
+			in.DesktopOS = DesktopWindows
+		case DesktopWindows, DesktopMacOS, DesktopLinux:
+		default:
+			return Server{}, fmt.Errorf("%q is not a system a desktop host can run", in.DesktopOS)
+		}
+		if in.Port == 0 {
+			in.Port = DesktopPortFor(in.DesktopOS)
+		}
+		in.Username, in.KeyPath = "", ""
+		in.AuthType = AuthAgent
+		in.JumpServerID = nil
+		empty := ""
+		in.Password, in.Passphrase = &empty, &empty
+	} else if in.Kind == KindLocal || in.Kind == KindLocalWin {
 		// A local host is not addressed and not authenticated, so the fields that
 		// describe how to reach one are cleared rather than validated. Leaving a
 		// stale address on the row would be an invitation to dial it.
@@ -168,11 +194,11 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 		}
 		_, err = s.db.Exec(`INSERT INTO servers
 			(id, kind, name, host, port, username, auth_type, key_path, secret_password, secret_passphrase,
-			 jump_server_id, tags, favorite, host_key, created_at, trust_level)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'',?,?)`,
+			 jump_server_id, tags, favorite, host_key, created_at, trust_level, desktop_os)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'',?,?,?)`,
 			in.ID, string(in.Kind), in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
 			pw, pp, nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, time.Now().Unix(),
-			string(in.TrustLevel))
+			string(in.TrustLevel), string(in.DesktopOS))
 		if err != nil {
 			return Server{}, err
 		}
@@ -182,10 +208,11 @@ func (s *Store) SaveServer(in ServerInput) (Server, error) {
 	// Update. Secrets are only touched when the caller sent a non-nil pointer.
 	_, err := s.db.Exec(`UPDATE servers SET
 			kind = ?, name = ?, host = ?, port = ?, username = ?, auth_type = ?, key_path = ?,
-			jump_server_id = ?, tags = ?, favorite = ?, trust_level = ?
+			jump_server_id = ?, tags = ?, favorite = ?, trust_level = ?, desktop_os = ?
 		WHERE id = ?`,
 		string(in.Kind), in.Name, in.Host, in.Port, in.Username, string(in.AuthType), in.KeyPath,
-		nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, string(in.TrustLevel), in.ID)
+		nullableString(in.JumpServerID), jsonEncode(in.Tags), fav, string(in.TrustLevel),
+		string(in.DesktopOS), in.ID)
 	if err != nil {
 		return Server{}, err
 	}

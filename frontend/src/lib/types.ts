@@ -22,10 +22,16 @@ export interface Project {
  *  Windows one), or by starting processes on this computer — through its POSIX
  *  shell (WSL on Windows), or natively in PowerShell on Windows, where the
  *  work WSL cannot do lives. */
-export type ServerKind = 'ssh' | 'sshwin' | 'local' | 'localwin'
+export type ServerKind = 'ssh' | 'sshwin' | 'local' | 'localwin' | 'desktop'
+
+/** Whether a host was added for its screen alone: no shell, no agents, no SSH. */
+export const isDesktopKind = (k: ServerKind) => k === 'desktop'
 
 /** Whether a host is this computer, in either of its flavours. */
 export const isLocalKind = (k: ServerKind) => k === 'local' || k === 'localwin'
+
+/** Which system a desktop host runs, which is how its protocol is decided. */
+export type DesktopOS = '' | 'windows' | 'macos' | 'linux'
 
 export interface Server {
   id: string
@@ -42,6 +48,7 @@ export interface Server {
   tags: string[]
   favorite: boolean
   hostKey: string
+  desktopOs: DesktopOS
   createdAt: number
   lastOkAt: number | null
   trustLevel: TrustLevel
@@ -64,6 +71,7 @@ export interface ServerInput {
   tags: string[]
   favorite: boolean
   trustLevel: TrustLevel
+  desktopOs?: DesktopOS
 }
 
 export interface Workspace {

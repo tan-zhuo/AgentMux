@@ -48,7 +48,45 @@ const (
 	// shell, and AgentMux's session daemon — deployed to the host on first use —
 	// instead of tmux.
 	KindSSHWin ServerKind = "sshwin"
+	// KindDesktop is a machine reached for its screen and nothing else: an
+	// address, a protocol and a port, with no shell behind it. It exists
+	// because wanting to see a machine and wanting to work on it are different
+	// wants, and the second one is the only one the other kinds can serve —
+	// they all begin by opening an SSH connection.
+	KindDesktop ServerKind = "desktop"
 )
+
+// DesktopOS is which system a desktop host runs, which is how somebody says
+// what a machine speaks without having to know that Windows means RDP and the
+// other two usually mean VNC.
+type DesktopOS string
+
+const (
+	DesktopWindows DesktopOS = "windows"
+	DesktopMacOS   DesktopOS = "macos"
+	DesktopLinux   DesktopOS = "linux"
+)
+
+// DesktopProtocolFor is what a system's own remote desktop speaks: Windows
+// serves RDP, and macOS and Linux are reached over VNC — Screen Sharing on one,
+// whichever server the desktop ships on the other. Somebody adding a host says
+// which system it is; the protocol follows from that rather than from them.
+func DesktopProtocolFor(os DesktopOS) string {
+	if os == DesktopWindows {
+		return "rdp"
+	}
+	return "vnc"
+}
+
+// DesktopPortFor is where that protocol listens by default. It is a starting
+// point, not a rule: the port stays editable, because a machine that moved it
+// is exactly the machine somebody needs to type it for.
+func DesktopPortFor(os DesktopOS) int {
+	if os == DesktopWindows {
+		return 3389
+	}
+	return 5900
+}
 
 // Server is a host AgentMux can work on: a machine reached over SSH, or the
 // computer it is running on. Secrets never leave the backend — the frontend only
@@ -74,6 +112,9 @@ type Server struct {
 	LastOKAt      *int64     `json:"lastOkAt"`
 	// TrustLevel decides how much the orchestrator may do here without asking.
 	TrustLevel TrustLevel `json:"trustLevel"`
+	// DesktopOS is set on desktop hosts only, and decides which protocol the
+	// viewer speaks and which port it starts from.
+	DesktopOS DesktopOS `json:"desktopOs"`
 }
 
 // TrustLevel is how far the orchestrator is trusted on one server.
@@ -115,6 +156,7 @@ type ServerInput struct {
 	Tags         []string   `json:"tags"`
 	Favorite     bool       `json:"favorite"`
 	TrustLevel   TrustLevel `json:"trustLevel"`
+	DesktopOS    DesktopOS  `json:"desktopOs"`
 }
 
 // Workspace binds a project to an absolute path on one server.

@@ -26,6 +26,7 @@ import (
 	"github.com/coder/websocket"
 
 	"agentmux/internal/desktop"
+	"agentmux/internal/store"
 )
 
 // WSPath is where the bridge is mounted in serve mode.
@@ -66,6 +67,12 @@ type InAppSession struct {
 
 // InApp issues a ticket and says where to present it.
 func (d *DesktopService) InApp(serverID string, ep desktop.Endpoint) (InAppSession, error) {
+	// A desktop host is nothing but a screen at an address, so what it serves
+	// is a property of the row rather than a choice made at the call: the
+	// system it was added as decides the protocol, and the port is its own.
+	if own, ok := d.desktopEndpoint(serverID); ok {
+		ep = own
+	}
 	if !ep.Valid() {
 		return InAppSession{}, fmt.Errorf("%s is not a desktop endpoint", ep)
 	}
@@ -140,12 +147,23 @@ func (d *DesktopService) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lease, err := d.core.Pool.Acquire(tk.serverID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
+	// Where the session is dialled from depends on what kind of host this is.
+	// Every other host is reached by opening its SSH connection and travelling
+	// through it, which is what keeps the desktop off the network; a desktop
+	// host has no SSH connection to travel through, and is dialled the way any
+	// remote desktop client would dial it.
+	var dialer desktop.Dialer
+	if srv, err := d.core.Store.GetServer(tk.serverID); err == nil && srv.Kind == store.KindDesktop {
+		dialer = desktop.Direct(srv.Host)
+	} else {
+		lease, err := d.core.Pool.Acquire(tk.serverID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer lease.Release()
+		dialer = lease.Client
 	}
-	defer lease.Release()
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		// The page that opens this is the app's own, and in the desktop build
@@ -168,7 +186,7 @@ func (d *DesktopService) ServeWS(w http.ResponseWriter, r *http.Request) {
 	remember := func() {
 		_ = d.core.Store.SetSetting(SettingDesktopPrefix+tk.serverID, tk.endpoint.String())
 	}
-	err = desktop.Bridge(ctx, wsSocket{conn}, lease.Client, tk.endpoint, remember)
+	err = desktop.Bridge(ctx, wsSocket{conn}, dialer, tk.endpoint, remember)
 	if err != nil {
 		// Logged as well as reported: the socket's close reason is capped at a
 		// sentence and is the last thing a viewer sees before it disappears,
@@ -216,6 +234,23 @@ func (s wsSocket) Write(ctx context.Context, b []byte) error {
 
 // Ping is how the bridge notices a viewer that went away without saying so.
 func (s wsSocket) Ping(ctx context.Context) error { return s.c.Ping(ctx) }
+
+// desktopEndpoint is what a desktop host serves, or nothing when the host is
+// not one.
+func (d *DesktopService) desktopEndpoint(serverID string) (desktop.Endpoint, bool) {
+	srv, err := d.core.Store.GetServer(serverID)
+	if err != nil || srv.Kind != store.KindDesktop {
+		return desktop.Endpoint{}, false
+	}
+	port := srv.Port
+	if port == 0 {
+		port = store.DesktopPortFor(srv.DesktopOS)
+	}
+	return desktop.Endpoint{
+		Protocol: desktop.Protocol(store.DesktopProtocolFor(srv.DesktopOS)),
+		Port:     port,
+	}, true
+}
 
 func randomID() (string, error) {
 	b := make([]byte, 24)

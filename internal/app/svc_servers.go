@@ -1,8 +1,10 @@
 package app
 
 import (
+	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,7 +64,33 @@ func (s *ServerService) Test(id string) sshx.Probe {
 	if s.core.IsSSHWin(id) {
 		return s.winProbe(id)
 	}
+	if srv, err := s.core.Store.GetServer(id); err == nil && srv.Kind == store.KindDesktop {
+		return s.desktopProbe(srv)
+	}
 	return s.core.Pool.TestConnection(id)
+}
+
+// desktopProbe asks a desktop host the only question there is to ask of one:
+// is the screen answering. There is no shell to report a uptime or a tmux, so
+// the reply says what it can and leaves the rest empty rather than inventing
+// it.
+func (s *ServerService) desktopProbe(srv store.Server) sshx.Probe {
+	port := srv.Port
+	if port == 0 {
+		port = store.DesktopPortFor(srv.DesktopOS)
+	}
+	addr := net.JoinHostPort(srv.Host, strconv.Itoa(port))
+	start := time.Now()
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		return sshx.Probe{Error: err.Error()}
+	}
+	_ = conn.Close()
+	return sshx.Probe{
+		OK:        true,
+		OS:        strings.ToUpper(store.DesktopProtocolFor(srv.DesktopOS)) + " on " + addr,
+		LatencyMS: time.Since(start).Milliseconds(),
+	}
 }
 
 // winProbe asks a remote Windows host the questions TestConnection asks of a

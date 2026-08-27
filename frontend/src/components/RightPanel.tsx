@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { on, orch as orchApi, skills as skillApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
+import { isDesktopKind } from '../lib/types'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
@@ -63,8 +64,17 @@ function useSelectedServerId(): string {
 function ForServer({ render }: { render: (serverId: string) => React.ReactNode }) {
   const t = useT()
   const serverId = useSelectedServerId()
+  const servers = useAppStore((s) => s.snapshot.servers)
   if (!serverId) {
     return <Empty title={t('panel.selectServer')} hint={t('panel.selectServer.hint')} />
+  }
+  // These panels all ask a host questions through its shell. A desktop host has
+  // none, and letting them ask anyway turns every one of them into the same
+  // error about a missing shell — which reads like a fault rather than the
+  // plain fact that this host was added for its screen.
+  const server = servers.find((s) => s.id === serverId)
+  if (server && isDesktopKind(server.kind)) {
+    return <Empty title={t('panel.desktopHost')} hint={t('panel.desktopHost.hint')} />
   }
   return <>{render(serverId)}</>
 }

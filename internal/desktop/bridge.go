@@ -433,3 +433,29 @@ func remoteAddr(conn net.Conn, fallback string) string {
 	}
 	return fallback
 }
+
+// Direct dials a machine that has no SSH connection to travel through.
+//
+// The bridge always asks for the host's own loopback, because that is what a
+// desktop listening on a machine looks like from that machine. For a host
+// added for its screen alone there is no "on that machine" to be inside of, so
+// the loopback it asks for is sent to the address the host was added under —
+// which is what any other remote desktop client would have dialled in the
+// first place.
+func Direct(host string) Dialer { return directDial{host: host} }
+
+type directDial struct{ host string }
+
+func (d directDial) Dial(network, addr string) (net.Conn, error) {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	return net.DialTimeout(network, net.JoinHostPort(d.host, port), directTimeout)
+}
+
+// directTimeout bounds the dial to a machine that may simply not be there. It
+// is the same order as the SSH dial timeout, for the same reason: long enough
+// for a slow network, short enough that "nothing is listening" is an answer
+// rather than a wait.
+const directTimeout = 15 * time.Second

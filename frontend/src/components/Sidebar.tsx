@@ -30,7 +30,7 @@ import { agents as agentApi, errText, servers as serverApi, tree as treeApi } fr
 import { agentActivityLabel } from '../lib/agentStatus'
 import { copyText } from '../lib/clipboard'
 import type { MsgKey } from '../lib/i18n'
-import { isLocalKind } from '../lib/types'
+import { isDesktopKind, isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
@@ -708,6 +708,20 @@ export function Sidebar() {
             const s = row.server
             const conn = connections[s.id]
             const selected = selection.kind === 'server' && selection.id === s.id
+            // A desktop host has one thing to offer, and none of the rest of
+            // this row applies to it: there is no shell to open, no files to
+            // browse and no agents to run.
+            const deskOnly = isDesktopKind(s.kind)
+            const openDesktopTab = () =>
+              openTab({
+                title: s.name,
+                kind: 'desktop',
+                serverId: s.id,
+                workspaceId: '',
+                agentId: '',
+                tmuxSession: '',
+                command: `${s.desktopOs === 'windows' ? 'rdp' : 'vnc'}:${s.port || (s.desktopOs === 'windows' ? 3389 : 5900)}`,
+              })
             return (
               <TreeRow
                 key={row.key}
@@ -717,6 +731,28 @@ export function Sidebar() {
                 onClick={() => select({ kind: 'server', id: s.id })}
                 onContextMenu={(e) => {
                   select({ kind: 'server', id: s.id })
+                  if (deskOnly) {
+                    openContextMenu(e, [
+                      { label: t('tree.openDesktop'), icon: Monitor, onSelect: openDesktopTab },
+                      {
+                        label: t('tree.testConnection'),
+                        icon: Zap,
+                        onSelect: async () => {
+                          const p = await serverApi.test(s.id)
+                          toast(p.ok ? 'ok' : 'error', p.ok ? p.os : p.error)
+                        },
+                      },
+                      separator,
+                      { label: t('tree.editServer'), icon: Pencil, onSelect: () => openDialog({ kind: 'server', server: s }) },
+                      {
+                        label: t('tree.removeServer'),
+                        icon: Trash2,
+                        danger: true,
+                        onSelect: () => void deleteServer(s),
+                      },
+                    ])
+                    return
+                  }
                   openContextMenu(e, [
                     {
                       label: t('tree.openShell'),
@@ -856,6 +892,11 @@ export function Sidebar() {
                 icon={
                   isLocalKind(s.kind) ? (
                     <Laptop size={11} className={conn?.connected ? 'text-accent' : 'text-ink-500'} />
+                  ) : deskOnly ? (
+                    // No connection dot: there is no connection held open to a
+                    // desktop host between sessions, so a light would only ever
+                    // say "off" and mean nothing.
+                    <Monitor size={11} className="text-ink-500" />
                   ) : (
                     <ConnDot connected={!!conn?.connected} />
                   )
@@ -866,10 +907,19 @@ export function Sidebar() {
                     ? t('tree.thisComputer')
                     : s.kind === 'localwin'
                     ? t('tree.thisComputerWin')
-                    : `${s.username}@${s.host}`
+                    : deskOnly
+                      ? `${t('tree.desktopHost')} · ${s.host}`
+                      : `${s.username}@${s.host}`
                 }
                 metaDim
                 actions={
+                  deskOnly ? (
+                    <RowBtn
+                      icon={<Monitor size={11} />}
+                      title={t('tree.openDesktop')}
+                      onClick={openDesktopTab}
+                    />
+                  ) : (
                   <>
                     <RowBtn
                       icon={<TerminalSquare size={11} />}
@@ -931,6 +981,7 @@ export function Sidebar() {
                       onClick={() => void deleteServer(s)}
                     />
                   </>
+                  )
                 }
               />
             )

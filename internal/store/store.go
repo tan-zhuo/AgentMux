@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS servers (
   favorite          INTEGER NOT NULL DEFAULT 0,
   host_key          TEXT NOT NULL DEFAULT '',
   created_at        INTEGER NOT NULL,
-  last_ok_at        INTEGER
+  last_ok_at        INTEGER,
+  desktop_os        TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS workspaces (
@@ -304,6 +305,7 @@ func migrate(db *sql.DB) {
 		// How the host is reached. Everything written before local hosts existed
 		// was reached over SSH, which is what the default says.
 		`ALTER TABLE servers ADD COLUMN kind TEXT NOT NULL DEFAULT 'ssh'`,
+		`ALTER TABLE servers ADD COLUMN desktop_os TEXT NOT NULL DEFAULT ''`,
 		// What a running agent is doing, and whether it is waiting on a human.
 		// Both empty for existing rows: the next poll fills them in.
 		`ALTER TABLE agents ADD COLUMN activity TEXT NOT NULL DEFAULT ''`,

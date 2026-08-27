@@ -19,10 +19,25 @@ func NewTerminalService(c *Core) *TerminalService { return &TerminalService{core
 // ServiceName identifies the service in Wails logs.
 func (t *TerminalService) ServiceName() string { return "TerminalService" }
 
+// noShell is the answer for a host that was added for its screen. The UI does
+// not offer a terminal on one, so reaching this means something asked anyway —
+// a restored tab, a command palette entry, an older frontend — and a sentence
+// beats an SSH failure about a missing agent socket, which describes the wrong
+// problem entirely.
+func (t *TerminalService) noShell(serverID string) error {
+	if t.core.Store.ServerKindOf(serverID) != store.KindDesktop {
+		return nil
+	}
+	return fmt.Errorf("this host was added for its desktop; there is no shell on it")
+}
+
 // OpenShell starts a plain login shell on a server. This is the escape hatch
 // that keeps full SSH available: anything the user could type over ssh, they can
 // type here.
 func (t *TerminalService) OpenShell(serverID string, cols, rows int) (sshx.ShellInfo, error) {
+	if err := t.noShell(serverID); err != nil {
+		return sshx.ShellInfo{}, err
+	}
 	return t.core.Shells.Open(sshx.ShellOptions{
 		ServerID: serverID, Cols: cols, Rows: rows,
 		WindowsHost: t.core.IsSSHWin(serverID),
@@ -33,6 +48,9 @@ func (t *TerminalService) OpenShell(serverID string, cols, rows int) (sshx.Shell
 // backs the install flow on servers that do not have tmux yet, where there is
 // no session to put the work into.
 func (t *TerminalService) OpenCommand(serverID, command string, cols, rows int) (sshx.ShellInfo, error) {
+	if err := t.noShell(serverID); err != nil {
+		return sshx.ShellInfo{}, err
+	}
 	if strings.TrimSpace(command) == "" {
 		return sshx.ShellInfo{}, errors.New("command is required")
 	}
@@ -63,6 +81,9 @@ func (t *TerminalService) OpenWorkspace(workspaceID string, cols, rows int) (ssh
 // AttachTmux attaches a PTY to an existing tmux session. Closing this terminal
 // detaches; the session and everything in it keeps running on the server.
 func (t *TerminalService) AttachTmux(serverID, session string, cols, rows int) (sshx.ShellInfo, error) {
+	if err := t.noShell(serverID); err != nil {
+		return sshx.ShellInfo{}, err
+	}
 	if session == "" {
 		return sshx.ShellInfo{}, errors.New("session name is required")
 	}

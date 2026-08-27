@@ -1,6 +1,7 @@
 import { Bot, RefreshCw, Server, Settings, ShieldAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { agents as agentApi, errText } from '../lib/api'
+import { isDesktopKind } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
@@ -25,6 +26,9 @@ export function StatusBar() {
   }, [lastRefresh])
 
   const connected = Object.values(connections).filter((c) => c.connected).length
+  // Desktop hosts are not counted: nothing is held open to one between
+  // sessions, so counting them would mean the tally never reads full.
+  const reachable = snapshot.servers.filter((s) => !isDesktopKind(s.kind)).length
   const running = snapshot.agents.filter((a) => a.status === 'running').length
 
   async function refresh() {
@@ -45,7 +49,7 @@ export function StatusBar() {
     <footer className="flex h-7 shrink-0 items-center gap-3 border-t hairline bg-ink-900 px-2.5 text-[11px] text-ink-400">
       <span className="flex items-center gap-1.5">
         <Server size={12} className="opacity-60" />
-        {t('status.connected', { n: connected, total: snapshot.servers.length })}
+        {t('status.connected', { n: connected, total: reachable })}
       </span>
       <span className="flex items-center gap-1.5">
         <Bot size={12} className="opacity-60" />
