@@ -276,6 +276,24 @@ interface AppState {
   refreshConnections: () => Promise<void>
   applyAgents: (agents: Agent[]) => void
   applyConnState: (s: ConnState) => void
+
+  /**
+   * Which half of the tree is on screen. Projects and servers are two ways of
+   * looking at the same fleet, and showing both at once means each gets half a
+   * phone. Remembered, because whichever one somebody works in is the one they
+   * want back.
+   */
+  sidebarTab: 'projects' | 'servers'
+  setSidebarTab: (tab: 'projects' | 'servers') => void
+  /** Open or close every project and workspace at once. */
+  setAllExpanded: (keys: string[], open: boolean) => void
+  /**
+   * Servers ticked for an action that applies to several at once. Not
+   * persisted: a selection is a sentence somebody is in the middle of saying.
+   */
+  selectedServers: string[]
+  toggleServerSelected: (id: string) => void
+  clearServerSelection: () => void
   /**
    * What a host was last found to serve as a desktop: true when a probe (or a
    * successful opening) found one, false when nothing answered. A host that is
@@ -362,12 +380,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   async loadAll() {
     set({ loading: true })
     try {
-      const [snapshot, diagnostics, panel, sideW, rightW] = await Promise.all([
+      const [snapshot, diagnostics, panel, sideW, rightW, tab] = await Promise.all([
         tree.snapshot(),
         servers.diagnostics(),
         tree.getSetting('rightPanel', 'detail'),
         tree.getSetting('sidebarWidth', String(SIDEBAR_DEFAULT)),
         tree.getSetting('rightWidth', String(RIGHT_DEFAULT)),
+        tree.getSetting('sidebarTab', 'projects'),
       ])
       const known: RightPanel[] = [
         'detail', 'broadcast', 'tmux', 'toolkit', 'metrics', 'memory', 'skills', 'orchestrator',
@@ -379,6 +398,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         rightPanel: known.includes(panel as RightPanel) ? (panel as RightPanel) : 'detail',
         sidebarWidth: clampPane(Number(sideW) || SIDEBAR_DEFAULT, SIDEBAR_MIN, SIDEBAR_MAX),
         rightWidth: clampPane(Number(rightW) || RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX),
+        sidebarTab: tab === 'servers' ? 'servers' : 'projects',
       })
       await get().refreshConnections()
       await get().restoreTabs()
@@ -433,6 +453,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   desktopSupport: {},
+  sidebarTab: 'projects',
+  selectedServers: [],
+
+  setSidebarTab(sidebarTab) {
+    set({ sidebarTab })
+    void tree.setSetting('sidebarTab', sidebarTab).catch(() => {})
+  },
+
+  setAllExpanded(keys, open) {
+    set((s) => {
+      const next = { ...s.expanded }
+      for (const k of keys) next[k] = open
+      return { expanded: next }
+    })
+  },
+
+  toggleServerSelected(id) {
+    set((s) => ({
+      selectedServers: s.selectedServers.includes(id)
+        ? s.selectedServers.filter((x) => x !== id)
+        : [...s.selectedServers, id],
+    }))
+  },
+
+  clearServerSelection() {
+    set((s) => (s.selectedServers.length ? { selectedServers: [] } : s))
+  },
 
   setDesktopSupport(serverId, has) {
     set((s) =>

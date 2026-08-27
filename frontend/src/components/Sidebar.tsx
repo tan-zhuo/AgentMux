@@ -4,6 +4,8 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   ClipboardCopy,
   FolderTree,
   Laptop,
@@ -11,6 +13,7 @@ import {
   Link2,
   Link2Off,
   Monitor,
+  Pencil,
   Play,
   Plus,
   Radio,
@@ -22,7 +25,8 @@ import {
   Square,
   TerminalSquare,
   Trash2,
-  Pencil,
+  Unplug,
+  X,
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -43,12 +47,41 @@ const ROW_H = 26
 const OVERSCAN = 8
 
 type Row =
-  | { key: string; kind: 'section'; section: 'projects' | 'servers'; depth: 0; onAdd?: () => void }
   | { key: string; kind: 'project'; depth: number; project: Project; childCount: number; alerts: number }
   | { key: string; kind: 'workspace'; depth: number; workspace: Workspace; server?: Server; alerts: number }
   | { key: string; kind: 'agent'; depth: number; agent: Agent; workspace: Workspace }
   | { key: string; kind: 'server'; depth: number; server: Server }
   | { key: string; kind: 'hint'; depth: number; text: MsgKey }
+
+/** One half of the tree, as a tab: an icon, a name and how much is in it. */
+function TabBtn({
+  active,
+  icon,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean
+  icon: React.ReactNode
+  label: string
+  count: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
+        active ? 'bg-ink-750 text-ink-100' : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
+      )}
+    >
+      {icon}
+      {label}
+      <span className={clsx('tabular-nums', active ? 'text-ink-400' : 'text-ink-600')}>{count}</span>
+    </button>
+  )
+}
 
 export function Sidebar() {
   const t = useT()
@@ -58,6 +91,12 @@ export function Sidebar() {
   const search = useAppStore((s) => s.search)
   const setSearch = useAppStore((s) => s.setSearch)
   const expanded = useAppStore((s) => s.expanded)
+  const sidebarTab = useAppStore((s) => s.sidebarTab)
+  const setSidebarTab = useAppStore((s) => s.setSidebarTab)
+  const setAllExpanded = useAppStore((s) => s.setAllExpanded)
+  const selectedServers = useAppStore((s) => s.selectedServers)
+  const toggleServerSelected = useAppStore((s) => s.toggleServerSelected)
+  const clearServerSelection = useAppStore((s) => s.clearServerSelection)
   const toggleExpanded = useAppStore((s) => s.toggleExpanded)
   const selection = useAppStore((s) => s.selection)
   const select = useAppStore((s) => s.select)
@@ -84,6 +123,16 @@ export function Sidebar() {
 
   const q = search.trim().toLowerCase()
 
+  // Every project and workspace, so "open everything" means everything rather
+  // than everything currently on screen.
+  const foldKeys = useMemo(
+    () => [
+      ...snapshot.projects.map((p) => `p:${p.id}`),
+      ...snapshot.workspaces.map((w) => `w:${w.id}`),
+    ],
+    [snapshot.projects, snapshot.workspaces],
+  )
+
   const rows = useMemo<Row[]>(() => {
     const { projects, workspaces, servers, agents } = snapshot
     const serverById = new Map(servers.map((s) => [s.id, s]))
@@ -103,15 +152,12 @@ export function Sidebar() {
     const matches = (...vals: string[]) => !q || vals.some((v) => v.toLowerCase().includes(q))
 
     const out: Row[] = []
-    out.push({
-      key: 'sec-projects',
-      kind: 'section',
-      section: 'projects',
-      depth: 0,
-      onAdd: () => openDialog({ kind: 'project' }),
-    })
+    // The two halves are pages now rather than sections, so only the one on
+    // screen is built. The tab strip carries the heading and the add button
+    // that each section header used to.
+    const showProjects = sidebarTab === 'projects'
 
-    for (const p of projects) {
+    for (const p of showProjects ? projects : []) {
       const wss = wsByProject.get(p.id) ?? []
       // A project stays visible when it matches, or when any descendant does.
       const visibleWss = wss.filter((w) => {
@@ -166,18 +212,14 @@ export function Sidebar() {
       }
     }
 
-    out.push({
-      key: 'sec-servers',
-      kind: 'section',
-      section: 'servers',
-      depth: 0,
-      onAdd: () => openDialog({ kind: 'server' }),
-    })
-    for (const s of servers) {
+    if (showProjects && !projects.length) {
+      out.push({ key: 'projects-empty', kind: 'hint', depth: 0, text: 'tree.noProjects' })
+    }
+    for (const s of showProjects ? [] : servers) {
       if (q && !matches(s.name, s.host, s.username, ...s.tags)) continue
       out.push({ key: `s:${s.id}`, kind: 'server', depth: 0, server: s })
     }
-    if (!servers.length) {
+    if (!showProjects && !servers.length) {
       out.push({
         key: 'servers-empty',
         kind: 'hint',
@@ -187,7 +229,7 @@ export function Sidebar() {
     }
 
     return out
-  }, [snapshot, q, expanded, openDialog])
+  }, [snapshot, q, expanded, sidebarTab])
 
   const total = rows.length * ROW_H
   const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN)
@@ -213,6 +255,55 @@ export function Sidebar() {
     } catch (e) {
       toast('error', errText(e))
     }
+  }
+
+  /** The ticked servers, in tree order, skipping any that have gone away. */
+  function selectedList(): Server[] {
+    return snapshot.servers.filter((s) => selectedServers.includes(s.id))
+  }
+
+  async function testSelected() {
+    const list = selectedList()
+    const results = await Promise.all(
+      list.map(async (s) => ({ s, p: await serverApi.test(s.id).catch(() => null) })),
+    )
+    const ok = results.filter((r) => r.p?.ok).length
+    const failed = results.filter((r) => !r.p?.ok)
+    toast(
+      failed.length ? 'warn' : 'ok',
+      t('toast.testedMany', {
+        ok,
+        total: list.length,
+        failed: failed.map((r) => r.s.name).join(', ') || '—',
+      }),
+    )
+    await useAppStore.getState().refreshConnections()
+  }
+
+  async function disconnectSelected() {
+    const list = selectedList()
+    await Promise.all(list.map((s) => serverApi.disconnect(s.id).catch(() => {})))
+    toast('ok', t('toast.disconnectedMany', { n: list.length }))
+    await useAppStore.getState().refreshConnections()
+  }
+
+  async function removeSelected() {
+    const list = selectedList()
+    if (!list.length) return
+    const ok = await confirmAction({
+      title: t('confirm.removeServers.title', { n: list.length }),
+      message: list.map((s) => s.name).join(', '),
+      points: [t('confirm.removeServer.credentials'), t('confirm.removeServer.terminals')],
+      reassurance: t('confirm.removeServer.reassurance'),
+      confirmLabel: t('tree.removeServer'),
+    })
+    if (!ok) return
+    for (const s of list) {
+      await serverApi.remove(s.id).catch((e) => toast('error', errText(e)))
+    }
+    clearServerSelection()
+    await refreshSnapshot()
+    toast('ok', t('toast.removedMany', { n: list.length }))
   }
 
   async function deleteServer(s: Server) {
@@ -269,6 +360,79 @@ export function Sidebar() {
         )}
       </div>
 
+      <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1">
+        <TabBtn
+          active={sidebarTab === 'projects'}
+          icon={<FolderTree size={11} />}
+          label={t('tree.projects')}
+          count={snapshot.projects.length}
+          onClick={() => setSidebarTab('projects')}
+        />
+        <TabBtn
+          active={sidebarTab === 'servers'}
+          icon={<ServerIcon size={11} />}
+          label={t('tree.servers')}
+          count={snapshot.servers.length}
+          onClick={() => setSidebarTab('servers')}
+        />
+        <span className="flex-1" />
+        {sidebarTab === 'projects' && (
+          <>
+            <RowBtn
+              icon={<ChevronsDownUp size={11} />}
+              title={t('tree.collapseAll')}
+              onClick={() => setAllExpanded(foldKeys, false)}
+            />
+            <RowBtn
+              icon={<ChevronsUpDown size={11} />}
+              title={t('tree.expandAll')}
+              onClick={() => setAllExpanded(foldKeys, true)}
+            />
+          </>
+        )}
+        <RowBtn
+          icon={<Plus size={12} />}
+          title={sidebarTab === 'projects' ? t('tree.addProject') : t('tree.addServer')}
+          onClick={() =>
+            openDialog(sidebarTab === 'projects' ? { kind: 'project' } : { kind: 'server' })
+          }
+        />
+      </div>
+
+      {sidebarTab === 'servers' && selectedServers.length > 0 && (
+        // Only while a selection stands, and only on the tab it belongs to: a
+        // bar that is always there is a bar nobody reads. Icons rather than
+        // words, because the sidebar is narrow by design and four labelled
+        // buttons wrap into a paragraph in it.
+        <div className="flex items-center gap-1 border-b hairline bg-ink-850 px-2 py-1">
+          <span className="text-[11px] text-ink-300">
+            {t('tree.selected', { n: selectedServers.length })}
+          </span>
+          <span className="flex-1" />
+          <RowBtn
+            icon={<Zap size={11} />}
+            title={t('tree.testConnection')}
+            onClick={() => void testSelected()}
+          />
+          <RowBtn
+            icon={<Unplug size={11} />}
+            title={t('tree.disconnect')}
+            onClick={() => void disconnectSelected()}
+          />
+          <RowBtn
+            icon={<Trash2 size={11} />}
+            title={t('tree.removeServer')}
+            danger
+            onClick={() => void removeSelected()}
+          />
+          <RowBtn
+            icon={<X size={11} />}
+            title={t('tree.clearSelection')}
+            onClick={clearServerSelection}
+          />
+        </div>
+      )}
+
       <div
         ref={scrollRef}
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
@@ -278,30 +442,6 @@ export function Sidebar() {
           {visible.map((row, i) => {
             const top = (first + i) * ROW_H
             const style = { position: 'absolute' as const, top, left: 0, right: 0, height: ROW_H }
-
-            if (row.kind === 'section') {
-              return (
-                <div
-                  key={row.key}
-                  style={style}
-                  className="flex items-center justify-between px-2.5 text-[11px] font-semibold text-ink-300"
-                >
-                  <span className="flex items-center gap-1.5">
-                    {row.section === 'projects' ? <FolderTree size={11} /> : <ServerIcon size={11} />}
-                    {row.section === 'projects' ? t('tree.projects') : t('tree.servers')}
-                  </span>
-                  {row.onAdd && (
-                    <button
-                      onClick={row.onAdd}
-                      title={row.section === 'projects' ? t('tree.addProject') : t('tree.addServer')}
-                      className={clsx(iconButtonClass, 'text-ink-500 hover:bg-ink-800 hover:text-ink-100')}
-                    >
-                      <Plus size={12} />
-                    </button>
-                  )}
-                </div>
-              )
-            }
 
             if (row.kind === 'hint') {
               return (
@@ -888,6 +1028,16 @@ export function Sidebar() {
                     agentId: '',
                     tmuxSession: '',
                   })
+                }
+                leading={
+                  <input
+                    type="checkbox"
+                    checked={selectedServers.includes(s.id)}
+                    onChange={() => toggleServerSelected(s.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    title={t('tree.selectServer')}
+                    className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                  />
                 }
                 icon={
                   isLocalKind(s.kind) ? (
