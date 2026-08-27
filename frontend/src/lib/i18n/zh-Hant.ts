@@ -868,6 +868,7 @@ export const zhHant: Messages = {
   'transfer.count.settings': '設定',
 
   'tree.openDesktop': '開啟桌面',
+  'tree.openDesktop.none': '未偵測到',
   'desktop.title': '{name} 的桌面',
   'desktop.blurb': '連接埠是從這台主機已有的 SSH 連線上轉發過來的，用你這台電腦自己的用戶端開啟。主機那邊什麼都不用對外暴露。',
   'desktop.looking': '正在問這台主機開了什麼…',

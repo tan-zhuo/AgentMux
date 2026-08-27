@@ -26,6 +26,7 @@ const same = (a: DesktopEndpoint, b: DesktopEndpoint) =>
 export function DesktopDialog({ server }: { server: Server }) {
   const close = useDialogs((s) => s.close)
   const toast = useAppStore((s) => s.toast)
+  const setDesktopSupport = useAppStore((s) => s.setDesktopSupport)
   const t = useT()
 
   const [offer, setOffer] = useState<DesktopOffer | null>(null)
@@ -42,10 +43,17 @@ export function DesktopDialog({ server }: { server: Server }) {
       .then((o) => {
         if (cancelled) return
         setOffer(o)
+        // The list can arrive empty, and from an older core as null; either
+        // way it is "nothing answered", and neither may be read as a list
+        // without checking first.
+        const found = o.found ?? []
+        // What the host is known to serve, so the menu that opened this can
+        // grey itself out rather than offering a door onto nothing again.
+        setDesktopSupport(server.id, found.length > 0 || !!o.saved)
         // What was chosen before wins over what happens to answer now: a
         // machine serving two desktops should not change which one it opens
         // between one day and the next.
-        const first = o.saved ?? o.found[0] ?? null
+        const first = o.saved ?? found[0] ?? null
         setChoice(first)
         if (first) setManual(first)
         setTyping(!first)
@@ -58,6 +66,9 @@ export function DesktopDialog({ server }: { server: Server }) {
     return () => {
       cancelled = true
     }
+    // The store's setter is stable; the probe belongs to the host, and rerunning
+    // it for anything else would ask the same question twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id])
 
   const endpoint = typing ? manual : choice
@@ -68,6 +79,9 @@ export function DesktopDialog({ server }: { server: Server }) {
     setBusy(true)
     try {
       const session = await desktopApi.open(server.id, endpoint)
+      // Opening by hand on a port the probe does not try is the proof the
+      // probe could not get: this host has a desktop.
+      setDesktopSupport(server.id, true)
       if (session.client) {
         toast('ok', t('desktop.opened', { client: session.client, name: server.name }))
         close()
@@ -89,7 +103,7 @@ export function DesktopDialog({ server }: { server: Server }) {
   const rows = offer
     ? [
         ...(offer.saved ? [{ ep: offer.saved, why: t('desktop.saved') }] : []),
-        ...offer.found
+        ...(offer.found ?? [])
           .filter((f) => !offer.saved || !same(f, offer.saved))
           .map((ep) => ({ ep, why: t('desktop.found') })),
       ]

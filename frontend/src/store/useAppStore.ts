@@ -275,6 +275,17 @@ interface AppState {
   refreshConnections: () => Promise<void>
   applyAgents: (agents: Agent[]) => void
   applyConnState: (s: ConnState) => void
+  /**
+   * What a host was last found to serve as a desktop: true when a probe (or a
+   * successful opening) found one, false when nothing answered. A host that is
+   * absent has not been asked, and is offered the door.
+   *
+   * Not persisted, and dropped when a host reconnects — somebody who installs
+   * xrdp and comes back should not be told for ever that their machine has no
+   * desktop, and a session is the longest this may go stale.
+   */
+  desktopSupport: Record<string, boolean>
+  setDesktopSupport: (serverId: string, has: boolean) => void
 
   select: (s: Selection) => void
   /** Split into the next tab that is not on screen. False when there is no
@@ -420,6 +431,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (active?.kind === 'agent' && active.agentId) acknowledgeAgent(active.agentId)
   },
 
+  desktopSupport: {},
+
+  setDesktopSupport(serverId, has) {
+    set((s) =>
+      s.desktopSupport[serverId] === has
+        ? s
+        : { desktopSupport: { ...s.desktopSupport, [serverId]: has } },
+    )
+  },
+
   applyConnState(cs) {
     set((s) => {
       const connected = cs.state === 'connected'
@@ -429,7 +450,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         prevState?.state === cs.state && prevState?.detail === cs.detail
       if (stateUnchanged && prev?.connected === connected) return s
 
+      // A fresh connection is a fresh chance to serve a desktop: forget what
+      // the last probe found so the menu asks again rather than staying grey.
+      const desktopSupport = { ...s.desktopSupport }
+      if (connected && !prev?.connected) delete desktopSupport[cs.serverId]
+
       return {
+        desktopSupport,
         connState: { ...s.connState, [cs.serverId]: cs },
         connections: {
           ...s.connections,

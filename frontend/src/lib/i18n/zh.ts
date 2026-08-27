@@ -868,6 +868,7 @@ export const zh: Messages = {
   'transfer.count.settings': '设置',
 
   'tree.openDesktop': '打开桌面',
+  'tree.openDesktop.none': '未检测到',
   'desktop.title': '{name} 的桌面',
   'desktop.blurb': '端口是从这台主机已有的 SSH 连接上转发过来的，用你这台电脑自己的客户端打开。主机那边什么都不用对外暴露。',
   'desktop.looking': '正在问这台主机开了什么…',

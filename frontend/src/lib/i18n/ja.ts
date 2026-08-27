@@ -870,6 +870,7 @@ export const ja: Messages = {
   'transfer.count.settings': '設定',
 
   'tree.openDesktop': 'デスクトップを開く',
+  'tree.openDesktop.none': '見つからず',
   'desktop.title': '{name} のデスクトップ',
   'desktop.blurb': 'このホストがすでに張っている SSH 接続の上でポートを転送し、このコンピューターにあるビューアーで開きます。ホスト側は何もネットワークに晒しません。',
   'desktop.looking': 'このホストが何を出しているか確認中…',

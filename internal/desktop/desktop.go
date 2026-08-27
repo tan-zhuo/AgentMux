@@ -97,8 +97,12 @@ func Probe(d Dialer, timeout time.Duration) []Endpoint {
 		found[r.at] = r.ok
 	}
 	// Returned in the order they are listed rather than the order they
-	// answered, so a host with both offers the same choice every time.
-	var live []Endpoint
+	// answered, so a host with both offers the same choice every time. Empty
+	// rather than nil, because this crosses to the frontend as JSON, where a
+	// nil slice is null — and a caller that reasonably expects a list to be a
+	// list gets a type error in the middle of a render for the most ordinary
+	// answer there is: a machine with no desktop on it.
+	live := []Endpoint{}
 	for i, ok := range found {
 		if ok {
 			live = append(live, Usual[i])

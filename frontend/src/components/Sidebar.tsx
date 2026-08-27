@@ -54,6 +54,7 @@ export function Sidebar() {
   const t = useT()
   const snapshot = useAppStore((s) => s.snapshot)
   const connections = useAppStore((s) => s.connections)
+  const desktopSupport = useAppStore((s) => s.desktopSupport)
   const search = useAppStore((s) => s.search)
   const setSearch = useAppStore((s) => s.setSearch)
   const expanded = useAppStore((s) => s.expanded)
@@ -754,6 +755,15 @@ export function Sidebar() {
                       : {
                           label: t('tree.openDesktop'),
                           icon: Monitor,
+                          // Greyed once a probe has come back with nothing, so
+                          // the door is not offered onto a machine that has no
+                          // desktop behind it. Until then it is offered: asking
+                          // costs three dials and nobody has asked yet.
+                          disabled: desktopSupport[s.id] === false,
+                          hint:
+                            desktopSupport[s.id] === false
+                              ? t('tree.openDesktop.none')
+                              : undefined,
                           onSelect: () => openDialog({ kind: 'desktop', server: s }),
                         },
                     separator,

@@ -874,6 +874,7 @@ export const en = {
   'transfer.count.settings': 'Settings',
 
   'tree.openDesktop': 'Open desktop',
+  'tree.openDesktop.none': 'none found',
   'desktop.title': 'Desktop on {name}',
   'desktop.blurb': 'The port is forwarded through the SSH connection this host already has, and opened in this computer’s own viewer. Nothing on the host is exposed to the network.',
   'desktop.looking': 'Asking what this host is serving…',

@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"encoding/json"
 	"io"
 	"net"
 	"strings"
@@ -190,5 +191,26 @@ func TestEveryPlatformKnowsAClientForBothProtocols(t *testing.T) {
 		if len(clients(p, "127.0.0.1:1")) == 0 {
 			t.Fatalf("no %s client is offered on this platform", p)
 		}
+	}
+}
+
+// Nothing listening is the ordinary answer on a server, and it has to survive
+// the trip to the frontend as an empty list rather than as null.
+func TestProbeAnswersWithAListEvenWhenEmpty(t *testing.T) {
+	found := Probe(&hostDialer{}, 200*time.Millisecond)
+	if found == nil {
+		t.Fatal("Probe returned a nil slice, which marshals to null")
+	}
+	if len(found) != 0 {
+		t.Fatalf("nothing is listening, got %+v", found)
+	}
+	b, err := json.Marshal(struct {
+		Found []Endpoint `json:"found"`
+	}{found})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"found":[]}` {
+		t.Errorf("frontend would receive %s", b)
 	}
 }
