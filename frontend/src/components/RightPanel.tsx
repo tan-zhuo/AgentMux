@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { on, orch as orchApi, skills as skillApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
+import { DesktopHostPanel } from './panels/DesktopHostPanel'
 import { isDesktopKind } from '../lib/types'
 import { useAppStore, type RightPanel as PanelKind } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
@@ -74,7 +75,7 @@ function ForServer({ render }: { render: (serverId: string) => React.ReactNode }
   // plain fact that this host was added for its screen.
   const server = servers.find((s) => s.id === serverId)
   if (server && isDesktopKind(server.kind)) {
-    return <Empty title={t('panel.desktopHost')} hint={t('panel.desktopHost.hint')} />
+    return <DesktopHostPanel server={server} />
   }
   return <>{render(serverId)}</>
 }

@@ -101,6 +101,9 @@ export const servers = {
   test: (id: string) => call<Probe>('ServerService', 'Test', id),
   connect: (id: string) => call<void>('ServerService', 'Connect', id),
   disconnect: (id: string) => call<void>('ServerService', 'Disconnect', id),
+  /** Whether a host is also listening on the SSH port — asked of desktop hosts,
+   *  which know nothing about the machine beyond its screen. */
+  sshOpen: (id: string) => call<{ open: boolean; error: string }>('ServerService', 'SSHOpen', id),
   connections: () => call<ConnStatus[]>('ServerService', 'Connections'),
   clearHostKey: (id: string) => call<void>('ServerService', 'ClearHostKey', id),
   diagnostics: () => call<Diagnostics>('ServerService', 'Diagnostics'),

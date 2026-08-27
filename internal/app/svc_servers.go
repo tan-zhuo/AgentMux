@@ -70,6 +70,41 @@ func (s *ServerService) Test(id string) sshx.Probe {
 	return s.core.Pool.TestConnection(id)
 }
 
+// SSHOpen reports whether a host is also listening on the SSH port.
+//
+// It is asked of desktop hosts, which were added for their screen and know
+// nothing else about the machine. A machine that answers on 22 can be worked
+// on as well as watched, and that is worth offering rather than leaving
+// somebody to discover; a machine that does not can be told what to install,
+// on the screen they are already looking at.
+//
+// No credentials and no handshake: a TCP connection that opens is the whole
+// test, the same way the desktop probe works. Anything more would mean asking
+// for a username before there is a reason to.
+func (s *ServerService) SSHOpen(id string) SSHReach {
+	srv, err := s.core.Store.GetServer(id)
+	if err != nil {
+		return SSHReach{Error: err.Error()}
+	}
+	if strings.TrimSpace(srv.Host) == "" {
+		return SSHReach{Error: "this host has no address"}
+	}
+	addr := net.JoinHostPort(srv.Host, "22")
+	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	if err != nil {
+		return SSHReach{Error: err.Error()}
+	}
+	_ = conn.Close()
+	return SSHReach{Open: true}
+}
+
+// SSHReach is what SSHOpen found, in the shape the panel renders: open, or the
+// reason it is not.
+type SSHReach struct {
+	Open  bool   `json:"open"`
+	Error string `json:"error"`
+}
+
 // desktopProbe asks a desktop host the only question there is to ask of one:
 // is the screen answering. There is no shell to report a uptime or a tmux, so
 // the reply says what it can and leaves the rest empty rather than inventing

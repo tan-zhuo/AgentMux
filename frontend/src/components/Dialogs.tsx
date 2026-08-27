@@ -100,18 +100,23 @@ function desktopPort(os: DesktopOS): number {
 function ServerDialog() {
   const t = useT()
   const dialog = useDialogs((s) => s.dialog)
-  const existing = dialog?.kind === 'server' ? dialog.server : undefined
+  // A host handed in with no id is a starting point rather than an edit: the
+  // "add this machine over SSH too" offer fills the address in and leaves the
+  // rest of the form to be answered.
+  const handed = dialog?.kind === 'server' ? dialog.server : undefined
+  const existing = handed?.id ? handed : undefined
+  const preset = handed?.id ? undefined : handed
   const servers = useAppStore((s) => s.snapshot.servers)
   const { close, submit, saving, toast } = useDialogPlumbing()
 
   const [form, setForm] = useState<ServerInput>({
     id: existing?.id ?? '',
-    name: existing?.name ?? '',
-    host: existing?.host ?? '',
-    port: existing?.port ?? 22,
-    username: existing?.username ?? '',
-    authType: existing?.authType ?? 'agent',
-    keyPath: existing?.keyPath ?? '',
+    name: existing?.name ?? preset?.name ?? '',
+    host: existing?.host ?? preset?.host ?? '',
+    port: existing?.port ?? preset?.port ?? 22,
+    username: existing?.username ?? preset?.username ?? '',
+    authType: existing?.authType ?? preset?.authType ?? 'agent',
+    keyPath: existing?.keyPath ?? preset?.keyPath ?? '',
     password: null,
     passphrase: null,
     jumpServerId: existing?.jumpServerId ?? null,
@@ -124,7 +129,7 @@ function ServerDialog() {
 
   // Which kind of host is being added. Editing never changes it: a machine does
   // not stop being this computer, and the fields it would need do not exist.
-  const [kind, setKind] = useState<ServerKind>(existing?.kind ?? 'ssh')
+  const [kind, setKind] = useState<ServerKind>(existing?.kind ?? preset?.kind ?? 'ssh')
   const local = kind === 'local' || kind === 'localwin'
   // A desktop host is an address and a screen: no shell to log into, so none of
   // the fields that describe how to log in apply to it.
