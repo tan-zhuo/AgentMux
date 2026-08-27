@@ -96,16 +96,42 @@ type Listener = (data: unknown) => void
 
 const listeners = new Map<string, Set<Listener>>()
 let source: EventSource | null = null
+let attempts = 0
+let reopenTimer = 0
 
 /**
- * Lazily opens the shared event stream. EventSource reconnects on its own,
- * which is exactly what a tablet waking from sleep needs; the only case
- * handled by hand is an auth failure, where reconnecting would loop forever.
+ * Fired when the stream comes back after having been lost.
+ *
+ * Events that happened in the meantime are gone — the server broadcasts to
+ * whoever is listening at the time and keeps nothing — so anything showing
+ * live state has to ask for it again rather than carry on from a picture that
+ * stopped being true.
+ */
+export const STREAM_RESUMED = 'agentmux:stream-resumed'
+
+/**
+ * Lazily opens the shared event stream, and keeps it open.
+ *
+ * EventSource retries by itself while it believes the connection is merely
+ * interrupted, but a connection cut abruptly — a phone that slept, a network
+ * that changed underneath it — can put it in CLOSED, which is final. Nothing
+ * was watching for that: the stream stayed dead, and terminals went quiet
+ * while every other part of the app went on saying the host was connected.
+ * That is the worst shape a failure can take, because it does not look like
+ * one.
  */
 function ensureStream() {
   if (source) return
-  source = new EventSource(`/api/events?token=${encodeURIComponent(getToken())}`)
-  source.onmessage = (e) => {
+  const es = new EventSource(`/api/events?token=${encodeURIComponent(getToken())}`)
+  source = es
+
+  es.onopen = () => {
+    if (attempts === 0) return
+    attempts = 0
+    // Only after a real gap: a first connection has nothing to catch up on.
+    window.dispatchEvent(new Event(STREAM_RESUMED))
+  }
+  es.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data as string) as { name: string; data: unknown }
       listeners.get(msg.name)?.forEach((cb) => cb(msg.data))
@@ -113,10 +139,37 @@ function ensureStream() {
       // A malformed frame is dropped; the next one stands alone.
     }
   }
+  es.onerror = () => {
+    // Still CONNECTING means the browser is retrying on its own terms, which
+    // is the case this does not need to improve on.
+    if (es.readyState !== EventSource.CLOSED) return
+    es.close()
+    if (source === es) source = null
+    scheduleReopen()
+  }
+}
+
+/**
+ * Opens the stream again, backing off up to fifteen seconds.
+ *
+ * The backoff matters for the case that cannot be told apart from here: a
+ * token the server no longer accepts answers 401, which reaches JavaScript as
+ * the same silent error as a dropped cable. Retrying slowly costs a request a
+ * quarter of a minute and gets the connection back the moment it can be.
+ */
+function scheduleReopen() {
+  window.clearTimeout(reopenTimer)
+  const wait = Math.min(15000, 500 * 2 ** attempts)
+  attempts++
+  reopenTimer = window.setTimeout(() => {
+    if (listeners.size > 0) ensureStream()
+  }, wait)
 }
 
 /** Re-opens the stream after the token changes. */
 export function reconnectStream() {
+  window.clearTimeout(reopenTimer)
+  attempts = 0
   source?.close()
   source = null
   if (listeners.size > 0) ensureStream()

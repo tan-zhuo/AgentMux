@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 import { errText, on, terminal as termApi } from '../lib/api'
+import { STREAM_RESUMED } from '../lib/webTransport'
 import { copyText, readText } from '../lib/clipboard'
 import { applyMods } from '../lib/termKeys'
 import type { ShellInfo } from '../lib/types'
@@ -486,6 +487,32 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       termRef.current?.clearSelection()
     }
   }, [selectMode])
+
+  // Catch up after the event stream has been away.
+  //
+  // Output that arrived while it was down was broadcast to nobody and is not
+  // kept, so carrying on would leave a hole in the middle of the scrollback
+  // with nothing to mark it. The backend holds the last stretch of every
+  // shell's output for exactly this: the pane throws away what it has and
+  // paints that instead, which is the one version known to be true.
+  useEffect(() => {
+    const resync = () => {
+      const id = shellIdRef.current
+      if (!id) return
+      void termApi
+        .scrollback(id)
+        .then((b64) => {
+          if (!b64 || !termRef.current) return
+          termRef.current.reset()
+          termRef.current.write(fromBase64(b64))
+        })
+        .catch(() => {
+          /* the shell is gone; the exit event says so on its own */
+        })
+    }
+    window.addEventListener(STREAM_RESUMED, resync)
+    return () => window.removeEventListener(STREAM_RESUMED, resync)
+  }, [])
 
   // Repaint the terminal when the app theme changes.
   useEffect(() => {

@@ -15,6 +15,7 @@ import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
 import { UpdateBanner } from './components/UpdateBanner'
 import { on } from './lib/api'
+import { STREAM_RESUMED } from './lib/webTransport'
 import { useCompact, useKeyboardInset, useTouchDevice } from './lib/useCompact'
 import type { Agent, ConnState } from './lib/types'
 import {
@@ -97,11 +98,18 @@ export default function App() {
   useEffect(() => {
     const offAgents = on<Agent[]>('agents:updated', (list) => applyAgents(list ?? []))
     const offConn = on<ConnState>('server:state', (s) => s && applyConnState(s))
+    // A stream that was away missed whatever changed while it was, and state
+    // that only arrives when it changes does not come back on its own: a host
+    // that dropped, an agent that finished. Ask once, rather than show
+    // yesterday's answer until something else happens to move.
+    const refresh = () => void loadAll()
+    window.addEventListener(STREAM_RESUMED, refresh)
     return () => {
       offAgents()
       offConn()
+      window.removeEventListener(STREAM_RESUMED, refresh)
     }
-  }, [applyAgents, applyConnState])
+  }, [applyAgents, applyConnState, loadAll])
 
   // The webview's own menu offers Reload and Back, which are meaningless here
   // and destructive — a stray Reload drops every attached terminal view. Text
