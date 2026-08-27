@@ -262,6 +262,13 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       lineHeight: 1.25,
       cursorBlink: true,
       allowProposedApi: true,
+      // macOS is the only platform where xterm defaults this to true, and
+      // there a right-click outside the selection throws it away and selects
+      // the word under the pointer instead. That is a reasonable default for
+      // a terminal whose context menu is the system's; it is the wrong one
+      // here, where the menu this opens acts on the selection — the click
+      // that asks to copy something would replace it first.
+      rightClickSelectsWord: false,
       scrollback: 20000,
       theme: useTheme.getState().theme.terminal,
     })
@@ -592,7 +599,11 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
 
   function terminalMenu(e: React.MouseEvent) {
     const term = termRef.current
-    const selection = term?.getSelection() || clickedSelectionRef.current
+    // What was selected when the click arrived wins over what is selected
+    // now. Those differ when something moved the selection between the two —
+    // and the text somebody had highlighted before they reached for the menu
+    // is the text they meant, every time.
+    const selection = clickedSelectionRef.current || term?.getSelection() || ''
     openContextMenu(e, [
       {
         label: t('term.copy'),
