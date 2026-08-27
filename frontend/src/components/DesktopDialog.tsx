@@ -1,7 +1,7 @@
 import clsx from 'clsx'
-import { Monitor, MonitorX } from 'lucide-react'
+import { ExternalLink, Monitor, MonitorX } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { desktop as desktopApi, errText } from '../lib/api'
+import { desktop as desktopApi, errText, isDesktop } from '../lib/api'
 import type { DesktopEndpoint, DesktopOffer, DesktopProtocol, Server } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
@@ -26,6 +26,7 @@ const same = (a: DesktopEndpoint, b: DesktopEndpoint) =>
 export function DesktopDialog({ server }: { server: Server }) {
   const close = useDialogs((s) => s.close)
   const toast = useAppStore((s) => s.toast)
+  const openTab = useAppStore((s) => s.openTab)
   const setDesktopSupport = useAppStore((s) => s.setDesktopSupport)
   const t = useT()
 
@@ -73,6 +74,22 @@ export function DesktopDialog({ server }: { server: Server }) {
 
   const endpoint = typing ? manual : choice
   const ready = !!endpoint && endpoint.port > 0 && !busy
+
+  /** Open it here, in a pane, next to the terminals. */
+  function openHere() {
+    if (!endpoint) return
+    setDesktopSupport(server.id, true)
+    openTab({
+      title: `${server.name} · ${endpoint.protocol.toUpperCase()}`,
+      kind: 'desktop',
+      serverId: server.id,
+      workspaceId: '',
+      agentId: '',
+      tmuxSession: '',
+      command: `${endpoint.protocol}:${endpoint.port}`,
+    })
+    close()
+  }
 
   async function open() {
     if (!endpoint) return
@@ -129,8 +146,13 @@ export function DesktopDialog({ server }: { server: Server }) {
             </Button>
           )}
           <Button onClick={close}>{t('common.cancel')}</Button>
-          <Button variant="primary" disabled={!ready} onClick={() => void open()}>
-            <Monitor size={11} /> {busy ? t('desktop.opening') : t('desktop.open')}
+          {isDesktop && (
+            <Button disabled={!ready} onClick={() => void open()} title={t('desktop.openSystem.hint')}>
+              <ExternalLink size={11} /> {busy ? t('desktop.opening') : t('desktop.openSystem')}
+            </Button>
+          )}
+          <Button variant="primary" disabled={!ready} onClick={openHere}>
+            <Monitor size={11} /> {t('desktop.openHere')}
           </Button>
         </>
       }

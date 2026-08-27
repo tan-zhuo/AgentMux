@@ -4,6 +4,7 @@ import {
   FileCode2,
   FolderTree,
   Layers,
+  Monitor,
   Server,
   TerminalSquare,
   type LucideIcon,
@@ -33,6 +34,7 @@ const kindIcon: Record<Tab['kind'], LucideIcon> = {
   command: TerminalSquare,
   files: FolderTree,
   editor: FileCode2,
+  desktop: Monitor,
 }
 
 /**

@@ -8,6 +8,7 @@ import type {
   ConfigManifest,
   ConnStatus,
   DesktopEndpoint,
+  DesktopInApp,
   DesktopOffer,
   DesktopSession,
   Diagnostics,
@@ -270,6 +271,9 @@ export const desktop = {
   probe: (serverId: string) => call<DesktopOffer>('DesktopService', 'Probe', serverId),
   open: (serverId: string, endpoint: DesktopEndpoint) =>
     call<DesktopSession>('DesktopService', 'Open', serverId, endpoint),
+  /** A ticket and a URL for a viewer running inside this app. */
+  inApp: (serverId: string, endpoint: DesktopEndpoint) =>
+    call<DesktopInApp>('DesktopService', 'InApp', serverId, endpoint),
   close: (serverId: string) => call<void>('DesktopService', 'Close', serverId),
   forget: (serverId: string) => call<void>('DesktopService', 'Forget', serverId),
 }

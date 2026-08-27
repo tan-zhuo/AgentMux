@@ -4,15 +4,16 @@ import {
   ChevronsRight,
   Columns2,
   Expand,
-  Minimize2,
-  Rows2,
-  Shrink,
-  SplitSquareHorizontal,
   ExternalLink,
   FileCode2,
   FolderTree,
   Layers,
+  Minimize2,
+  Monitor,
   PackagePlus,
+  Rows2,
+  Shrink,
+  SplitSquareHorizontal,
   TerminalSquare,
   X,
   XCircle,
@@ -23,6 +24,7 @@ import { MAX_PANES, useAppStore, type SplitAxis, type Tab } from '../store/useAp
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useT } from '../store/useI18n'
 import { useDialogs } from '../store/useDialogs'
+import { DesktopPane } from './DesktopPane'
 import { EditorPane } from './EditorPane'
 import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
@@ -262,6 +264,7 @@ const kindIcon = {
   command: PackagePlus,
   files: FolderTree,
   editor: FileCode2,
+  desktop: Monitor,
 }
 
 /** How far the pointer must leave the strip before a drag becomes a tear-off
@@ -749,6 +752,8 @@ export function TerminalArea() {
               >
                 {tab.kind === 'files' ? (
                   <FileBrowser tab={tab} />
+                ) : tab.kind === 'desktop' ? (
+                  <DesktopPane tab={tab} active={focused} />
                 ) : tab.kind === 'editor' ? (
                   <EditorPane tab={tab} active={focused} />
                 ) : (

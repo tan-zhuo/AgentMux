@@ -114,7 +114,7 @@ export interface TerminalTab {
   workspaceId: string
   agentId: string
   tmuxSession: string
-  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor'
+  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor' | 'desktop'
   command: string
   sort: number
 }
@@ -416,7 +416,7 @@ export interface QuickLaunch {
 export interface DetachedTab {
   token?: string
   title: string
-  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor'
+  kind: 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor' | 'desktop'
   serverId: string
   workspaceId: string
   agentId: string
@@ -878,6 +878,16 @@ export interface DesktopOffer {
   found: DesktopEndpoint[]
   saved: DesktopEndpoint | null
   reachable: boolean
+}
+
+/** Where to point an in-app viewer, and what to build. */
+export interface DesktopInApp {
+  /** Absolute in the desktop app, relative to this page in serve mode. */
+  url: string
+  protocol: DesktopProtocol
+  /** What an RDP client names as its target. Where the session actually goes
+   *  is decided by the ticket in the URL, not by this. */
+  destination: string
 }
 
 /** An open door to a host's desktop, and the viewer pointed at it. */

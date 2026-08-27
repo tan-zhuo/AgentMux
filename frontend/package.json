@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@devolutions/iron-remote-desktop": "^0.11.0",
+    "@devolutions/iron-remote-desktop-rdp": "^0.7.0",
+    "@novnc/novnc": "^1.7.0",
     "@wailsio/runtime": "^3.0.0-beta.8",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",

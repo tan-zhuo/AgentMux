@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -30,6 +31,10 @@ type DesktopService struct {
 
 	mu       sync.Mutex
 	forwards map[string]*desktop.Forward
+	// Permission to open one in-app session, and the listener the desktop app
+	// hands those sessions to. Both are nil until something asks.
+	tickets  map[string]ticket
+	loopback net.Listener
 }
 
 // NewDesktopService binds a desktop service to the core.

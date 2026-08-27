@@ -19,12 +19,23 @@ type Server struct {
 	hub      *Hub
 	token    string
 	assets   fs.FS
+	extra    map[string]http.Handler
 }
 
 // New assembles a server. assets is the built frontend (the directory that
 // holds index.html); token is the shared secret every API request must carry.
 func New(reg *Registry, hub *Hub, assets fs.FS, token string) *Server {
 	return &Server{registry: reg, hub: hub, token: token, assets: assets}
+}
+
+// Handle mounts one more route behind the same token as the rest of the API.
+// It exists for the endpoints that are not RPC — a desktop session is a socket
+// carrying somebody's screen, which does not fit through a call and a reply.
+func (s *Server) Handle(pattern string, h http.Handler) {
+	if s.extra == nil {
+		s.extra = map[string]http.Handler{}
+	}
+	s.extra[pattern] = h
 }
 
 // Handler returns the routed handler. The UI itself is served without auth —
@@ -36,6 +47,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth", s.handleAuth)
 	mux.Handle("POST /api/call", s.requireToken(http.HandlerFunc(s.handleCall)))
 	mux.Handle("GET /api/events", s.requireToken(s.hub))
+	for pattern, h := range s.extra {
+		mux.Handle(pattern, s.requireToken(h))
+	}
 	mux.HandleFunc("/", s.handleAssets)
 	return mux
 }

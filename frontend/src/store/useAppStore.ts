@@ -13,7 +13,7 @@ import type {
   TerminalTab,
 } from '../lib/types'
 
-export type TabKind = 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor'
+export type TabKind = 'shell' | 'tmux' | 'agent' | 'command' | 'files' | 'editor' | 'desktop'
 export type TabStatus = 'pending' | 'opening' | 'open' | 'closed' | 'error'
 
 /** A terminal tab in the UI. shellId is the live backend PTY, absent when the
@@ -27,7 +27,8 @@ export interface Tab {
   agentId: string
   tmuxSession: string
   /** For kind 'command' the remote command this PTY runs; for kind 'files' the
-   *  directory the browser is showing; for kind 'editor' the file being edited. */
+   *  directory the browser is showing; for kind 'editor' the file being edited;
+   *  for kind 'desktop' the endpoint, as "rdp:3389". */
   command?: string
   /** An editor tab with edits that are not on the server yet. Closing one asks
    *  first, because the alternative is losing work to a stray click on an X. */

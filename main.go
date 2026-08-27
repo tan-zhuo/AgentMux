@@ -86,6 +86,11 @@ func serveMain(args []string) {
 		fatal("AgentMux could not start", err)
 	}
 	agentSvc := app.NewAgentService(core)
+	// The desktop service in serve mode offers the half that makes sense here:
+	// probing a host and carrying a session to a viewer in the page. Opening
+	// one in a viewer installed on this machine is the desktop app's business,
+	// and would put a window on a screen nobody is sitting at.
+	desktopSvc := app.NewDesktopService(core)
 	registry := webserve.NewRegistry(
 		app.NewServerService(core),
 		app.NewTreeService(core),
@@ -100,6 +105,7 @@ func serveMain(args []string) {
 		app.NewOrchService(core),
 		app.NewConfigService(core),
 		app.NewUpdateCheckService(core),
+		desktopSvc,
 		agentSvc,
 	)
 	hub := webserve.NewHub()
@@ -119,7 +125,9 @@ func serveMain(args []string) {
 		fatal("frontend assets missing from this build", err)
 	}
 
-	server := &http.Server{Addr: *addr, Handler: webserve.New(registry, hub, dist, token).Handler()}
+	web := webserve.New(registry, hub, dist, token)
+	web.Handle("GET "+app.WSPath, http.HandlerFunc(desktopSvc.ServeWS))
+	server := &http.Server{Addr: *addr, Handler: web.Handler()}
 	go func() {
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

@@ -26,7 +26,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { agents as agentApi, errText, isDesktop, servers as serverApi, tree as treeApi } from '../lib/api'
+import { agents as agentApi, errText, servers as serverApi, tree as treeApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
 import { copyText } from '../lib/clipboard'
 import type { MsgKey } from '../lib/i18n'
@@ -749,8 +749,10 @@ export function Sidebar() {
                     },
                     // Opening a desktop on the computer you are sitting at is
                     // not a thing anybody wants, so it is offered only for the
-                    // machines that are somewhere else.
-                    isLocalKind(s.kind) || !isDesktop
+                    // machines that are somewhere else. It is offered on every
+                    // platform now: the viewer can run in a pane here, which a
+                    // phone has as much as a desktop does.
+                    isLocalKind(s.kind)
                       ? {}
                       : {
                           label: t('tree.openDesktop'),

@@ -7,6 +7,7 @@ package main
 
 import (
 	_ "embed"
+	"log"
 	"time"
 
 	"agentmux/internal/app"
@@ -30,6 +31,14 @@ func runApp() {
 
 	agentSvc := app.NewAgentService(core)
 	updateSvc := app.NewUpdateService(core)
+	desktopSvc := app.NewDesktopService(core)
+	// The webview's page has no origin a WebSocket can be relative to, so the
+	// in-app viewer is given a listener on this machine's loopback to talk to.
+	// A failure here costs the in-app viewer and nothing else: the system
+	// client is opened through a different path entirely.
+	if err := desktopSvc.EnableLoopback(); err != nil {
+		log.Printf("in-app desktop sessions are unavailable: %v", err)
+	}
 
 	wailsApp := application.New(application.Options{
 		Name:        "AgentMux",
@@ -49,7 +58,7 @@ func runApp() {
 			application.NewService(app.NewSkillService(core)),
 			application.NewService(app.NewOrchService(core)),
 			application.NewService(app.NewConfigService(core)),
-			application.NewService(app.NewDesktopService(core)),
+			application.NewService(desktopSvc),
 			application.NewService(agentSvc),
 			application.NewService(updateSvc),
 		},
