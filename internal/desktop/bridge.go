@@ -270,6 +270,15 @@ func bridgeRDP(ctx context.Context, ws Socket, d Dialer, addr string, reached fu
 			// Old Windows servers still negotiate TLS 1.0, and refusing them
 			// here would refuse the machines most likely to be reached this way.
 			MinVersion: tls.VersionTLS10,
+			// And no 1.3, which is not a preference but a fact about what RDP
+			// runs on. A current Windows Server completes a 1.3 handshake and
+			// then drops the connection with an internal error before a byte
+			// of the session travels — measured against one, where capping
+			// here is the whole difference between a desktop and "the remote
+			// desktop session failed". Every RDP client negotiates 1.2 for
+			// this reason; the session's own protection is CredSSP inside it,
+			// and this hop is already inside an SSH channel or a WebSocket.
+			MaxVersion: tls.VersionTLS12,
 		})
 		if err := tlsConn.HandshakeContext(hs); err != nil {
 			return writeCleanPathError(hs, ws, rdCleanPathGeneralError, err)

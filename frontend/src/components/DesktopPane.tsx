@@ -2,6 +2,7 @@ import { Monitor, RotateCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { desktop as desktopApi, errText } from '../lib/api'
 import { getToken } from '../lib/webTransport'
+import type { MsgKey } from '../lib/i18n'
 import type { DesktopInApp, DesktopProtocol } from '../lib/types'
 import { useTouchDevice } from '../lib/useCompact'
 import { useAppStore, type Tab } from '../store/useAppStore'
@@ -91,7 +92,7 @@ export function DesktopPane({ tab }: { tab: Tab }) {
         const stop =
           session.protocol === 'vnc'
             ? await startVNC(host, url, (e) => onEnded(e))
-            : await startRDP(host, url, session, { username, password, domain }, (e) => onEnded(e))
+            : await startRDP(host, url, session, { username, password, domain }, (e) => onEnded(e), t)
         if (cancelled) {
           stop()
           return
@@ -153,7 +154,10 @@ export function DesktopPane({ tab }: { tab: Tab }) {
               >
                 <input
                   className={inputClass}
-                  placeholder={t('desktop.pane.username')}
+                  // The example, not the word: the single most common reason a
+                  // Windows host refuses an account is a name with no domain
+                  // in front of it.
+                  placeholder={t('desktop.pane.usernameHint')}
                   value={username}
                   autoFocus
                   onChange={(e) => setUsername(e.target.value)}
@@ -290,6 +294,7 @@ async function startRDP(
   session: DesktopInApp,
   creds: { username: string; password: string; domain: string },
   onEnded: (reason: string) => void,
+  t: (k: MsgKey, v?: Record<string, string | number>) => string,
 ): Promise<() => void> {
   const [, rdp] = await Promise.all([
     // Importing the component registers <iron-remote-desktop>; the backend is
@@ -342,7 +347,9 @@ async function startRDP(
   // so a failure to connect is raised to the caller, which is what puts the
   // reason in front of the person waiting, while the end of a session that did
   // start is reported later through the same callback the VNC side uses.
-  const info = await ui.connect(config)
+  const info = await ui.connect(config).catch((e: unknown) => {
+    throw new Error(ironErrorText(e, t))
+  })
   // The component starts hidden and stays that way until a session is worth
   // showing, which is this moment.
   ui.setVisibility(true)
@@ -362,7 +369,7 @@ async function startRDP(
   void info
     .run()
     .then(() => onEnded(''))
-    .catch((e: unknown) => onEnded(errText(e)))
+    .catch((e: unknown) => onEnded(ironErrorText(e, t)))
 
   return () => {
     window.clearTimeout(settle)
@@ -374,6 +381,61 @@ async function startRDP(
     }
     el.remove()
   }
+}
+
+/**
+ * What an IronRDP failure actually says.
+ *
+ * The client rejects with its own error type, which is a WebAssembly object
+ * rather than an Error: it has no message, and the only property it owns is
+ * the pointer into the Rust heap. Handed to a general-purpose formatter it
+ * comes out as "__wbg_ptr: 1845464" — a number that describes nothing and
+ * hides everything, which is what a Windows host's real refusal looked like
+ * from here.
+ *
+ * The kind is the useful part, and for the two that mean "it did not accept
+ * that account" the sentence carries the thing people actually get wrong: a
+ * Windows login usually needs the domain in front of the name, or `.\` for a
+ * local account.
+ */
+function ironErrorText(e: unknown, t: (k: MsgKey, v?: Record<string, string | number>) => string): string {
+  const err = e as Partial<IronError> | null
+  if (!err || typeof err.kind !== 'function') return errText(e)
+
+  let detail = ''
+  try {
+    detail = (err.backtrace?.() ?? '').split('\n')[0].trim()
+  } catch {
+    /* the object may already be freed; the kind below is still worth having */
+  }
+
+  let kind = -1
+  try {
+    kind = Number(err.kind())
+  } catch {
+    return detail || errText(e)
+  }
+
+  const key: MsgKey =
+    kind === 1 || kind === 2
+      ? 'desktop.err.logon'
+      : kind === 3
+        ? 'desktop.err.access'
+        : kind === 4
+          ? 'desktop.err.cleanpath'
+          : kind === 5
+            ? 'desktop.err.proxy'
+            : kind === 6
+              ? 'desktop.err.negotiation'
+              : 'desktop.err.general'
+  const sentence = t(key)
+  return detail ? `${sentence} (${detail})` : sentence
+}
+
+/** The slice of IronRDP's failure type this pane reads. */
+interface IronError {
+  kind: () => number
+  backtrace: () => string
 }
 
 /** The slice of IronRDP's interaction API this pane uses. */
