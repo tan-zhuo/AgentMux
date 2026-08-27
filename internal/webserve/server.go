@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -136,6 +137,16 @@ func (s *Server) handleAssets(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 		http.FileServerFS(s.assets).ServeHTTP(w, r)
+		return
+	}
+	// The fallback is for routes, not for files. A missing asset answered with
+	// index.html is a script tag that receives HTML, which the browser reports
+	// as a syntax error inside a file that is fine — the Wails runtime asking
+	// a served browser for /wails/custom.js is exactly this, and it is a
+	// failed request on every page load. A path that names a file gets the
+	// answer it deserves.
+	if path.Ext(p) != "" {
+		http.NotFound(w, r)
 		return
 	}
 	r.URL.Path = "/"

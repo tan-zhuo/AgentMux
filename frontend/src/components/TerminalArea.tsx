@@ -753,7 +753,7 @@ export function TerminalArea() {
                 {tab.kind === 'files' ? (
                   <FileBrowser tab={tab} />
                 ) : tab.kind === 'desktop' ? (
-                  <DesktopPane tab={tab} active={focused} />
+                  <DesktopPane tab={tab} />
                 ) : tab.kind === 'editor' ? (
                   <EditorPane tab={tab} active={focused} />
                 ) : (

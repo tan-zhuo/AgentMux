@@ -13,6 +13,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,7 +88,7 @@ func TestBridgeRelaysVNC(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- Bridge(ctx, client, direct{}, Endpoint{Protocol: VNC, Port: port})
+		done <- Bridge(ctx, client, direct{}, Endpoint{Protocol: VNC, Port: port}, nil)
 	}()
 
 	conn := <-served
@@ -173,7 +174,7 @@ func TestBridgeRDPCleanPath(t *testing.T) {
 	client, page := socketPair()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() { _ = Bridge(ctx, client, direct{}, Endpoint{Protocol: RDP, Port: port}) }()
+	go func() { _ = Bridge(ctx, client, direct{}, Endpoint{Protocol: RDP, Port: port}, nil) }()
 
 	// What IronRDP's web client opens with.
 	req, err := asn1.Marshal(rdCleanPathPDU{
@@ -266,7 +267,7 @@ func TestBridgeRDPHonoursPlainRDPSecurity(t *testing.T) {
 	client, page := socketPair()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() { _ = Bridge(ctx, client, direct{}, Endpoint{Protocol: RDP, Port: port}) }()
+	go func() { _ = Bridge(ctx, client, direct{}, Endpoint{Protocol: RDP, Port: port}, nil) }()
 
 	req, err := asn1.Marshal(rdCleanPathPDU{
 		Version:     rdCleanPathVersion,
@@ -325,7 +326,7 @@ func TestBridgeRDPRejectsWrongVersion(t *testing.T) {
 	defer cancel()
 
 	done := make(chan error, 1)
-	go func() { done <- Bridge(ctx, client, direct{}, Endpoint{Protocol: RDP, Port: 3389}) }()
+	go func() { done <- Bridge(ctx, client, direct{}, Endpoint{Protocol: RDP, Port: 3389}, nil) }()
 
 	req, err := asn1.Marshal(rdCleanPathPDU{Version: 1, X224: tpkt([]byte{0x0e, 0xe0})})
 	if err != nil {
@@ -449,4 +450,101 @@ func selfSigned(t *testing.T) tls.Certificate {
 		t.Fatal(err)
 	}
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
+}
+
+// A viewer that stops answering ends the session, rather than holding the
+// host's SSH connection open until TCP notices on its own.
+func TestRelayEndsWhenTheViewerStopsAnswering(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err == nil {
+			// Hold it open and say nothing: a live desktop nobody is touching.
+			time.Sleep(10 * time.Second)
+			conn.Close()
+		}
+	}()
+
+	// Fast enough to test, for the same reason it is slow in production.
+	defer func(every, timeout time.Duration) { pingEvery, pingTimeout = every, timeout }(pingEvery, pingTimeout)
+	pingEvery, pingTimeout = 100*time.Millisecond, 300*time.Millisecond
+
+	client, _ := socketPair()
+	dead := &deafSocket{pipeSocket: client}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	port := ln.Addr().(*net.TCPAddr).Port
+	go func() { done <- Bridge(ctx, dead, direct{}, Endpoint{Protocol: VNC, Port: port}, nil) }()
+
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "stopped answering") {
+			t.Errorf("session ended with %v, want the heartbeat's reason", err)
+		}
+	case <-time.After(8 * time.Second):
+		t.Error("a viewer that never answers a ping held the session open")
+	}
+}
+
+// deafSocket answers no pings, which is what a socket to a machine that has
+// gone away looks like before TCP admits it.
+type deafSocket struct {
+	*pipeSocket
+}
+
+func (d *deafSocket) Ping(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// The endpoint is worth remembering once it answers, and not before: a port
+// nobody is listening on must not become the one offered first next time.
+func TestBridgeReportsOnlyEndpointsThatAnswer(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			time.Sleep(time.Second)
+			c.Close()
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reached := make(chan struct{}, 1)
+	client, _ := socketPair()
+	go func() {
+		_ = Bridge(ctx, client, direct{}, Endpoint{Protocol: VNC, Port: port},
+			func() { reached <- struct{}{} })
+	}()
+	select {
+	case <-reached:
+	case <-time.After(3 * time.Second):
+		t.Fatal("a listening endpoint was never reported as reached")
+	}
+
+	// And the port nothing is behind.
+	ln.Close()
+	client2, _ := socketPair()
+	never := make(chan struct{}, 1)
+	err = Bridge(ctx, client2, direct{}, Endpoint{Protocol: VNC, Port: port},
+		func() { never <- struct{}{} })
+	if err == nil {
+		t.Fatal("dialling a closed port should fail")
+	}
+	select {
+	case <-never:
+		t.Error("an endpoint that refused the connection was reported as reached")
+	default:
+	}
 }

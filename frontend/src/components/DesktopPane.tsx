@@ -41,7 +41,7 @@ function socketURL(session: DesktopInApp): string {
  * several megabytes, and a person who never opens a desktop should never pay
  * for it.
  */
-export function DesktopPane({ tab, active }: { tab: Tab; active: boolean }) {
+export function DesktopPane({ tab }: { tab: Tab }) {
   const t = useT()
   const toast = useAppStore((s) => s.toast)
   const setTabState = useAppStore((s) => s.setTabState)
@@ -75,6 +75,11 @@ export function DesktopPane({ tab, active }: { tab: Tab; active: boolean }) {
     const host = hostRef.current
 
     async function start() {
+      // Whatever was here goes first. Reconnecting on top of a live session
+      // would leave the old viewer holding the host's SSH connection with
+      // nothing on screen to close it with.
+      teardownRef.current?.()
+      teardownRef.current = null
       setError('')
       setTabState(tab.id, { status: 'opening', error: undefined })
       try {
@@ -114,16 +119,6 @@ export function DesktopPane({ tab, active }: { tab: Tab; active: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connecting, tab.id, tab.serverId])
-
-  // The viewers size themselves to the element, and the element only knows its
-  // size once the pane is on screen.
-  useEffect(() => {
-    if (!active || !hostRef.current) return
-    const el = hostRef.current
-    const nudge = () => el.dispatchEvent(new Event('resize'))
-    window.addEventListener('resize', nudge)
-    return () => window.removeEventListener('resize', nudge)
-  }, [active])
 
   if (!endpoint) {
     return (
@@ -212,14 +207,35 @@ async function startVNC(
   onEnded: (reason: string) => void,
 ): Promise<() => void> {
   const { default: RFB } = await import('@novnc/novnc')
-  const rfb = new RFB(host, url, {})
+
+  // The socket is opened here rather than by noVNC, for one reason: when the
+  // bridge refuses a session it says why in the close frame, and a viewer
+  // handed a URL keeps that to itself. "Connection refused" is the difference
+  // between a wrong port and a broken app.
+  const socket = new WebSocket(url)
+  let closed = ''
+  socket.addEventListener('close', (e) => {
+    if (e.reason) closed = e.reason
+  })
+
+  const rfb = new RFB(host, socket, {})
   rfb.scaleViewport = true
   rfb.clipViewport = true
   rfb.background = '#000'
 
+  // noVNC rescales on a window resize, and a pane can change size without the
+  // window doing anything — a split, a drawer, a rotated phone. Telling it
+  // what it already listens for is cheaper than reaching inside it.
+  const watchPane = new ResizeObserver(() => window.dispatchEvent(new Event('resize')))
+  watchPane.observe(host)
+
   const disconnected = (e: Event) => {
     const detail = (e as CustomEvent<{ clean: boolean }>).detail
-    onEnded(detail?.clean ? '' : 'the VNC session ended unexpectedly')
+    if (detail?.clean && !closed) {
+      onEnded('')
+      return
+    }
+    onEnded(closed || 'the VNC session ended unexpectedly')
   }
   const needsPassword = () => {
     const answer = window.prompt('VNC password')
@@ -238,6 +254,7 @@ async function startVNC(
   rfb.addEventListener('securityfailure', failed)
 
   return () => {
+    watchPane.disconnect()
     rfb.removeEventListener('disconnect', disconnected)
     rfb.removeEventListener('credentialsrequired', needsPassword)
     rfb.removeEventListener('securityfailure', failed)
@@ -300,6 +317,9 @@ async function startRDP(
   const ticket = new URL(url, window.location.href).searchParams.get('ticket') ?? ''
   const config = ui
     .configBuilder()
+    // The display control channel, which is what lets a session follow the
+    // pane's size instead of staying whatever it was when it opened.
+    .withExtension(rdp.displayControl(true))
     .withDestination(session.destination)
     .withProxyAddress(url)
     .withAuthToken(ticket)
@@ -317,12 +337,26 @@ async function startRDP(
   // showing, which is this moment.
   ui.setVisibility(true)
   ui.setScale(screenScaleFit)
+
+  // Resizing a desktop makes the server redraw all of it, so this waits for
+  // the dragging to stop rather than asking on every frame of it.
+  let settle = 0
+  const watchPane = new ResizeObserver(() => {
+    window.clearTimeout(settle)
+    settle = window.setTimeout(() => {
+      const { clientWidth, clientHeight } = host
+      if (clientWidth > 0 && clientHeight > 0) ui.resize(clientWidth, clientHeight)
+    }, 400)
+  })
+  watchPane.observe(host)
   void info
     .run()
     .then(() => onEnded(''))
     .catch((e: unknown) => onEnded(errText(e)))
 
   return () => {
+    window.clearTimeout(settle)
+    watchPane.disconnect()
     try {
       ui.shutdown()
     } catch {
@@ -341,10 +375,12 @@ interface IronUserInteraction {
   connect: (config: unknown) => Promise<{ run: () => Promise<unknown> }>
   setVisibility: (visible: boolean) => void
   setScale: (scale: number) => void
+  resize: (width: number, height: number, scale?: number) => void
   shutdown: () => void
 }
 
 interface IronConfigBuilder {
+  withExtension: (ext: unknown) => IronConfigBuilder
   withDestination: (v: string) => IronConfigBuilder
   withProxyAddress: (v: string) => IronConfigBuilder
   withAuthToken: (v: string) => IronConfigBuilder

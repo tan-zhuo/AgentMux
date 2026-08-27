@@ -91,10 +91,6 @@ func (d *DesktopService) InApp(serverID string, ep desktop.Endpoint) (InAppSessi
 	d.tickets[id] = ticket{serverID: serverID, endpoint: ep, expires: time.Now().Add(ticketTTL)}
 	d.mu.Unlock()
 
-	// Remembered the same way opening one in a system viewer is: whichever way
-	// a desktop was reached, that is the endpoint to start from next time.
-	_ = d.core.Store.SetSetting(SettingDesktopPrefix+serverID, ep.String())
-
 	base := WSPath
 	if d.loopback != nil {
 		base = "ws://" + d.loopback.Addr().String() + WSPath
@@ -154,7 +150,13 @@ func (d *DesktopService) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(8 << 20)
 
 	ctx := r.Context()
-	err = desktop.Bridge(ctx, wsSocket{conn}, lease.Client, tk.endpoint)
+	// Remembered only once the endpoint answers, the same way opening one in a
+	// system viewer is remembered: whichever way a desktop was reached, that
+	// is the one to offer first next time — and a port that refused is not.
+	remember := func() {
+		_ = d.core.Store.SetSetting(SettingDesktopPrefix+tk.serverID, tk.endpoint.String())
+	}
+	err = desktop.Bridge(ctx, wsSocket{conn}, lease.Client, tk.endpoint, remember)
 	if err != nil {
 		// Logged as well as reported: the socket's close reason is capped at a
 		// sentence and is the last thing a viewer sees before it disappears,
@@ -198,6 +200,9 @@ func (s wsSocket) Read(ctx context.Context) ([]byte, error) {
 func (s wsSocket) Write(ctx context.Context, b []byte) error {
 	return s.c.Write(ctx, websocket.MessageBinary, b)
 }
+
+// Ping is how the bridge notices a viewer that went away without saying so.
+func (s wsSocket) Ping(ctx context.Context) error { return s.c.Ping(ctx) }
 
 func randomID() (string, error) {
 	b := make([]byte, 24)

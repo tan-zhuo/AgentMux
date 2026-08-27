@@ -47,21 +47,48 @@ type Socket interface {
 // idle, not stuck.
 const handshakeTimeout = 20 * time.Second
 
+// How often the viewer is asked whether it is still there, and how long it has
+// to answer.
+//
+// A desktop can be watched for an hour without a byte travelling in either
+// direction, so silence proves nothing — and the socket is hijacked out of the
+// HTTP server, which means nothing else is watching it either. A phone that
+// drives into a tunnel would otherwise hold this host's SSH connection open
+// until TCP gave up on its own, which can be never.
+var (
+	pingEvery   = 30 * time.Second
+	pingTimeout = 10 * time.Second
+)
+
+// Pinger is a Socket that can ask the far end whether it is still listening.
+// Sockets that cannot are simply not asked.
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
 // Bridge carries one desktop session between a socket and a host, dialling the
 // host through d — an SSH channel in production.
-func Bridge(ctx context.Context, ws Socket, d Dialer, ep Endpoint) error {
+//
+// reached, when given, is called once the endpoint has answered. That is the
+// moment worth remembering a choice by: a port somebody typed wrongly refuses
+// the connection, and an endpoint that refused is not the one to offer first
+// next time.
+func Bridge(ctx context.Context, ws Socket, d Dialer, ep Endpoint, reached func()) error {
 	if !ep.Valid() {
 		return fmt.Errorf("%s is not a desktop endpoint", ep)
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", ep.Port)
 	if ep.Protocol == RDP {
-		return bridgeRDP(ctx, ws, d, addr)
+		return bridgeRDP(ctx, ws, d, addr, reached)
 	}
 	conn, err := d.Dial("tcp", addr)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	if reached != nil {
+		reached()
+	}
 	return relay(ctx, ws, conn)
 }
 
@@ -72,7 +99,31 @@ func relay(ctx context.Context, ws Socket, conn net.Conn) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	errs := make(chan error, 2)
+	// Three: both pumps and the heartbeat, so whichever ends first can say so
+	// without waiting for the others to be read.
+	errs := make(chan error, 3)
+	if p, ok := ws.(Pinger); ok {
+		go func() {
+			tick := time.NewTicker(pingEvery)
+			defer tick.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick.C:
+					// The pong is read by the pump below, which is always
+					// reading, so this only ever waits on the far end.
+					ask, cancelPing := context.WithTimeout(ctx, pingTimeout)
+					err := p.Ping(ask)
+					cancelPing()
+					if err != nil {
+						errs <- fmt.Errorf("the viewer stopped answering: %w", err)
+						return
+					}
+				}
+			}
+		}()
+	}
 	go func() {
 		buf := make([]byte, 32*1024)
 		for {
@@ -159,7 +210,7 @@ type rdCleanPathPDU struct {
 // handshake, and reports what the server presented. Everything after that is
 // the RDP session, which travels inside the TLS connection opened here and
 // inside the WebSocket's own encryption on the other side.
-func bridgeRDP(ctx context.Context, ws Socket, d Dialer, addr string) error {
+func bridgeRDP(ctx context.Context, ws Socket, d Dialer, addr string, reached func()) error {
 	hs, cancel := context.WithTimeout(ctx, handshakeTimeout)
 	defer cancel()
 
@@ -193,6 +244,10 @@ func bridgeRDP(ctx context.Context, ws Socket, d Dialer, addr string) error {
 	confirm, err := x224Exchange(hs, conn, req.X224)
 	if err != nil {
 		return writeCleanPathError(hs, ws, rdCleanPathNegotiationError, err)
+	}
+	// It spoke RDP back, which is as much proof as this endpoint can give.
+	if reached != nil {
+		reached()
 	}
 
 	// What happens next is the server's decision, not ours. The confirm says
@@ -289,6 +344,12 @@ func x224Exchange(ctx context.Context, conn net.Conn, request []byte) ([]byte, e
 	return confirm, nil
 }
 
+// maxCleanPath is as large as a request has any business being. One carries a
+// destination, a token and an X.224 connection request — a few hundred bytes.
+// Without a ceiling, a client that never sends a parsable header is a client
+// that grows this buffer until the machine gives out.
+const maxCleanPath = 64 << 10
+
 // readCleanPath reads messages until they add up to one complete PDU. A
 // WebSocket may split anything anywhere, and DER says how long a value is in
 // its own header, so the header is what decides when there is enough.
@@ -300,6 +361,9 @@ func readCleanPath(ctx context.Context, ws Socket) (rdCleanPathPDU, error) {
 			return rdCleanPathPDU{}, fmt.Errorf("read the RDCleanPath request: %w", err)
 		}
 		buf = append(buf, msg...)
+		if len(buf) > maxCleanPath {
+			return rdCleanPathPDU{}, fmt.Errorf("the RDCleanPath request passed %d bytes without becoming one", maxCleanPath)
+		}
 		total, ok := derLength(buf)
 		if !ok {
 			continue
