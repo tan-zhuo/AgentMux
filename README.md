@@ -234,7 +234,9 @@ terminals, agents, the toolkit, file browsing — works. "Add to Home Screen"
 (Safari on iPad, Chrome on Android) installs it as a standalone app. Android
 goes one step further: the `agentmux-android.apk` attached to each release
 embeds the full core, so SSH runs from the device itself and no always-on
-machine is needed (see `mobile/`). Closing the browser stops nothing, exactly
+machine is needed (see `mobile/`). Both the Android app and the desktop app
+can switch between their own core and a remote serve under Settings →
+Connection, and the choice is remembered. Closing the browser stops nothing, exactly
 like closing the desktop window — the agents live in remote tmux. Put a HTTPS
 reverse proxy in front for use over the public internet.
 

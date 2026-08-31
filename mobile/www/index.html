@@ -2,7 +2,11 @@
 <!-- The launch page. Inside the Android app the embedded core is started and
      joined automatically — this page is only a splash while it boots. In a
      plain browser (no Capacitor bridge) it falls back to asking for the
-     address of a remote `agentmux --serve`. -->
+     address of a remote `agentmux --serve`.
+
+     The page is also the switch: Settings in the app proper navigates back
+     here with ?mode=remote&addr=… or ?mode=local, the choice is persisted in
+     this origin's storage, and every later launch honours it. -->
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -20,10 +24,14 @@
       input:focus { outline: none; border-color: #4f8cff; }
       button { margin-top: 12px; width: 100%; background: #4f8cff; color: #fff; border: 0;
                border-radius: 8px; padding: 12px; font-size: 15px; font-weight: 600; }
+      button.alt { background: transparent; color: #9aa4b2; border: 1px solid #232a35; }
       button:disabled { opacity: 0.5; }
       .err { color: #ff6b6b; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+      .link { display: inline-block; margin-top: 18px; color: #4f8cff; font-size: 13px;
+              text-decoration: none; }
       #form { display: none; }
       #boot { text-align: center; }
+      #uselocal { display: none; }
     </style>
   </head>
   <body>
@@ -34,6 +42,7 @@
         <pre id="bootlog" style="display:none; text-align:left; font-size:11px; line-height:1.5;
              background:#0b0d12; border:1px solid #232a35; border-radius:8px; padding:10px;
              max-height:40vh; overflow:auto; white-space:pre-wrap; word-break:break-all;"></pre>
+        <a class="link" id="toremote" href="#" hidden>连接远程服务器…</a>
       </div>
       <div id="form">
         <h1>AgentMux</h1>
@@ -41,20 +50,44 @@
         <input id="addr" type="url" placeholder="http://192.168.1.10:8642"
                autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" />
         <button id="go">连接</button>
+        <button id="uselocal" class="alt">改用本机核心</button>
         <div class="err" id="err"></div>
       </div>
     </main>
     <script>
       const KEY = 'agentmux.server'
+      const MODE_KEY = 'agentmux.mode'
       const addr = document.getElementById('addr')
       const go = document.getElementById('go')
       const err = document.getElementById('err')
+      const core = window.Capacitor?.Plugins?.Core
+
+      // Settings in the app proper cannot write this origin's storage — it
+      // lives on the core's or the server's origin — so it hands the choice
+      // over in the query string and this page persists it.
+      const search = new URLSearchParams(location.search)
+      // Arriving with ?mode= is the user switching right now, and a failure
+      // must say so; a plain launch retries quietly.
+      const switchedNow = search.has('mode')
+      if (search.has('mode')) {
+        const wantRemote = search.get('mode') === 'remote'
+        localStorage.setItem(MODE_KEY, wantRemote ? 'remote' : 'local')
+        const handed = normalize(search.get('addr') || '')
+        if (wantRemote && handed) localStorage.setItem(KEY, handed)
+        history.replaceState(null, '', location.pathname)
+      }
 
       function normalize(v) {
         v = v.trim().replace(/\/+$/, '')
         if (!v) return ''
         if (!/^https?:\/\//.test(v)) v = 'http://' + v
         return v
+      }
+
+      // Everything the app proper needs to find its way back here: passed in
+      // the hash on every hand-off and claimed by the frontend before boot.
+      function shellParam() {
+        return 'shell=' + encodeURIComponent(location.origin)
       }
 
       // The manifest is tiny, unauthenticated, and only AgentMux serves it at
@@ -82,14 +115,23 @@
         }
       }
 
+      // Set when the user walks away from a boot in progress; a poll that
+      // succeeds afterwards must not yank the page from under the form.
+      let bootAbandoned = false
+
       // Local mode: the app's own core, started through the Capacitor plugin.
       // It needs a moment to boot, so poll before jumping.
-      async function bootLocal(core) {
+      async function bootLocal() {
+        bootAbandoned = false
+        document.getElementById('form').style.display = 'none'
+        document.getElementById('boot').style.display = 'block'
         const info = await core.getServerInfo()
         const base = `http://127.0.0.1:${info.port}`
         for (let i = 0; i < 40; i++) {
+          if (bootAbandoned) return
           if (await reachable(base)) {
-            location.replace(`${base}/#token=${encodeURIComponent(info.token)}`)
+            if (bootAbandoned) return
+            location.replace(`${base}/#token=${encodeURIComponent(info.token)}&${shellParam()}`)
             return
           }
           await new Promise((r) => setTimeout(r, 500))
@@ -116,31 +158,62 @@
         err.textContent = ''
         if (await reachable(base)) {
           localStorage.setItem(KEY, base)
-          location.replace(base)
+          if (core) {
+            // Only the shell remembers a mode: in a plain browser the address
+            // bar is the mode.
+            localStorage.setItem(MODE_KEY, 'remote')
+            location.replace(base + '/#' + shellParam())
+          } else {
+            location.replace(base)
+          }
           return
         }
         go.disabled = false
         if (!quiet) err.textContent = '连不上这个地址 —— 确认 agentmux --serve 正在运行、端口可达。'
       }
 
-      const core = window.Capacitor?.Plugins?.Core
-      if (core) {
-        void bootLocal(core)
-      } else {
+      function showForm() {
+        bootAbandoned = true
         document.getElementById('boot').style.display = 'none'
         document.getElementById('form').style.display = 'block'
-        go.addEventListener('click', () => {
-          const base = normalize(addr.value)
-          if (base) void connectRemote(base, false)
-        })
-        addr.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') go.click()
-        })
         const saved = localStorage.getItem(KEY)
-        if (saved) {
-          addr.value = saved
-          void connectRemote(saved, true)
+        if (saved) addr.value = saved
+      }
+
+      go.addEventListener('click', () => {
+        const base = normalize(addr.value)
+        if (base) void connectRemote(base, false)
+      })
+      addr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') go.click()
+      })
+
+      if (core) {
+        // In the shell both modes exist and the boot screen links to the
+        // other one, so a phone whose core is slow to start is never a wall.
+        document.getElementById('toremote').hidden = false
+        document.getElementById('toremote').addEventListener('click', (e) => {
+          e.preventDefault()
+          showForm()
+        })
+        const uselocal = document.getElementById('uselocal')
+        uselocal.style.display = 'block'
+        uselocal.addEventListener('click', () => {
+          localStorage.setItem(MODE_KEY, 'local')
+          void bootLocal()
+        })
+
+        const saved = localStorage.getItem(KEY)
+        if (localStorage.getItem(MODE_KEY) === 'remote' && saved) {
+          showForm()
+          void connectRemote(saved, !switchedNow)
+        } else {
+          void bootLocal()
         }
+      } else {
+        showForm()
+        const saved = localStorage.getItem(KEY)
+        if (saved) void connectRemote(saved, true)
       }
     </script>
   </body>

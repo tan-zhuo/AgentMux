@@ -3,7 +3,11 @@ import { Check, Download, Upload } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   agents as agentApi,
+  connect as connectApi,
   errText,
+  getBackURL,
+  getShellOrigin,
+  isDesktop,
   llm as llmApi,
   servers as serverApi,
   toolkit,
@@ -972,6 +976,8 @@ function SettingsDialog() {
     >
       <LanguageSettings />
 
+      <ConnectSettings />
+
       <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.theme')}</p>
       <div className="mb-5 grid grid-cols-2 gap-2">
         {themes.map((theme) => {
@@ -1057,6 +1063,128 @@ function SettingsDialog() {
       </dl>
       <p className="mt-4 text-[11px] leading-relaxed text-ink-400">{t('settings.security.blurb')}</p>
     </Modal>
+  )
+}
+
+/** Mirrors the launch page's normalize: scheme defaulted, trailing slash off. */
+function normalizeAddr(v: string): string {
+  v = v.trim().replace(/\/+$/, '')
+  if (!v) return ''
+  if (!/^https?:\/\//.test(v)) v = 'http://' + v
+  return v
+}
+
+/**
+ * Which core this window is looking at: the one running inside this app, or a
+ * remote `agentmux --serve`.
+ *
+ * It only appears where a shell exists to do the switching — the Android app,
+ * which routes the choice through its launch page, and the desktop app, whose
+ * Go side re-points the window: reached over the Wails bridge from the local
+ * page, and over the loopback control URL it handed us from a remote one. A
+ * plain browser switches with its address bar and sees nothing here.
+ */
+function ConnectSettings() {
+  const t = useT()
+  const shell = getShellOrigin()
+  const back = getBackURL()
+  // What this page is right now. A desktop remote page carries the back-URL;
+  // the phone shell boots its own core on 127.0.0.1 and serves from anywhere
+  // else; the Wails-served page is by definition the local core.
+  const remoteNow =
+    back !== '' ||
+    (shell !== '' &&
+      !isDesktop &&
+      window.location.hostname !== '127.0.0.1' &&
+      window.location.hostname !== 'localhost')
+
+  const [mode, setMode] = useState<'local' | 'remote'>(remoteNow ? 'remote' : 'local')
+  const [addr, setAddr] = useState(remoteNow ? window.location.origin : '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  // The desktop's local page prefills the last remote address it was pointed
+  // at, so switching back and forth does not mean retyping it.
+  useEffect(() => {
+    if (!isDesktop) return
+    connectApi
+      .remoteAddr()
+      .then((a) => {
+        if (a) setAddr((cur) => cur || a)
+      })
+      .catch(() => {})
+  }, [])
+
+  if (!shell && !back && !isDesktop) return null
+
+  const target = normalizeAddr(addr)
+  const changed =
+    mode === 'remote' ? target !== '' && (!remoteNow || target !== window.location.origin) : remoteNow
+
+  const apply = async () => {
+    setErr('')
+    setBusy(true)
+    try {
+      if (shell) {
+        // The launch page owns the choice on the phone: hand it over and let
+        // it persist the mode, then boot or connect accordingly.
+        const q = mode === 'remote' ? `?mode=remote&addr=${encodeURIComponent(target)}` : '?mode=local'
+        window.location.href = `${shell}/${q}`
+        return
+      }
+      if (back) {
+        // A remote page cannot reach the local Go over the Wails bridge — its
+        // runtime posts to this page's origin — so the desktop app listens on
+        // its loopback for exactly this request.
+        const q = mode === 'remote' ? `&mode=remote&addr=${encodeURIComponent(target)}` : '&mode=local'
+        const res = await fetch(back + q)
+        if (!res.ok) throw new Error(t('connect.control.error'))
+        return
+      }
+      await connectApi.remote(target)
+    } catch (e) {
+      setErr(errText(e))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.connect')}</p>
+      <div className="mb-5 space-y-2">
+        <Segmented
+          size="sm"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'local', label: t('connect.local') },
+            { value: 'remote', label: t('connect.remote') },
+          ]}
+        />
+        {mode === 'remote' && (
+          <Field label={t('connect.addr')} hint={t('connect.addr.hint')}>
+            <input
+              className={`${inputClass} font-mono`}
+              value={addr}
+              onChange={(e) => setAddr(e.target.value)}
+              placeholder="http://192.168.1.10:8642"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </Field>
+        )}
+        <p className="text-[11px] leading-relaxed text-ink-400">
+          {mode === 'remote' ? t('connect.remote.blurb') : t('connect.local.blurb')}
+        </p>
+        {changed && (
+          <Button variant="primary" disabled={busy} onClick={() => void apply()}>
+            {busy ? t('connect.applying') : t('connect.apply')}
+          </Button>
+        )}
+        {err && <p className="text-[11px] text-danger">{err}</p>}
+      </div>
+    </>
   )
 }
 

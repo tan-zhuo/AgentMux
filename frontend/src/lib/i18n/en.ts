@@ -864,6 +864,19 @@ export const en = {
   'settings.transfer.export': 'Export…',
   'settings.transfer.import': 'Import…',
 
+  'settings.connect': 'Connection',
+  'connect.local': 'This device',
+  'connect.remote': 'Remote server',
+  'connect.addr': 'Server address',
+  'connect.addr.hint': 'The address of the machine running agentmux --serve.',
+  'connect.local.blurb':
+    'Use the core running inside this app: SSH starts here, and host configuration and keys stay on this device.',
+  'connect.remote.blurb':
+    'Connect to agentmux --serve on another machine: hosts, keys and SSH connections live there, and this device is just a screen onto it. The first connection asks for that machine’s access token.',
+  'connect.apply': 'Switch',
+  'connect.applying': 'Switching…',
+  'connect.control.error': 'Could not reach the AgentMux app on this machine — restart it and try again.',
+
   'transfer.export.title': 'Export configuration',
   'transfer.export.blurb': 'The file holds your hosts, the projects and workspaces on them, and your agent definitions. It is encrypted with the passphrase you choose here, and nothing — including AgentMux — can open it without that passphrase.',
   'transfer.includeSecrets': 'Include SSH passwords and key passphrases',

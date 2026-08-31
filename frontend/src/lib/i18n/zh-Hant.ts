@@ -858,6 +858,18 @@ export const zhHant: Messages = {
   'settings.transfer.export': '匯出…',
   'settings.transfer.import': '匯入…',
 
+  'settings.connect': '連線模式',
+  'connect.local': '本機核心',
+  'connect.remote': '遠端伺服器',
+  'connect.addr': '伺服器位址',
+  'connect.addr.hint': '執行 agentmux --serve 的那台機器的位址。',
+  'connect.local.blurb': '使用在這台裝置裡執行的核心：SSH 從這裡發起，主機設定和金鑰保存在本機。',
+  'connect.remote.blurb':
+    '連線另一台機器上執行的 agentmux --serve：主機設定、金鑰和 SSH 連線都在那台機器上，這裡只是它的一塊螢幕。首次連線需要輸入那台機器的存取權杖。',
+  'connect.apply': '切換',
+  'connect.applying': '正在切換…',
+  'connect.control.error': '聯絡不上本機的 AgentMux —— 重新啟動應用後再試。',
+
   'transfer.export.title': '匯出設定',
   'transfer.export.blurb': '檔案裡裝的是你的主機、它們上面的專案與工作區，還有 agent 定義。它用你在這裡定的密語加密，沒有這個密語，誰都無法開啟 —— 包括 AgentMux 自己。',
   'transfer.includeSecrets': '把 SSH 密碼和金鑰密語一起帶上',

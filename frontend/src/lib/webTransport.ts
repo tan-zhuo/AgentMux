@@ -9,7 +9,8 @@
  */
 
 /**
- * True when running inside the Wails webview rather than a plain browser.
+ * True when running inside the Wails webview — regardless of what page it is
+ * showing. This is about the native shell, not the transport.
  *
  * Checking `window._wails` is the obvious and wrong way: the Wails JS runtime
  * creates it wherever it is imported, browser included. What only the real
@@ -17,7 +18,7 @@
  * `chrome.webview` on Windows, WebKit's `messageHandlers.external` on macOS
  * and Linux — the same probe the runtime itself uses.
  */
-export const isDesktop =
+export const isShellDesktop =
   typeof window !== 'undefined' &&
   Boolean(
     (window as { chrome?: { webview?: { postMessage?: unknown } } }).chrome?.webview
@@ -30,21 +31,67 @@ export const isDesktop =
   )
 
 const TOKEN_KEY = 'agentmux.token'
+// Where the Android shell's launch page lives, so Settings can send the user
+// back there to pick the other connection mode.
+const SHELL_KEY = 'agentmux.shell'
+// The desktop app's loopback control URL, handed over when its window is
+// pointed at a remote serve. Its presence is also what tells this bundle it
+// was served remotely: the Wails message channel still exists in that webview,
+// but the Go it reaches is not the server this page came from.
+const BACK_KEY = 'agentmux.back'
 
-// A native shell (the Android app with its embedded core) hands the token
-// over in the hash on first navigation: http://127.0.0.1:8642/#token=…
-// It is claimed into storage and scrubbed from the address before anything
-// else — the other hash params (a detached tab's 'd') stay untouched.
-if (!isDesktop && typeof window !== 'undefined') {
+// A native shell hands markers over in the hash on first navigation:
+// http://127.0.0.1:8642/#token=…&shell=… — they are claimed into storage and
+// scrubbed from the address before anything else. The other hash params (a
+// detached tab's 'd') stay untouched. The Wails-served page never carries any
+// of these, so running the claim unconditionally is safe.
+if (typeof window !== 'undefined') {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-  const handed = params.get('token')
-  if (handed) {
-    localStorage.setItem(TOKEN_KEY, handed)
-    params.delete('token')
+  let changed = false
+  for (const [param, key] of [
+    ['token', TOKEN_KEY],
+    ['shell', SHELL_KEY],
+    ['back', BACK_KEY],
+  ] as const) {
+    const handed = params.get(param)
+    if (handed) {
+      localStorage.setItem(key, handed)
+      params.delete(param)
+      changed = true
+    }
+  }
+  if (changed) {
     const rest = params.toString()
     window.history.replaceState(null, '', window.location.pathname + (rest ? '#' + rest : ''))
   }
 }
+
+/** The Android shell's launch-page origin, or '' outside that shell. */
+export function getShellOrigin(): string {
+  try {
+    return localStorage.getItem(SHELL_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** The desktop app's loopback control URL, or '' when not served into it. */
+export function getBackURL(): string {
+  try {
+    return localStorage.getItem(BACK_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * True when the Go behind the Wails bridge is the one that served this page —
+ * the desktop app showing its own UI. A desktop window pointed at a remote
+ * `agentmux --serve` still has the native channel, but its calls must travel
+ * over HTTP to the origin like any browser's; the claimed back-URL marks that
+ * case.
+ */
+export const isDesktop = isShellDesktop && !getBackURL()
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? ''

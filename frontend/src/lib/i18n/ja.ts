@@ -860,6 +860,19 @@ export const ja: Messages = {
   'settings.transfer.export': '書き出し…',
   'settings.transfer.import': '読み込み…',
 
+  'settings.connect': '接続モード',
+  'connect.local': 'この端末のコア',
+  'connect.remote': 'リモートサーバー',
+  'connect.addr': 'サーバーアドレス',
+  'connect.addr.hint': 'agentmux --serve を実行しているマシンのアドレス。',
+  'connect.local.blurb':
+    'このアプリ内で動くコアを使います。SSH はこの端末から発信され、ホスト設定と鍵はローカルに保存されます。',
+  'connect.remote.blurb':
+    '別のマシンで動く agentmux --serve に接続します。ホスト設定・鍵・SSH 接続はそのマシン側にあり、この端末はその画面になるだけです。初回接続時にアクセストークンの入力が必要です。',
+  'connect.apply': '切り替え',
+  'connect.applying': '切り替え中…',
+  'connect.control.error': 'このマシンの AgentMux に接続できません。アプリを再起動してからやり直してください。',
+
   'transfer.export.title': '設定を書き出す',
   'transfer.export.blurb': 'ファイルにはホスト、その上のプロジェクトとワークスペース、エージェントの定義が入ります。ここで決めたパスフレーズで暗号化され、そのパスフレーズなしには — AgentMux 自身も含めて — 誰も開けません。',
   'transfer.includeSecrets': 'SSH のパスワードと鍵のパスフレーズも入れる',

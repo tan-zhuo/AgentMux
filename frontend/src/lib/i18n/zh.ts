@@ -858,6 +858,18 @@ export const zh: Messages = {
   'settings.transfer.export': '导出…',
   'settings.transfer.import': '导入…',
 
+  'settings.connect': '连接模式',
+  'connect.local': '本机核心',
+  'connect.remote': '远程服务器',
+  'connect.addr': '服务器地址',
+  'connect.addr.hint': '运行 agentmux --serve 的那台机器的地址。',
+  'connect.local.blurb': '使用运行在这台设备里的核心：SSH 从这里发起，主机配置和密钥保存在本地。',
+  'connect.remote.blurb':
+    '连接另一台机器上运行的 agentmux --serve：主机配置、密钥和 SSH 连接都在那台机器上，这里只是它的一块屏幕。首次连接需要输入那台机器的访问令牌。',
+  'connect.apply': '切换',
+  'connect.applying': '正在切换…',
+  'connect.control.error': '联系不上本机的 AgentMux —— 重启应用后再试。',
+
   'transfer.export.title': '导出配置',
   'transfer.export.blurb': '文件里装的是你的主机、它们上面的项目与工作区，还有 agent 定义。它用你在这里定的口令加密，没有这个口令，谁都打不开 —— 包括 AgentMux 自己。',
   'transfer.includeSecrets': '把 SSH 密码和密钥口令一起带上',

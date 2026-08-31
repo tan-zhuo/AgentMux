@@ -2,6 +2,7 @@ import { Call, Events } from '@wailsio/runtime'
 import { httpCall, isDesktop, sseOn } from './webTransport'
 
 export { isDesktop }
+export { isShellDesktop, getShellOrigin, getBackURL } from './webTransport'
 import type {
   Agent,
   ConfigImport,
@@ -279,6 +280,20 @@ export const desktop = {
     call<DesktopInApp>('DesktopService', 'InApp', serverId, endpoint),
   close: (serverId: string) => call<void>('DesktopService', 'Close', serverId),
   forget: (serverId: string) => call<void>('DesktopService', 'Forget', serverId),
+}
+
+/**
+ * Switching the desktop window between its own core and a remote serve.
+ *
+ * Only the desktop build binds this service; it is the one place where the
+ * choice is the Go side's to act on — the window itself has to be re-pointed.
+ * The phone shell and a remotely-served page switch by navigation instead.
+ */
+export const connect = {
+  /** The last remote address used, for prefilling the form. */
+  remoteAddr: () => call<string>('ConnectService', 'RemoteAddr'),
+  /** Persists the choice and re-points the window at the remote serve. */
+  remote: (addr: string) => call<void>('ConnectService', 'ConnectRemote', addr),
 }
 
 export const llm = {

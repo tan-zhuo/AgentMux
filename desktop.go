@@ -8,6 +8,7 @@ package main
 import (
 	_ "embed"
 	"log"
+	"net/url"
 	"time"
 
 	"agentmux/internal/app"
@@ -32,6 +33,7 @@ func runApp() {
 	agentSvc := app.NewAgentService(core)
 	updateSvc := app.NewUpdateService(core)
 	desktopSvc := app.NewDesktopService(core)
+	connectSvc := app.NewConnectService(core)
 	// The webview's page has no origin a WebSocket can be relative to, so the
 	// in-app viewer is given a listener on this machine's loopback to talk to.
 	// A failure here costs the in-app viewer and nothing else: the system
@@ -61,6 +63,7 @@ func runApp() {
 			application.NewService(desktopSvc),
 			application.NewService(agentSvc),
 			application.NewService(updateSvc),
+			application.NewService(connectSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -73,7 +76,9 @@ func runApp() {
 			// activates an app that cannot present one, and the only way out is
 			// Force Quit. AgentMux has one window and closing it is the user
 			// saying they are done — the work itself lives in tmux on the
-			// servers and is not affected either way.
+			// servers and is not affected either way. When modes switch, the
+			// new window is created before the old one closes, so the count
+			// never touches zero.
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 		OnShutdown: func() { core.Shutdown() },
@@ -87,45 +92,120 @@ func runApp() {
 	// from the settings dialog.
 	updateSvc.StartWatch(6 * time.Hour)
 
-	// The native frame cannot be re-coloured after creation, so it is built from
-	// the theme the user last chose.
+	// openMain shows the app's own UI; openRemote points a window at a remote
+	// `agentmux --serve` instead. Each closes the other's window after opening
+	// its own, so a switch is a swap and never leaves zero windows.
+	openMain := func() {
+		openMainWindow(wailsApp, core)
+		if w, ok := wailsApp.Window.GetByName("remote"); ok {
+			w.Close()
+		}
+	}
+	openRemote := func(addr string) {
+		openRemoteWindow(wailsApp, core, addr, connectSvc.ControlURL())
+		if w, ok := wailsApp.Window.GetByName("main"); ok {
+			w.Close()
+		}
+	}
+	connectSvc.SetOpeners(openMain, openRemote)
+	if err := connectSvc.StartControl(); err != nil {
+		log.Printf("connect control endpoint unavailable: %v", err)
+	}
+
+	// A remembered remote is only honoured when the way back — the loopback
+	// control endpoint — is standing and the server actually answers right
+	// now; otherwise the local UI, which can always switch again, is the
+	// recoverable place to be. The setting itself is kept, so a server that
+	// was merely down is picked up again on the next launch.
+	if addr, ok := connectSvc.StartupRemote(); ok && connectSvc.ControlURL() != "" && app.ProbeServe(addr) {
+		openRemote(addr)
+	} else {
+		if ok {
+			log.Printf("remembered remote %s is not usable right now; opening the local UI", addr)
+		}
+		openMain()
+	}
+
+	if err := wailsApp.Run(); err != nil {
+		fatal("AgentMux exited with an error", err)
+	}
+}
+
+// windowsChrome builds the themed Windows border settings both windows share.
+func windowsChrome(core *app.Core) (application.WindowsWindow, application.RGBA) {
 	chrome := core.WindowChrome()
 	winTheme := application.Dark
 	if chrome.Light {
 		winTheme = application.Light
 	}
+	return application.WindowsWindow{
+		Theme: winTheme,
+		// The window is frameless so there is no title bar to draw an icon
+		// in, but the icon is what the taskbar and Alt+Tab use.
+		DisableIcon: false,
+		// Windows 11 draws a light system border around the window, which
+		// reads as a bright hairline against a dark UI. Match it to the theme.
+		CustomTheme: application.ThemeSettings{
+			DarkModeActive:    &application.WindowTheme{BorderColour: chrome.Border},
+			DarkModeInactive:  &application.WindowTheme{BorderColour: chrome.BorderInactive},
+			LightModeActive:   &application.WindowTheme{BorderColour: chrome.Border},
+			LightModeInactive: &application.WindowTheme{BorderColour: chrome.BorderInactive},
+		},
+	}, chrome.Background
+}
 
-	// Frameless, because the app draws its own macOS-style title bar. Windows
-	// frameless decorations are deliberately left enabled: they are what keep the
-	// native drop shadow, the Windows 11 rounded corners and the resize borders.
+// openMainWindow opens the frameless window on the app's own frontend.
+//
+// The native frame cannot be re-coloured after creation, so it is built from
+// the theme the user last chose. Frameless, because the app draws its own
+// macOS-style title bar. Windows frameless decorations are deliberately left
+// enabled: they are what keep the native drop shadow, the Windows 11 rounded
+// corners and the resize borders.
+func openMainWindow(wailsApp *application.App, core *app.Core) {
+	win, background := windowsChrome(core)
 	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:             "main",
 		Title:            "AgentMux",
 		Width:            1520,
 		Height:           940,
 		MinWidth:         1024,
 		MinHeight:        620,
 		Frameless:        true,
-		BackgroundColour: chrome.Background,
-		Windows: application.WindowsWindow{
-			Theme: winTheme,
-			// The window is frameless so there is no title bar to draw an icon
-			// in, but the icon is what the taskbar and Alt+Tab use.
-			DisableIcon: false,
-			// Windows 11 draws a light system border around the window, which
-			// reads as a bright hairline against a dark UI. Match it to the theme.
-			CustomTheme: application.ThemeSettings{
-				DarkModeActive:    &application.WindowTheme{BorderColour: chrome.Border},
-				DarkModeInactive:  &application.WindowTheme{BorderColour: chrome.BorderInactive},
-				LightModeActive:   &application.WindowTheme{BorderColour: chrome.Border},
-				LightModeInactive: &application.WindowTheme{BorderColour: chrome.BorderInactive},
-			},
-		},
+		BackgroundColour: background,
+		Windows:          win,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 38,
 		},
 	})
+}
 
-	if err := wailsApp.Run(); err != nil {
-		fatal("AgentMux exited with an error", err)
+// openRemoteWindow points a window at a remote `agentmux --serve`.
+//
+// The window keeps its native frame: the page comes from the server and talks
+// only to the server, so the frameless window's webview-drawn controls would
+// have no Go on their origin to answer them. The control URL rides along in
+// the hash — it is how that page, which cannot reach this process over the
+// Wails bridge, asks to be switched back.
+func openRemoteWindow(wailsApp *application.App, core *app.Core, addr, controlURL string) {
+	target := addr + "/"
+	if controlURL != "" {
+		target += "#back=" + url.QueryEscape(controlURL)
 	}
+	if w, ok := wailsApp.Window.GetByName("remote"); ok {
+		w.SetURL(target)
+		w.Focus()
+		return
+	}
+	win, background := windowsChrome(core)
+	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:             "remote",
+		Title:            "AgentMux",
+		URL:              target,
+		Width:            1520,
+		Height:           940,
+		MinWidth:         1024,
+		MinHeight:        620,
+		BackgroundColour: background,
+		Windows:          win,
+	})
 }
