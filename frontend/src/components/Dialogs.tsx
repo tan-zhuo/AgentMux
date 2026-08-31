@@ -6,6 +6,7 @@ import {
   connect as connectApi,
   errText,
   getBackURL,
+  getRemoteAddr,
   getShellOrigin,
   isDesktop,
   llm as llmApi,
@@ -1098,8 +1099,12 @@ function ConnectSettings() {
       window.location.hostname !== '127.0.0.1' &&
       window.location.hostname !== 'localhost')
 
+  // What the current remote actually is: a page behind the desktop's pinned
+  // proxy has a loopback origin, and the real address travels in the hash.
+  const currentAddr = (back && getRemoteAddr()) || window.location.origin
+
   const [mode, setMode] = useState<'local' | 'remote'>(remoteNow ? 'remote' : 'local')
-  const [addr, setAddr] = useState(remoteNow ? window.location.origin : '')
+  const [addr, setAddr] = useState(remoteNow ? currentAddr : '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   // A self-signed serve's certificate fingerprint, waiting for the user to
@@ -1122,7 +1127,7 @@ function ConnectSettings() {
 
   const target = normalizeAddr(addr)
   const changed =
-    mode === 'remote' ? target !== '' && (!remoteNow || target !== window.location.origin) : remoteNow
+    mode === 'remote' ? target !== '' && (!remoteNow || target !== currentAddr) : remoteNow
 
   // accepted is the fingerprint the user just agreed to trust, '' otherwise.
   const apply = async (accepted: string) => {

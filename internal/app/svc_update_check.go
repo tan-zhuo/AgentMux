@@ -22,14 +22,18 @@ type UpdateInfo struct {
 	Notes          string `json:"notes"`
 	AssetSize      int64  `json:"assetSize"`
 	HasUpdate      bool   `json:"hasUpdate"`
-	Error          string `json:"error"`
+	// CanApply: whether a served browser may offer the upgrade button — a
+	// static property of the build (serveCanApply, build-tagged), carried
+	// here so the page needs no second question and no fallible probe.
+	CanApply bool   `json:"canApply"`
+	Error    string `json:"error"`
 }
 
 // fetchLatest asks the release feed for the newest version and reports how it
 // compares to this build. Which asset it looks for is the build's own answer
 // (releaseAssetName, build-tagged): the desktop archive or the server tarball.
 func fetchLatest(mirror string) (update.Release, UpdateInfo) {
-	info := UpdateInfo{CurrentVersion: Version}
+	info := UpdateInfo{CurrentVersion: Version, CanApply: serveCanApply()}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

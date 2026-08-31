@@ -28,7 +28,13 @@ func LoadOrCreateCert(dataDir, certFile, keyFile string) (tls.Certificate, strin
 	if certFile == "" {
 		certFile = filepath.Join(dataDir, "serve-cert.pem")
 		keyFile = filepath.Join(dataDir, "serve-key.pem")
-		if _, err := os.Stat(certFile); err != nil {
+		// Either file missing means regenerate the pair: a crash between the
+		// two writes must not leave an install that can never start again.
+		// (The key is written first for the same reason — the cert is the
+		// last thing to land, so its presence implies a complete pair.)
+		_, certErr := os.Stat(certFile)
+		_, keyErr := os.Stat(keyFile)
+		if certErr != nil || keyErr != nil {
 			if err := generateSelfSigned(certFile, keyFile); err != nil {
 				return tls.Certificate{}, "", fmt.Errorf("could not create a self-signed certificate: %w", err)
 			}
@@ -101,8 +107,11 @@ func generateSelfSigned(certFile, keyFile string) error {
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	if err := os.WriteFile(certFile, certPEM, 0o644); err != nil {
+	// Key first: the caller treats the pair as complete when both files
+	// exist, so the failure mode of a crash here is a retried generation,
+	// never a cert without its key.
+	if err := os.WriteFile(keyFile, keyPEM, 0o600); err != nil {
 		return err
 	}
-	return os.WriteFile(keyFile, keyPEM, 0o600)
+	return os.WriteFile(certFile, certPEM, 0o644)
 }

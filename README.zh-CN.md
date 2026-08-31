@@ -192,6 +192,9 @@ curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/tan-zhuo/AgentMu
 与日志里那行核对一致后点"信任"，此后连接全程加密、且**只认这一张证书**（指纹钉住，
 任何 CA 都插不进来）；普通浏览器/PWA 则在浏览器的警告页选择继续访问一次即可。
 不想要 TLS 用 `--no-tls`；有正式证书用 `--tls-cert/--tls-key` 直接换上。
+已知限制：安卓 App 连自签 https 时，远程桌面查看器（VNC/RDP，走 WebSocket）不可用
+——安卓 WebView 不把 WebSocket 的证书错误交给应用裁决；终端等其它功能不受影响，
+需要远程桌面就换正式证书。
 
 装好之后升级不用再登服务器：网页界面发现新版本会显示升级条，点一下，服务器自己
 下载校验、原地换二进制重启（systemd 看到的还是同一个进程）。重跑安装脚本也等价于

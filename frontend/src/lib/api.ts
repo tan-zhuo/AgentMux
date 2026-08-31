@@ -2,7 +2,7 @@ import { Call, Events } from '@wailsio/runtime'
 import { httpCall, isDesktop, sseOn } from './webTransport'
 
 export { isDesktop }
-export { isShellDesktop, getShellOrigin, getBackURL } from './webTransport'
+export { isShellDesktop, getShellOrigin, getBackURL, getRemoteAddr } from './webTransport'
 import type {
   Agent,
   ConfigImport,
@@ -134,6 +134,12 @@ export const terminal = {
   attachAgent: (agentId: string, cols: number, rows: number) =>
     call<ShellInfo>('TerminalService', 'AttachAgent', agentId, cols, rows),
   write: (id: string, b64: string) => call<void>('TerminalService', 'Write', id, b64),
+  /**
+   * Exactly-once keystrokes: the same (writer, seq) retried — because only
+   * its acknowledgement was lost — is recognised and not applied again.
+   */
+  writeSeq: (id: string, writer: string, seq: number, b64: string) =>
+    call<void>('TerminalService', 'WriteSeq', id, writer, seq, b64),
   resize: (id: string, cols: number, rows: number) =>
     call<void>('TerminalService', 'Resize', id, cols, rows),
   scrollback: (id: string) => call<string>('TerminalService', 'Scrollback', id),
@@ -212,12 +218,6 @@ export const update = {
       ? call<UpdateInfo>('UpdateService', 'Check')
       : call<UpdateInfo>('UpdateCheckService', 'Check'),
   apply: () => call<UpdateResult>('UpdateService', 'Apply'),
-  /**
-   * Whether the other side can replace its own binary. Only the headless
-   * server build answers yes; a desktop binary running --serve does not bind
-   * the method at all, so the call failing means no.
-   */
-  canApply: () => call<boolean>('UpdateService', 'CanApply'),
   /**
    * The full service's check, which also warms its cached release for a later
    * apply. Only valid where canApply has answered yes.

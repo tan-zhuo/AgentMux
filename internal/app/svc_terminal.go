@@ -153,6 +153,13 @@ func (t *TerminalService) AttachAgent(agentID string, cols, rows int) (sshx.Shel
 // UTF-8 sequences survive the JSON hop.
 func (t *TerminalService) Write(id, b64 string) error { return t.core.Shells.Write(id, b64) }
 
+// WriteSeq is Write with exactly-once delivery per (writer, seq) — what the
+// retrying send queue on a weak link needs. Plain Write stays for pages from
+// before it existed.
+func (t *TerminalService) WriteSeq(id, writer string, seq int64, b64 string) error {
+	return t.core.Shells.WriteSeq(id, writer, seq, b64)
+}
+
 // Resize propagates a terminal resize.
 func (t *TerminalService) Resize(id string, cols, rows int) error {
 	return t.core.Shells.Resize(id, cols, rows)

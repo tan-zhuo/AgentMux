@@ -17,6 +17,11 @@ import (
 // the desktop archive for the platform, which is Latest's default.
 func releaseAssetName() string { return "" }
 
+// serveCanApply is what a *served browser* may act on, and this build serves
+// only as `--serve`, where no Apply is bound: the desktop upgrades itself
+// through its own window, never on a browser's word.
+func serveCanApply() bool { return false }
+
 // UpdateService keeps this installation current. It checks the release feed
 // in the background, tells the UI when a newer version exists, and on request
 // downloads it, swaps it in and restarts.

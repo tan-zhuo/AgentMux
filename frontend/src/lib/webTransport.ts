@@ -39,6 +39,10 @@ const SHELL_KEY = 'agentmux.shell'
 // was served remotely: the Wails message channel still exists in that webview,
 // but the Go it reaches is not the server this page came from.
 const BACK_KEY = 'agentmux.back'
+// The remote serve's real address, for the page whose own origin is not it —
+// a pinned self-signed serve is reached through a loopback proxy, and
+// window.location would name the proxy.
+const RADDR_KEY = 'agentmux.raddr'
 
 // A native shell hands markers over in the hash on first navigation:
 // http://127.0.0.1:8642/#token=…&shell=… — they are claimed into storage and
@@ -52,6 +56,7 @@ if (typeof window !== 'undefined') {
     ['token', TOKEN_KEY],
     ['shell', SHELL_KEY],
     ['back', BACK_KEY],
+    ['raddr', RADDR_KEY],
   ] as const) {
     const handed = params.get(param)
     if (handed) {
@@ -79,6 +84,15 @@ export function getShellOrigin(): string {
 export function getBackURL(): string {
   try {
     return localStorage.getItem(BACK_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** The remote serve's real address when this page reaches it via a proxy. */
+export function getRemoteAddr(): string {
+  try {
+    return localStorage.getItem(RADDR_KEY) ?? ''
   } catch {
     return ''
   }

@@ -12,6 +12,7 @@ package app
 
 import (
 	"log"
+	"os"
 	"runtime"
 	"time"
 
@@ -27,6 +28,11 @@ func releaseAssetName() string {
 	}
 	return ""
 }
+
+// serveCanApply is whether this build's Apply can actually run — carried on
+// every UpdateInfo so a served browser knows if offering an upgrade button
+// means anything.
+func serveCanApply() bool { return releaseAssetName() != "" }
 
 // UpdateService keeps a headless server current. It checks the release feed
 // in the background, announces newer versions over the event stream, and on
@@ -46,10 +52,6 @@ func NewUpdateService(c *Core) *UpdateService {
 // ServiceName identifies the service in logs.
 func (u *UpdateService) ServiceName() string { return "UpdateService" }
 
-// CanApply reports whether this build can replace itself — the frontend asks
-// before offering an upgrade button to a served browser.
-func (u *UpdateService) CanApply() bool { return releaseAssetName() != "" }
-
 // Check asks the release feed for the newest version.
 func (u *UpdateService) Check() UpdateInfo { return u.check() }
 
@@ -62,7 +64,7 @@ func (u *UpdateService) StartWatch(interval time.Duration) { u.startWatch(interv
 // before the restart so the UI gets the answer. Browsers ride out the restart
 // the way they ride out any dropped connection: the event stream reconnects.
 func (u *UpdateService) Apply() UpdateResult {
-	if !u.CanApply() {
+	if !serveCanApply() {
 		return UpdateResult{Error: "this build does not update itself — install the newer version the way this one was installed"}
 	}
 	return u.apply(func(restartPath string) {
@@ -70,9 +72,13 @@ func (u *UpdateService) Apply() UpdateResult {
 		// way they do on exit. The work lives in remote tmux either way.
 		u.core.Shutdown()
 		if err := update.Restart(restartPath); err != nil {
-			// The new build is installed but could not take over; the next
-			// start of this service — by hand or by a supervisor — runs it.
-			log.Printf("installed %s but could not restart into it: %v", restartPath, err)
+			// The new build is installed but could not take over. Exiting is
+			// the recovery, not the failure: the core is already shut down,
+			// so continuing would mean answering HTTP with a dead store — a
+			// zombie a supervisor can never notice. An exit is what it is
+			// built to notice, and what it restarts is the new binary.
+			log.Printf("installed %s but could not restart into it: %v; exiting for the supervisor", restartPath, err)
+			os.Exit(1)
 		}
 	})
 }

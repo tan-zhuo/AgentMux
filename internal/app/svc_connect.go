@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"log"
 	"net"
 	"net/http"
@@ -73,7 +74,7 @@ type ConnectService struct {
 	key        string
 	controlURL string
 	openLocal  func()
-	openRemote func(pageURL string)
+	openRemote func(pageURL, addr string)
 
 	// The pinned-TLS proxy. target and pin are read per request, so pointing
 	// the proxy somewhere else does not mean restarting it.
@@ -81,6 +82,25 @@ type ConnectService struct {
 	proxyURL  string
 	target    *url.URL
 	targetPin string
+}
+
+// pinAwareTransport picks how to trust the upstream per request: the system
+// roots (and plain http) for an unpinned target, the exact pinned fingerprint
+// otherwise. It reads the pin per request, so re-pointing the proxy at a
+// different server needs no new transport.
+type pinAwareTransport struct {
+	svc         *ConnectService
+	std, pinned http.RoundTripper
+}
+
+func (t *pinAwareTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	t.svc.mu.Lock()
+	pin := t.svc.targetPin
+	t.svc.mu.Unlock()
+	if pin != "" {
+		return t.pinned.RoundTrip(r)
+	}
+	return t.std.RoundTrip(r)
 }
 
 // NewConnectService binds a connect service to the core.
@@ -93,37 +113,35 @@ func (s *ConnectService) ServiceName() string { return "ConnectService" }
 
 // SetOpeners lends the service the entrypoint's window builders. Window
 // construction stays with the entrypoint, which owns chrome, theme and icon.
-func (s *ConnectService) SetOpeners(local func(), remote func(pageURL string)) {
+func (s *ConnectService) SetOpeners(local func(), remote func(pageURL, addr string)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.openLocal = local
 	s.openRemote = remote
 }
 
-// StartupRemote reports whether this launch should open on a remote serve,
-// and the page URL to load — the address itself, or the loopback proxy when
-// the remote is pinned. A remote that does not answer right now, or whose
-// certificate no longer matches its pin, is declined: the local UI can always
-// switch again, and the setting is kept for the next launch to try.
-func (s *ConnectService) StartupRemote() (string, bool) {
+// StartupRemote reports whether this launch should open on a remote serve —
+// and if so, the page URL to load (always the loopback proxy) plus the
+// remote's real address for the page to display.
+func (s *ConnectService) StartupRemote() (pageURL, addr string, ok bool) {
 	if s.core.Store.GetSetting(settingConnectMode, "local") != "remote" {
-		return "", false
+		return "", "", false
 	}
-	addr := s.core.Store.GetSetting(settingConnectAddr, "")
+	addr = s.core.Store.GetSetting(settingConnectAddr, "")
 	if addr == "" {
-		return "", false
+		return "", "", false
 	}
 	pin := s.core.Store.GetSetting(settingConnectPin, "")
-	if !probeServe(addr, pin) {
-		log.Printf("remembered remote %s is not answering (or its certificate changed); opening the local UI", addr)
-		return "", false
-	}
+	// No reachability probe here: it would hold the whole launch hostage to a
+	// 4-second timeout when the server (or the VPN to it) is down. The proxy
+	// starts in microseconds, and a dead upstream is the proxy error page —
+	// which explains itself and carries the way back to the local UI.
 	pageURL, err := s.prepareRemote(addr, pin)
 	if err != nil {
 		log.Printf("could not prepare the connection to %s: %v; opening the local UI", addr, err)
-		return "", false
+		return "", "", false
 	}
-	return pageURL, true
+	return pageURL, addr, true
 }
 
 // RemoteAddr returns the last remote address used, for prefilling the form.
@@ -181,10 +199,21 @@ func (s *ConnectService) ConnectRemote(addr, pin string) error {
 	if control == "" {
 		return errors.New("the loopback control endpoint failed to start; restart AgentMux and try again")
 	}
+	// The address it was pinned on before: the certificate the user trusted
+	// once must not be asked about — or failed on — again. (The UI's probe
+	// answers OK for exactly this reason, and sends no fingerprint along.)
+	if pin == "" && normalized == s.core.Store.GetSetting(settingConnectAddr, "") {
+		pin = s.core.Store.GetSetting(settingConnectPin, "")
+	}
 	// Refused rather than discovered later: a window pointed at a dead address
 	// shows a blank page with no UI to switch back from.
 	if !probeServe(normalized, pin) {
 		return fmt.Errorf("could not reach %s — check that agentmux --serve is running there", normalized)
+	}
+	// System trust sufficing means no pin is needed — or wanted: an addr
+	// moving from self-signed to a real certificate sheds its pin here.
+	if pin != "" && probeServe(normalized, "") {
+		pin = ""
 	}
 	if err := s.persist("remote", normalized, pin); err != nil {
 		return err
@@ -193,7 +222,7 @@ func (s *ConnectService) ConnectRemote(addr, pin string) error {
 	if err != nil {
 		return err
 	}
-	open(pageURL)
+	open(pageURL, normalized)
 	return nil
 }
 
@@ -212,13 +241,17 @@ func (s *ConnectService) persist(mode, addr, pin string) error {
 	return nil
 }
 
-// prepareRemote returns the URL the window should load for addr: the address
-// itself, or — for a pinned self-signed serve — the loopback proxy that holds
-// the pin, started (or re-pointed) here.
+// prepareRemote returns the URL the window should load for addr: always the
+// loopback proxy, started (or re-pointed) here.
+//
+// Every remote goes through the proxy, not just the pinned ones, because the
+// page's origin decides what it may talk to: from a remote https origin, the
+// switch-back call to the plain-http loopback control endpoint is mixed
+// content, which WebKit refuses with no loopback exemption — a user on macOS
+// or Linux would be locked into remote mode with no way home. Served from
+// the loopback proxy, everything the page touches is one plain-http local
+// origin, on every platform, whatever the remote's scheme.
 func (s *ConnectService) prepareRemote(addr, pin string) (string, error) {
-	if pin == "" || !strings.HasPrefix(addr, "https://") {
-		return addr, nil
-	}
 	target, err := url.Parse(addr)
 	if err != nil {
 		return "", err
@@ -256,22 +289,32 @@ func (s *ConnectService) prepareRemote(addr, pin string) (string, error) {
 		// Flush every write straight through: the event stream under this is
 		// a terminal, and a buffered terminal paints in lurches.
 		FlushInterval: -1,
-		Transport: &http.Transport{
-			// Verification is replaced, not removed: exact certificate bytes
-			// against the pinned fingerprint — stricter than a chain, blind
-			// to names and dates, immune to any CA.
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-				VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+		Transport: &pinAwareTransport{
+			svc: s,
+			std: &http.Transport{},
+			pinned: &http.Transport{
+				TLSClientConfig: pinnedTLSConfig(func() string {
 					s.mu.Lock()
-					pin := s.targetPin
-					s.mu.Unlock()
-					if len(rawCerts) > 0 && webserve.Fingerprint(rawCerts[0]) == pin {
-						return nil
-					}
-					return errors.New("server certificate does not match the pinned fingerprint")
-				},
+					defer s.mu.Unlock()
+					return s.targetPin
+				}),
 			},
+		},
+		// A dead upstream must not be a blank window: startup no longer
+		// probes first (a window in one second beats a verdict in five), so
+		// this page is where "the server is not answering" gets said — with
+		// a same-origin way home that no mixed-content rule can block.
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			s.mu.Lock()
+			addr, control := "", s.controlURL
+			if s.target != nil {
+				addr = s.target.String()
+			}
+			s.mu.Unlock()
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusBadGateway)
+			fmt.Fprintf(w, proxyErrorPage,
+				html.EscapeString(addr), html.EscapeString(err.Error()), control)
 		},
 	}
 	srv := &http.Server{Handler: proxy}
@@ -358,19 +401,27 @@ func (s *ConnectService) handleControl(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		pin := r.URL.Query().Get("pin")
-		if pin == "" {
-			// The page could not have shown a fingerprint dialog for a server
-			// it has not probed; do that here and hand the question back.
-			probe := probeRemote(normalized, "")
-			if probe.NeedsPin || probe.Error != "" {
-				h.Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusPreconditionRequired)
-				_ = json.NewEncoder(w).Encode(probe)
-				return
-			}
-		} else if !probeServe(normalized, pin) {
-			http.Error(w, fmt.Sprintf("could not reach %s with the accepted certificate", normalized), http.StatusBadGateway)
+		if pin == "" && normalized == s.core.Store.GetSetting(settingConnectAddr, "") {
+			// The address it is already on: the certificate the user trusted
+			// once must not be asked about again.
+			pin = s.core.Store.GetSetting(settingConnectPin, "")
+		}
+		// The page could not have shown a fingerprint dialog for a server it
+		// has not probed; probe here and, when trust is the missing piece,
+		// hand the question back. A pin that no longer matches lands in the
+		// same place — the fingerprint the server shows now, for the user to
+		// judge afresh.
+		probe := probeRemote(normalized, pin)
+		if !probe.OK {
+			h.Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusPreconditionRequired)
+			_ = json.NewEncoder(w).Encode(probe)
 			return
+		}
+		// System trust sufficing means no pin is needed — or wanted: an addr
+		// moving from self-signed to a real certificate sheds its pin here.
+		if pin != "" && probeServe(normalized, "") {
+			pin = ""
 		}
 		if err := s.persist("remote", normalized, pin); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -381,13 +432,47 @@ func (s *ConnectService) handleControl(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		openRemote(pageURL)
+		openRemote(pageURL, normalized)
 	default:
 		http.Error(w, "mode must be local or remote", http.StatusBadRequest)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// pinnedTLSConfig trusts exactly one certificate: the one whose SHA-256
+// matches the pin at handshake time. Verification is replaced, not removed —
+// exact bytes, blind to names, dates and every CA. This is the security
+// primitive of the whole trust design, and it lives in one place on purpose:
+// the probe and the proxy must never drift into accepting different things.
+func pinnedTLSConfig(pin func() string) *tls.Config {
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if p := pin(); p != "" && len(rawCerts) > 0 && webserve.Fingerprint(rawCerts[0]) == p {
+				return nil
+			}
+			return errors.New("server certificate does not match the pinned fingerprint")
+		},
+	}
+}
+
+// proxyErrorPage is what the loopback proxy shows when the remote does not
+// answer: what failed, and a same-origin way back to the local UI.
+const proxyErrorPage = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AgentMux</title>
+<style>body{background:#080a0f;color:#9aa4b2;font:15px/1.6 system-ui,sans-serif;display:flex;
+align-items:center;justify-content:center;min-height:100vh;margin:0}main{width:min(420px,86vw)}
+h1{color:#d5dbe4;font-size:17px;margin:0 0 8px}p{font-size:13px}code{font-size:12px;color:#d5dbe4}
+button{margin:12px 12px 0 0;background:#4f8cff;color:#fff;border:0;border-radius:8px;
+padding:10px 16px;font-size:14px;font-weight:600}button.alt{background:transparent;
+color:#9aa4b2;border:1px solid #232a35}</style></head><body><main>
+<h1>连不上远程服务器 / The remote server is not answering</h1>
+<p><code>%s</code><br><small>%s</small></p>
+<button onclick="location.reload()">重试 / Retry</button>
+<button class="alt" onclick="fetch('%s&mode=local')">切回本机核心 / Back to this device</button>
+</main></body></html>`
 
 // probeServe reports whether addr answers like an AgentMux serve. The
 // manifest is tiny, unauthenticated, and only AgentMux serves it at this path
@@ -397,15 +482,7 @@ func probeServe(addr, pin string) bool {
 	client := &http.Client{Timeout: 4 * time.Second}
 	if pin != "" {
 		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-				VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-					if len(rawCerts) > 0 && webserve.Fingerprint(rawCerts[0]) == pin {
-						return nil
-					}
-					return errors.New("server certificate does not match the pinned fingerprint")
-				},
-			},
+			TLSClientConfig: pinnedTLSConfig(func() string { return pin }),
 		}
 	}
 	res, err := client.Get(addr + "/manifest.webmanifest")

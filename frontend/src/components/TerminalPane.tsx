@@ -319,15 +319,23 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     // seconds: long enough to ride out a gap, short enough that a loss is
     // noticed while the intent is still fresh. The queue is bounded; a truly
     // dead link costs bounded memory, not an ever-growing buffer.
+    //
+    // Every chunk carries a (writer, seq) pair, and the server applies each
+    // pair at most once: a retry whose original actually arrived — only the
+    // acknowledgement was lost — is recognised, not typed again. Without
+    // that, the retry queue would turn lost responses into doubled input.
+    const writer = Math.random().toString(36).slice(2, 10)
+    let seq = 0
     let sendChain: Promise<void> = Promise.resolve()
     let queued = 0
     const enqueueWrite = (id: string, b64: string) => {
       if (queued >= 512) return
       queued++
+      const mySeq = ++seq
       sendChain = sendChain.then(async () => {
         for (let attempt = 0; ; attempt++) {
           try {
-            await termApi.write(id, b64)
+            await termApi.writeSeq(id, writer, mySeq, b64)
             break
           } catch {
             if (shellIdRef.current !== id || attempt >= 4) break

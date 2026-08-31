@@ -241,7 +241,10 @@ first connect — compare it with that log line, tap trust, and from then on the
 connection is encrypted and accepts **only that exact certificate** (pinned;
 no CA can step in). A plain browser or PWA proceeds through the browser's
 warning page once. `--no-tls` opts out; `--tls-cert/--tls-key` swaps in a real
-certificate.
+certificate. Known limit: on a pinned self-signed serve the Android app's
+VNC/RDP desktop viewer cannot connect — Android's WebView refuses WebSocket
+certificate errors without asking the app; terminals and everything else are
+unaffected, and a real certificate lifts the limit.
 
 Once installed, upgrades never need the server's shell again: when a newer
 release exists, the web UI shows an upgrade banner — one click and the server

@@ -1,8 +1,10 @@
 package webserve
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -70,8 +72,9 @@ func TestRegistryErrors(t *testing.T) {
 
 func newTestServer() *Server {
 	assets := fstest.MapFS{
-		"index.html": {Data: []byte("<html>app</html>")},
-		"app.js":     {Data: []byte("js")},
+		"index.html":      {Data: []byte("<html>app</html>")},
+		"app.js":          {Data: []byte("js")},
+		"assets/x.abc.js": {Data: []byte("hashed")},
 	}
 	return New(reg(), NewHub(), assets, "secret-token")
 }
@@ -152,5 +155,91 @@ func TestServiceErrorsAreDistinguishable(t *testing.T) {
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &e); err != nil || e.Error != "boom" {
 		t.Errorf("error body: %q (%v)", w.Body.String(), err)
+	}
+}
+
+// A stream ticket stands in for the token exactly once, and only briefly: the
+// point of its existence is that the value a proxy logs is already worthless.
+func TestStreamTickets(t *testing.T) {
+	h := newTestServer().Handler()
+
+	r := httptest.NewRequest("POST", "/api/stream-ticket", nil)
+	r.Header.Set("Authorization", "Bearer secret-token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("mint: got %d want 200", w.Code)
+	}
+	var body struct {
+		Ticket string `json:"ticket"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil || body.Ticket == "" {
+		t.Fatalf("mint: unreadable ticket (%v)", err)
+	}
+
+	// Minting requires the token — a browser that has not authenticated
+	// cannot manufacture stream access.
+	r = httptest.NewRequest("POST", "/api/stream-ticket", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("tokenless mint: got %d want 401", w.Code)
+	}
+
+	srv := newTestServer()
+	r = httptest.NewRequest("POST", "/api/stream-ticket", nil)
+	r.Header.Set("Authorization", "Bearer secret-token")
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	_ = json.NewDecoder(w.Body).Decode(&body)
+	if !srv.redeemTicket(body.Ticket) {
+		t.Error("a fresh ticket must redeem")
+	}
+	if srv.redeemTicket(body.Ticket) {
+		t.Error("a ticket must not redeem twice")
+	}
+}
+
+// gzip is what makes the first load survive a weak link; the immutable header
+// is what makes the second load free. index.html must stay re-askable or an
+// upgraded server keeps serving stale hashes to old pages.
+func TestCompressionAndCaching(t *testing.T) {
+	h := newTestServer().Handler()
+
+	r := httptest.NewRequest("GET", "/app.js", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Header().Get("Content-Encoding") != "gzip" {
+		t.Errorf("asset: expected gzip, got %q", w.Header().Get("Content-Encoding"))
+	}
+	gz, err := gzip.NewReader(w.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := io.ReadAll(gz)
+	if err != nil || string(plain) != "js" {
+		t.Errorf("asset roundtrip: got %q (%v)", plain, err)
+	}
+
+	// A client that does not ask must get plain bytes.
+	r = httptest.NewRequest("GET", "/app.js", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Header().Get("Content-Encoding") != "" || w.Body.String() != "js" {
+		t.Errorf("plain client: got %q %q", w.Header().Get("Content-Encoding"), w.Body.String())
+	}
+
+	for path, want := range map[string]string{
+		"/":                "no-cache",
+		"/servers/abc":     "no-cache",
+		"/assets/x.abc.js": "public, max-age=31536000, immutable",
+	} {
+		r := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if got := w.Header().Get("Cache-Control"); got != want {
+			t.Errorf("%s: cache-control %q want %q", path, got, want)
+		}
 	}
 }

@@ -118,22 +118,12 @@ export function UpdateCheckButton({ current }: { current: string }) {
  * same strip: the user who clicked is looking exactly here.
  */
 // The desktop replaces its own binary, and so does the headless server build —
-// a served browser asks once whether the other side can, and offers the same
-// banner when it says yes. What stays out is what cannot act on it: a desktop
-// binary run as --serve (the method is not bound) and the phone's embedded
-// core (it answers no; the APK is the update).
+// a served browser offers the same banner when the server says it can act on
+// it. That capability rides on every UpdateInfo (canApply), so there is no
+// separate probe to fail: what stays out is what cannot act — a desktop
+// binary run as --serve, and the phone's embedded core (the APK is the
+// update) — because their UpdateInfo says so.
 export function UpdateBanner() {
-  const [canApply, setCanApply] = useState(isDesktop)
-
-  useEffect(() => {
-    if (isDesktop) return
-    updateApi
-      .canApply()
-      .then(setCanApply)
-      .catch(() => {})
-  }, [])
-
-  if (!canApply) return null
   return <UpdateBannerInner />
 }
 
@@ -198,7 +188,9 @@ function UpdateBannerInner() {
     }
   }, [])
 
+  // A browser can only offer the upgrade when the other side can perform it.
   if (!info || !info.hasUpdate || dismissed === info.latestVersion) return null
+  if (!isDesktop && !info.canApply) return null
 
   const upgrade = async () => {
     setBusy(true)

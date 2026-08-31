@@ -7,6 +7,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"log"
 	"net/url"
 	"time"
@@ -106,8 +107,8 @@ func runApp() {
 			w.Close()
 		}
 	}
-	openRemote := func(pageURL string) {
-		openRemoteWindow(wailsApp, core, pageURL, connectSvc.ControlURL())
+	openRemote := func(pageURL, addr string) {
+		openRemoteWindow(wailsApp, core, pageURL, addr, connectSvc.ControlURL())
 		if w, ok := wailsApp.Window.GetByName("main"); ok {
 			w.Close()
 		}
@@ -118,12 +119,12 @@ func runApp() {
 	}
 
 	// A remembered remote is only honoured when the way back — the loopback
-	// control endpoint — is standing and the server answers right now with a
-	// certificate its pin (if any) accepts; otherwise the local UI, which can
-	// always switch again, is the recoverable place to be. The setting itself
-	// is kept, so a server that was merely down is picked up next launch.
-	if pageURL, ok := connectSvc.StartupRemote(); ok && connectSvc.ControlURL() != "" {
-		openRemote(pageURL)
+	// control endpoint — is standing; otherwise the local UI, which can
+	// always switch again, is the recoverable place to be. Nothing here waits
+	// on the network: a server that is down shows as the proxy's error page,
+	// which explains itself and carries its own way home.
+	if pageURL, addr, ok := connectSvc.StartupRemote(); ok && connectSvc.ControlURL() != "" {
+		openRemote(pageURL, addr)
 	} else {
 		openMain()
 	}
@@ -189,10 +190,18 @@ func openMainWindow(wailsApp *application.App, core *app.Core) {
 // have no Go on their origin to answer them. The control URL rides along in
 // the hash — it is how that page, which cannot reach this process over the
 // Wails bridge, asks to be switched back.
-func openRemoteWindow(wailsApp *application.App, core *app.Core, pageURL, controlURL string) {
-	target := pageURL + "/"
+func openRemoteWindow(wailsApp *application.App, core *app.Core, pageURL, addr, controlURL string) {
+	// The query nonce makes every switch a real navigation: two remotes share
+	// the loopback proxy's origin, and a URL that differs only in its hash is
+	// a same-document navigation — the old server's page would keep running
+	// against a proxy now pointed somewhere else. (The page scrubs the query
+	// with the hash right after claiming it, so the address stays clean.)
+	target := fmt.Sprintf("%s/?s=%x", pageURL, time.Now().UnixNano())
 	if controlURL != "" {
-		target += "#back=" + url.QueryEscape(controlURL)
+		// The real address rides along too: a page reached through the
+		// loopback proxy would otherwise only know the proxy as its origin,
+		// and Settings would show — and compare against — the wrong thing.
+		target += "#back=" + url.QueryEscape(controlURL) + "&raddr=" + url.QueryEscape(addr)
 	}
 	if w, ok := wailsApp.Window.GetByName("remote"); ok {
 		w.SetURL(target)

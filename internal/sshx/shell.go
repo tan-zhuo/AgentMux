@@ -145,6 +145,12 @@ type shell struct {
 	reopen Reopener
 	done   chan struct{}
 
+	// writeMu serializes sequenced keystroke writes and guards lastSeq — the
+	// highest sequence applied per writer. Separate from mu because a write
+	// can block on the network, and resize or reconnect must not wait on it.
+	writeMu sync.Mutex
+	lastSeq map[string]int64
+
 	mu sync.Mutex
 	// sess and release are swapped when a dropped terminal comes back, so both
 	// live under the lock. sess is nil for the moment in between.
@@ -669,6 +675,49 @@ func (m *ShellManager) Write(id, b64 string) error {
 	}
 	_, err = sess.Write(raw)
 	return err
+}
+
+// WriteSeq forwards keystrokes exactly once per (writer, seq): a client on a
+// weak link retries a chunk whose acknowledgement was lost, and without this
+// a request the PTY already received would be applied again — a doubled
+// keystroke at best, a doubled Enter at a destructive prompt at worst.
+// Numbers are per writer, so two devices typing into one terminal never
+// invalidate each other's counters. The lock spans check, write and advance:
+// a retry racing its own still-in-flight original must not slip past the
+// check before the original lands.
+func (m *ShellManager) WriteSeq(id, writer string, seq int64, b64 string) error {
+	sh, err := m.get(id)
+	if err != nil {
+		return err
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return fmt.Errorf("bad payload: %w", err)
+	}
+
+	sh.writeMu.Lock()
+	defer sh.writeMu.Unlock()
+	dedup := writer != "" && seq > 0
+	if dedup {
+		if sh.lastSeq == nil {
+			sh.lastSeq = map[string]int64{}
+		}
+		if seq <= sh.lastSeq[writer] {
+			// Already applied; acknowledging is the point.
+			return nil
+		}
+	}
+	sess := sh.session()
+	if sess == nil {
+		return fmt.Errorf("terminal %s is reconnecting", id)
+	}
+	if _, err := sess.Write(raw); err != nil {
+		return err
+	}
+	if dedup {
+		sh.lastSeq[writer] = seq
+	}
+	return nil
 }
 
 // Resize propagates an xterm resize to the remote PTY.

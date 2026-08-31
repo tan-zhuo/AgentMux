@@ -350,6 +350,8 @@ export interface UpdateInfo {
   notes: string
   assetSize: number
   hasUpdate: boolean
+  /** Whether the serving side can replace its own binary on request. */
+  canApply: boolean
   error: string
 }
 
