@@ -312,6 +312,32 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
     fitRef.current = fit
     searchRef.current = search
 
+    // Keystrokes are sent through an ordered queue with retries: on a weak
+    // link (a phone crossing a dead spot) a fire-and-forget write silently
+    // eats what was typed. Each chunk waits behind the one before it — input
+    // must never arrive reordered — and retries with backoff for a few
+    // seconds: long enough to ride out a gap, short enough that a loss is
+    // noticed while the intent is still fresh. The queue is bounded; a truly
+    // dead link costs bounded memory, not an ever-growing buffer.
+    let sendChain: Promise<void> = Promise.resolve()
+    let queued = 0
+    const enqueueWrite = (id: string, b64: string) => {
+      if (queued >= 512) return
+      queued++
+      sendChain = sendChain.then(async () => {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await termApi.write(id, b64)
+            break
+          } catch {
+            if (shellIdRef.current !== id || attempt >= 4) break
+            await new Promise((r) => setTimeout(r, Math.min(2000, 250 * 2 ** attempt)))
+          }
+        }
+        queued--
+      })
+    }
+
     // Forward keystrokes. onBinary carries bytes xterm could not represent as
     // UTF-8 text (mouse reports and the like).
     term.onData((data) => {
@@ -326,14 +352,14 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
         out = applyMods(data, currentMods())
         useTermKeys.getState().spendOnce()
       }
-      void termApi.write(id, toBase64(out)).catch(() => {})
+      enqueueWrite(id, toBase64(out))
     })
     term.onBinary((data) => {
       const id = shellIdRef.current
       if (!id) return
       let binary = ''
       for (let i = 0; i < data.length; i++) binary += data[i]
-      void termApi.write(id, btoa(binary)).catch(() => {})
+      enqueueWrite(id, btoa(binary))
     })
 
     let tellFar = 0

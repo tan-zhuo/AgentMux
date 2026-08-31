@@ -303,8 +303,24 @@ export const desktop = {
 export const connect = {
   /** The last remote address used, for prefilling the form. */
   remoteAddr: () => call<string>('ConnectService', 'RemoteAddr'),
-  /** Persists the choice and re-points the window at the remote serve. */
-  remote: (addr: string) => call<void>('ConnectService', 'ConnectRemote', addr),
+  /**
+   * Asks whether addr is a reachable serve and on what terms — a self-signed
+   * https serve comes back as a fingerprint for the user to judge.
+   */
+  probe: (addr: string) => call<RemoteProbe>('ConnectService', 'ProbeRemote', addr),
+  /**
+   * Persists the choice and re-points the window at the remote serve. pin is
+   * the fingerprint the user agreed to trust, and '' everywhere else.
+   */
+  remote: (addr: string, pin: string) => call<void>('ConnectService', 'ConnectRemote', addr, pin),
+}
+
+/** What probing a remote address found out. */
+export interface RemoteProbe {
+  ok: boolean
+  needsPin: boolean
+  fingerprint: string
+  error: string
 }
 
 export const llm = {

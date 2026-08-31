@@ -872,6 +872,10 @@ export const ja: Messages = {
   'connect.apply': '切り替え',
   'connect.applying': '切り替え中…',
   'connect.control.error': 'このマシンの AgentMux に接続できません。アプリを再起動してからやり直してください。',
+  'connect.fingerprint': 'サーバー証明書フィンガープリント（SHA-256）',
+  'connect.fingerprint.blurb':
+    'このサーバーは自己署名証明書を使っています。サーバー起動ログの "certificate SHA-256 fingerprint" 行とこの値を照合してください。一致していれば信頼して安全です — 以後の接続は暗号化され、この証明書だけを受け入れます。一致しない場合は経路上で何かが成りすましています。信頼しないでください。',
+  'connect.trust': '一致を確認 — 信頼して接続',
 
   'transfer.export.title': '設定を書き出す',
   'transfer.export.blurb': 'ファイルにはホスト、その上のプロジェクトとワークスペース、エージェントの定義が入ります。ここで決めたパスフレーズで暗号化され、そのパスフレーズなしには — AgentMux 自身も含めて — 誰も開けません。',

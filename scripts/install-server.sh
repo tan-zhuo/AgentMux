@@ -16,6 +16,8 @@
 #   --prefix DIR     where the binary goes (default ~/.local/bin)
 #   --addr ADDR      listen address for the service (default :8642)
 #   --no-service     install the binary only; print how to run it by hand
+#   --no-tls         serve plain HTTP (default is HTTPS with a self-signed
+#                    certificate; clients pin its fingerprint on first use)
 set -euo pipefail
 
 REPO="tan-zhuo/AgentMux"
@@ -24,6 +26,7 @@ VERSION=""
 PREFIX="$HOME/.local/bin"
 ADDR=":8642"
 SERVICE=1
+TLS=1
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -32,9 +35,13 @@ while [ $# -gt 0 ]; do
     --prefix)  PREFIX="$2"; shift 2 ;;
     --addr)    ADDR="$2"; shift 2 ;;
     --no-service) SERVICE=0; shift ;;
+    --no-tls)  TLS=0; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+TLS_FLAG=""
+[ "$TLS" = 1 ] && TLS_FLAG=" --tls"
 
 case "$(uname -s)" in
   Linux) ;;
@@ -106,7 +113,7 @@ Description=AgentMux headless server
 After=network-online.target
 
 [Service]
-ExecStart=$PREFIX/agentmux --addr $ADDR
+ExecStart=$PREFIX/agentmux --addr $ADDR$TLS_FLAG
 Restart=on-failure
 RestartSec=3
 
@@ -132,12 +139,17 @@ EOF
 else
   [ "$SERVICE" = 1 ] && echo "systemd user services are not available here; run it by hand:"
   echo
-  echo "  mkdir -p ~/.config/AgentMux && nohup $PREFIX/agentmux --addr $ADDR >> ~/.config/AgentMux/serve.log 2>&1 &"
+  echo "  mkdir -p ~/.config/AgentMux && nohup $PREFIX/agentmux --addr $ADDR$TLS_FLAG >> ~/.config/AgentMux/serve.log 2>&1 &"
 fi
 
 PORT="${ADDR##*:}"
+SCHEME=$([ "$TLS" = 1 ] && echo https || echo http)
 echo
 echo "access token (created on first start):"
 echo "  cat ~/.config/AgentMux/serve-token"
-echo "open http://<this-host>:$PORT and enter the token once. Upgrades can be"
+if [ "$TLS" = 1 ]; then
+  echo "certificate fingerprint (compare it on each device before trusting):"
+  echo "  journalctl --user -u agentmux | grep fingerprint"
+fi
+echo "open $SCHEME://<this-host>:$PORT and enter the token once. Upgrades can be"
 echo "applied from the web UI's update banner, or by re-running this script."

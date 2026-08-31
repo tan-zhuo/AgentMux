@@ -51,6 +51,16 @@
                autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" />
         <button id="go">连接</button>
         <button id="uselocal" class="alt">改用本机核心</button>
+        <div id="fpbox" style="display:none; margin-top:14px; background:#0b0d12; border:1px solid #232a35;
+             border-radius:8px; padding:12px;">
+          <p style="margin:0 0 6px; color:#d5dbe4; font-weight:600;">服务器证书指纹（SHA-256）</p>
+          <p id="fpvalue" style="margin:0 0 8px; font-family:monospace; font-size:12px; word-break:break-all;
+             color:#d5dbe4;"></p>
+          <p style="margin:0; font-size:12px;">这台服务器用的是自签名证书。请与服务器启动日志里
+             "certificate SHA-256 fingerprint" 一行核对：一致则信任是安全的，此后连接全程加密、
+             且只认这一张证书；不一致说明有人在中间冒充，不要信任。</p>
+          <button id="fptrust">指纹一致，信任并连接</button>
+        </div>
         <div class="err" id="err"></div>
       </div>
     </main>
@@ -153,9 +163,38 @@
         pre.style.display = 'block'
       }
 
+      const fpbox = document.getElementById('fpbox')
+      function hideFingerprint() {
+        fpbox.style.display = 'none'
+      }
+
+      // A self-signed https serve fails the reachability probe with nothing a
+      // page can catch — the WebView refuses the certificate before fetch
+      // sees anything. The shell can look though: it handshakes, brings back
+      // the certificate's fingerprint, and the user compares it with the one
+      // the server printed. Trusting it pins exactly that certificate for
+      // exactly that host; then the ordinary connect just works.
+      async function offerTrust(base, quiet) {
+        let info
+        try {
+          info = await core.probeCert({ url: base })
+        } catch (e) {
+          if (!quiet) err.textContent = '连不上这个地址 —— ' + (e && e.message ? e.message : e)
+          return
+        }
+        document.getElementById('fpvalue').textContent = info.fingerprint
+        fpbox.style.display = 'block'
+        document.getElementById('fptrust').onclick = async () => {
+          hideFingerprint()
+          await core.trustCert({ host: info.host, fingerprint: info.fingerprint })
+          void connectRemote(base, false)
+        }
+      }
+
       async function connectRemote(base, quiet) {
         go.disabled = true
         err.textContent = ''
+        hideFingerprint()
         if (await reachable(base)) {
           localStorage.setItem(KEY, base)
           if (core) {
@@ -169,6 +208,10 @@
           return
         }
         go.disabled = false
+        if (core && base.startsWith('https://')) {
+          await offerTrust(base, quiet)
+          return
+        }
         if (!quiet) err.textContent = '连不上这个地址 —— 确认 agentmux --serve 正在运行、端口可达。'
       }
 
@@ -186,6 +229,10 @@
       })
       addr.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') go.click()
+      })
+      addr.addEventListener('input', () => {
+        hideFingerprint()
+        err.textContent = ''
       })
 
       if (core) {

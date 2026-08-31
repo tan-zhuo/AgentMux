@@ -869,6 +869,10 @@ export const zhHant: Messages = {
   'connect.apply': '切換',
   'connect.applying': '正在切換…',
   'connect.control.error': '聯絡不上本機的 AgentMux —— 重新啟動應用後再試。',
+  'connect.fingerprint': '伺服器憑證指紋（SHA-256）',
+  'connect.fingerprint.blurb':
+    '這台伺服器用的是自簽憑證。請與伺服器啟動日誌裡 "certificate SHA-256 fingerprint" 一行核對：一致則信任是安全的，此後連線將全程加密、且只認這一張憑證；不一致代表有人在中間冒充，不要信任。',
+  'connect.trust': '指紋一致，信任並連線',
 
   'transfer.export.title': '匯出設定',
   'transfer.export.blurb': '檔案裡裝的是你的主機、它們上面的專案與工作區，還有 agent 定義。它用你在這裡定的密語加密，沒有這個密語，誰都無法開啟 —— 包括 AgentMux 自己。',

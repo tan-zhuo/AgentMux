@@ -876,6 +876,10 @@ export const en = {
   'connect.apply': 'Switch',
   'connect.applying': 'Switching…',
   'connect.control.error': 'Could not reach the AgentMux app on this machine — restart it and try again.',
+  'connect.fingerprint': 'Server certificate fingerprint (SHA-256)',
+  'connect.fingerprint.blurb':
+    'This server uses a self-signed certificate. Compare this value with the "certificate SHA-256 fingerprint" line in the server\'s startup log: if they match, trusting it is safe — the connection is then encrypted end to end and accepts only this exact certificate. If they differ, something between you and the server is impersonating it; do not trust it.',
+  'connect.trust': 'Fingerprints match — trust and connect',
 
   'transfer.export.title': 'Export configuration',
   'transfer.export.blurb': 'The file holds your hosts, the projects and workspaces on them, and your agent definitions. It is encrypted with the passphrase you choose here, and nothing — including AgentMux — can open it without that passphrase.',

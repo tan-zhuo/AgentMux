@@ -869,6 +869,10 @@ export const zh: Messages = {
   'connect.apply': '切换',
   'connect.applying': '正在切换…',
   'connect.control.error': '联系不上本机的 AgentMux —— 重启应用后再试。',
+  'connect.fingerprint': '服务器证书指纹（SHA-256）',
+  'connect.fingerprint.blurb':
+    '这台服务器用的是自签名证书。请与服务器启动日志里 "certificate SHA-256 fingerprint" 一行核对：一致则信任是安全的，此后连接将全程加密、且只认这一张证书；不一致说明有人在中间冒充，不要信任。',
+  'connect.trust': '指纹一致，信任并连接',
 
   'transfer.export.title': '导出配置',
   'transfer.export.blurb': '文件里装的是你的主机、它们上面的项目与工作区，还有 agent 定义。它用你在这里定的口令加密，没有这个口令，谁都打不开 —— 包括 AgentMux 自己。',

@@ -6,6 +6,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"embed"
 	"flag"
 	"fmt"
@@ -79,6 +80,10 @@ func fatal(context string, err error) {
 func serveMain(args []string) {
 	flags := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := flags.String("addr", envOr("AGENTMUX_ADDR", ":8642"), "listen address, e.g. :8642 or 0.0.0.0:8642")
+	tlsOn := flags.Bool("tls", os.Getenv("AGENTMUX_TLS") == "1",
+		"serve HTTPS with a self-signed certificate (minted once, kept in the data directory)")
+	tlsCert := flags.String("tls-cert", envOr("AGENTMUX_TLS_CERT", ""), "serve HTTPS with this certificate file (PEM)")
+	tlsKey := flags.String("tls-key", envOr("AGENTMUX_TLS_KEY", ""), "private key for --tls-cert (PEM)")
 	_ = flags.Parse(args)
 
 	core, err := app.NewCore()
@@ -140,10 +145,25 @@ func serveMain(args []string) {
 		_ = server.Close()
 	}()
 
-	log.Printf("AgentMux serving on %s", *addr)
 	log.Printf("access token: %s", token)
-	log.Printf("open http://<this-host>%s on your tablet and enter the token (or set AGENTMUX_TOKEN)", portOf(*addr))
-	err = server.ListenAndServe()
+	if *tlsOn || *tlsCert != "" {
+		cert, fingerprint, cerr := webserve.LoadOrCreateCert(dataDir, *tlsCert, *tlsKey)
+		if cerr != nil {
+			fatal("AgentMux could not load its TLS certificate", cerr)
+		}
+		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}
+		log.Printf("AgentMux serving on %s (TLS)", *addr)
+		// The fingerprint is the whole trust story for a self-signed
+		// certificate: a device shows this value and a person checks it
+		// against this line. It has to be as easy to find as the token.
+		log.Printf("certificate SHA-256 fingerprint: %s", fingerprint)
+		log.Printf("open https://<this-host>%s on your tablet and enter the token (or set AGENTMUX_TOKEN)", portOf(*addr))
+		err = server.ListenAndServeTLS("", "")
+	} else {
+		log.Printf("AgentMux serving on %s", *addr)
+		log.Printf("open http://<this-host>%s on your tablet and enter the token (or set AGENTMUX_TOKEN)", portOf(*addr))
+		err = server.ListenAndServe()
+	}
 	core.Shutdown()
 	if err != nil && err != http.ErrServerClosed {
 		fatal("AgentMux server exited with an error", err)

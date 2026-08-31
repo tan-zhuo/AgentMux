@@ -1102,6 +1102,9 @@ function ConnectSettings() {
   const [addr, setAddr] = useState(remoteNow ? window.location.origin : '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  // A self-signed serve's certificate fingerprint, waiting for the user to
+  // compare it with the one the server printed and say "trust it".
+  const [pinFp, setPinFp] = useState('')
 
   // The desktop's local page prefills the last remote address it was pointed
   // at, so switching back and forth does not mean retyping it.
@@ -1121,13 +1124,15 @@ function ConnectSettings() {
   const changed =
     mode === 'remote' ? target !== '' && (!remoteNow || target !== window.location.origin) : remoteNow
 
-  const apply = async () => {
+  // accepted is the fingerprint the user just agreed to trust, '' otherwise.
+  const apply = async (accepted: string) => {
     setErr('')
     setBusy(true)
     try {
       if (shell) {
         // The launch page owns the choice on the phone: hand it over and let
-        // it persist the mode, then boot or connect accordingly.
+        // it persist the mode, then boot or connect accordingly — including
+        // the certificate-trust conversation for a self-signed serve.
         const q = mode === 'remote' ? `?mode=remote&addr=${encodeURIComponent(target)}` : '?mode=local'
         window.location.href = `${shell}/${q}`
         return
@@ -1136,12 +1141,36 @@ function ConnectSettings() {
         // A remote page cannot reach the local Go over the Wails bridge — its
         // runtime posts to this page's origin — so the desktop app listens on
         // its loopback for exactly this request.
-        const q = mode === 'remote' ? `&mode=remote&addr=${encodeURIComponent(target)}` : '&mode=local'
+        const q =
+          mode === 'remote'
+            ? `&mode=remote&addr=${encodeURIComponent(target)}` +
+              (accepted ? `&pin=${encodeURIComponent(accepted)}` : '')
+            : '&mode=local'
         const res = await fetch(back + q)
-        if (!res.ok) throw new Error(t('connect.control.error'))
+        if (res.status === 428) {
+          // The address answered TLS with a certificate nobody vouches for;
+          // the answer is its fingerprint, and the decision is the user's.
+          const probe = (await res.json()) as { needsPin?: boolean; fingerprint?: string; error?: string }
+          if (probe.needsPin && probe.fingerprint) {
+            setPinFp(probe.fingerprint)
+            setBusy(false)
+            return
+          }
+          throw new Error(probe.error || t('connect.control.error'))
+        }
+        if (!res.ok) throw new Error((await res.text().catch(() => '')) || t('connect.control.error'))
         return
       }
-      await connectApi.remote(target)
+      if (!accepted) {
+        const probe = await connectApi.probe(target)
+        if (probe.needsPin) {
+          setPinFp(probe.fingerprint)
+          setBusy(false)
+          return
+        }
+        if (!probe.ok) throw new Error(probe.error)
+      }
+      await connectApi.remote(target, accepted)
     } catch (e) {
       setErr(errText(e))
       setBusy(false)
@@ -1155,7 +1184,10 @@ function ConnectSettings() {
         <Segmented
           size="sm"
           value={mode}
-          onChange={setMode}
+          onChange={(m) => {
+            setMode(m)
+            setPinFp('')
+          }}
           options={[
             { value: 'local', label: t('connect.local') },
             { value: 'remote', label: t('connect.remote') },
@@ -1166,7 +1198,10 @@ function ConnectSettings() {
             <input
               className={`${inputClass} font-mono`}
               value={addr}
-              onChange={(e) => setAddr(e.target.value)}
+              onChange={(e) => {
+                setAddr(e.target.value)
+                setPinFp('')
+              }}
               placeholder="http://192.168.1.10:8642"
               autoCapitalize="off"
               autoCorrect="off"
@@ -1177,10 +1212,21 @@ function ConnectSettings() {
         <p className="text-[11px] leading-relaxed text-ink-400">
           {mode === 'remote' ? t('connect.remote.blurb') : t('connect.local.blurb')}
         </p>
-        {changed && (
-          <Button variant="primary" disabled={busy} onClick={() => void apply()}>
-            {busy ? t('connect.applying') : t('connect.apply')}
-          </Button>
+        {pinFp ? (
+          <div className="space-y-2 rounded-card border hairline bg-ink-800 p-2.5">
+            <p className="text-[11px] font-semibold text-ink-200">{t('connect.fingerprint')}</p>
+            <p className="font-mono text-[10.5px] leading-relaxed break-all text-ink-100">{pinFp}</p>
+            <p className="text-[11px] leading-relaxed text-ink-400">{t('connect.fingerprint.blurb')}</p>
+            <Button variant="primary" disabled={busy} onClick={() => void apply(pinFp)}>
+              {busy ? t('connect.applying') : t('connect.trust')}
+            </Button>
+          </div>
+        ) : (
+          changed && (
+            <Button variant="primary" disabled={busy} onClick={() => void apply('')}>
+              {busy ? t('connect.applying') : t('connect.apply')}
+            </Button>
+          )
         )}
         {err && <p className="text-[11px] text-danger">{err}</p>}
       </div>

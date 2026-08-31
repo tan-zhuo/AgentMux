@@ -106,8 +106,8 @@ func runApp() {
 			w.Close()
 		}
 	}
-	openRemote := func(addr string) {
-		openRemoteWindow(wailsApp, core, addr, connectSvc.ControlURL())
+	openRemote := func(pageURL string) {
+		openRemoteWindow(wailsApp, core, pageURL, connectSvc.ControlURL())
 		if w, ok := wailsApp.Window.GetByName("main"); ok {
 			w.Close()
 		}
@@ -118,16 +118,13 @@ func runApp() {
 	}
 
 	// A remembered remote is only honoured when the way back — the loopback
-	// control endpoint — is standing and the server actually answers right
-	// now; otherwise the local UI, which can always switch again, is the
-	// recoverable place to be. The setting itself is kept, so a server that
-	// was merely down is picked up again on the next launch.
-	if addr, ok := connectSvc.StartupRemote(); ok && connectSvc.ControlURL() != "" && app.ProbeServe(addr) {
-		openRemote(addr)
+	// control endpoint — is standing and the server answers right now with a
+	// certificate its pin (if any) accepts; otherwise the local UI, which can
+	// always switch again, is the recoverable place to be. The setting itself
+	// is kept, so a server that was merely down is picked up next launch.
+	if pageURL, ok := connectSvc.StartupRemote(); ok && connectSvc.ControlURL() != "" {
+		openRemote(pageURL)
 	} else {
-		if ok {
-			log.Printf("remembered remote %s is not usable right now; opening the local UI", addr)
-		}
 		openMain()
 	}
 
@@ -184,15 +181,16 @@ func openMainWindow(wailsApp *application.App, core *app.Core) {
 	})
 }
 
-// openRemoteWindow points a window at a remote `agentmux --serve`.
+// openRemoteWindow points a window at a remote `agentmux --serve` — at the
+// address itself, or at the loopback proxy that holds a pinned certificate.
 //
 // The window keeps its native frame: the page comes from the server and talks
 // only to the server, so the frameless window's webview-drawn controls would
 // have no Go on their origin to answer them. The control URL rides along in
 // the hash — it is how that page, which cannot reach this process over the
 // Wails bridge, asks to be switched back.
-func openRemoteWindow(wailsApp *application.App, core *app.Core, addr, controlURL string) {
-	target := addr + "/"
+func openRemoteWindow(wailsApp *application.App, core *app.Core, pageURL, controlURL string) {
+	target := pageURL + "/"
 	if controlURL != "" {
 		target += "#back=" + url.QueryEscape(controlURL)
 	}

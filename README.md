@@ -234,6 +234,15 @@ curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/tan-zhuo/AgentMu
   | bash -s -- --mirror https://ghfast.top
 ```
 
+A script-installed server defaults to **HTTPS with a self-signed certificate**:
+minted on first start, fixed forever after, its SHA-256 fingerprint printed in
+the startup log. The Android and desktop apps show the fingerprint they see on
+first connect — compare it with that log line, tap trust, and from then on the
+connection is encrypted and accepts **only that exact certificate** (pinned;
+no CA can step in). A plain browser or PWA proceeds through the browser's
+warning page once. `--no-tls` opts out; `--tls-cert/--tls-key` swaps in a real
+certificate.
+
 Once installed, upgrades never need the server's shell again: when a newer
 release exists, the web UI shows an upgrade banner — one click and the server
 downloads it, verifies the checksum and execs the new binary in place (systemd
@@ -241,7 +250,8 @@ sees the same process carry on). Re-running the install script upgrades too.
 Manual setup stays as simple as it was — unpack and run:
 
 ```bash
-./agentmux                      # server build: serves by default on :8642
+./agentmux                      # server build: serves by default on :8642, plain HTTP
+./agentmux --tls                # self-signed HTTPS; the log prints the fingerprint
 agentmux --serve --addr 0.0.0.0:8642   # desktop build, same mode (no web upgrades there)
 ```
 

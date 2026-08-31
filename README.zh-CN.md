@@ -187,12 +187,19 @@ curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/tan-zhuo/AgentMu
   | bash -s -- --mirror https://ghfast.top
 ```
 
+脚本装出来的服务默认走 **HTTPS（自签名证书）**：证书首次启动时生成、之后固定不变，
+启动日志会打印它的 SHA-256 指纹。安卓 App 和桌面 App 首次连接会显示对端证书指纹，
+与日志里那行核对一致后点"信任"，此后连接全程加密、且**只认这一张证书**（指纹钉住，
+任何 CA 都插不进来）；普通浏览器/PWA 则在浏览器的警告页选择继续访问一次即可。
+不想要 TLS 用 `--no-tls`；有正式证书用 `--tls-cert/--tls-key` 直接换上。
+
 装好之后升级不用再登服务器：网页界面发现新版本会显示升级条，点一下，服务器自己
 下载校验、原地换二进制重启（systemd 看到的还是同一个进程）。重跑安装脚本也等价于
 升级。不想用脚本的话，手动也一样简单——解压出二进制直接跑：
 
 ```bash
-./agentmux                      # 服务器版：默认监听 :8642
+./agentmux                      # 服务器版：默认监听 :8642，明文
+./agentmux --tls                # 自签名 HTTPS，日志打印证书指纹
 agentmux --serve --addr 0.0.0.0:8642   # 桌面版同款（此模式下不支持网页端升级）
 ```
 

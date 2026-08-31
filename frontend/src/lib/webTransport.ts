@@ -169,7 +169,45 @@ export const STREAM_RESUMED = 'agentmux:stream-resumed'
  */
 function ensureStream() {
   if (source) return
-  const es = new EventSource(`/api/events?token=${encodeURIComponent(getToken())}`)
+  // Mark the slot synchronously so concurrent subscribers do not each open a
+  // stream while the ticket is in flight.
+  source = PENDING
+  void openStream(++streamGen)
+}
+
+// A sentinel occupying the source slot while the ticket round-trip runs, and
+// a generation stamp so an open that was superseded mid-flight (a token
+// change, a forced reconnect) parks instead of opening a second stream.
+const PENDING = {} as EventSource
+let streamGen = 0
+
+/**
+ * Opens the stream, authenticated by a single-use ticket rather than the
+ * token: EventSource cannot send headers, and the long-lived token does not
+ * belong in a URL that proxies log. An older server that does not mint
+ * tickets gets the token in the query the way it always did.
+ */
+async function openStream(gen: number) {
+  let auth = `token=${encodeURIComponent(getToken())}`
+  try {
+    const res = await fetch('/api/stream-ticket', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+    if (res.status === 401) {
+      authRequired()
+      // Fall through with the token: it will be refused the same way, and the
+      // stream's own retry path handles the wait for a fresh one.
+    } else if (res.ok) {
+      const body = (await res.json()) as { ticket?: string }
+      if (body.ticket) auth = `ticket=${encodeURIComponent(body.ticket)}`
+    }
+  } catch {
+    // Ticket endpoint unreachable — the stream open below will fail and
+    // schedule its own retry; nothing extra to do here.
+  }
+  if (gen !== streamGen || source !== PENDING) return
+  const es = new EventSource(`/api/events?${auth}`)
   source = es
 
   es.onopen = () => {
@@ -217,7 +255,7 @@ function scheduleReopen() {
 export function reconnectStream() {
   window.clearTimeout(reopenTimer)
   attempts = 0
-  source?.close()
+  if (source && source !== PENDING) source.close()
   source = null
   if (listeners.size > 0) ensureStream()
 }
