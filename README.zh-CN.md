@@ -173,12 +173,27 @@ Fedora 上为 `webkit2gtk4.1`。macOS 需 11 及以上，Windows 需 10 及以�
 
 同一个可执行文件也能以无窗口的服务端模式运行，供安卓平板、iPad 或任何浏览器使用。
 Release 里附带专门的服务器版 `agentmux-server-linux-{amd64,arm64}`——完全静态的无头
-二进制，不需要 GTK/WebKit，也不需要图形界面，复制到任何 Linux 服务器上裸启动即服务；
-桌面版则用 `--serve` 进入同一模式：
+二进制，不需要 GTK/WebKit，也不需要图形界面，也不需要 root。一行命令装好并注册成
+systemd 用户服务（掉线自动拉起、登出不退出）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tan-zhuo/AgentMux/main/scripts/install-server.sh | bash
+```
+
+GitHub 不好访问时加镜像前缀（与应用内「更新镜像」设置同一约定）：
+
+```bash
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/tan-zhuo/AgentMux/main/scripts/install-server.sh \
+  | bash -s -- --mirror https://ghfast.top
+```
+
+装好之后升级不用再登服务器：网页界面发现新版本会显示升级条，点一下，服务器自己
+下载校验、原地换二进制重启（systemd 看到的还是同一个进程）。重跑安装脚本也等价于
+升级。不想用脚本的话，手动也一样简单——解压出二进制直接跑：
 
 ```bash
 ./agentmux                      # 服务器版：默认监听 :8642
-agentmux --serve --addr 0.0.0.0:8642   # 桌面版同款
+agentmux --serve --addr 0.0.0.0:8642   # 桌面版同款（此模式下不支持网页端升级）
 ```
 
 首次启动会生成访问令牌并打印在日志里（保存在数据目录 `serve-token`，也可用
@@ -188,7 +203,15 @@ agentmux --serve --addr 0.0.0.0:8642   # 桌面版同款
 `agentmux-android.apk` **内嵌了完整核心**，SSH 直接从设备发起，不依赖任何一台
 常开的机器（见 `mobile/`）。安卓 App 和桌面版都能在「设置 → 连接模式」里在
 本机核心与远程 serve 之间切换，选择会被记住。关闭浏览器不会停掉任何东西——
-和关掉桌面窗口一样，agent 都活在远端 tmux 里。公网访问请放在 HTTPS 反向代理之后。
+和关掉桌面窗口一样，agent 都活在远端 tmux 里。
+
+公网访问请放在 HTTPS 反向代理之后，例如 Caddy（自动签证书）：
+
+```bash
+caddy reverse-proxy --from mux.example.com --to 127.0.0.1:8642
+```
+
+此时 serve 只监听本机即可：`--addr 127.0.0.1:8642`。
 
 ## 架构
 

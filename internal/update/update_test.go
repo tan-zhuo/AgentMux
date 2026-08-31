@@ -63,7 +63,7 @@ func TestLatestPicksThisPlatformsAsset(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "")
+	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestLatestKeepsAReleaseWithNoAssetHere(t *testing.T) {
 		fmt.Fprint(w, `{"tag_name": "v0.9.0", "html_url": "https://example.test/rel", "assets": []}`)
 	}))
 	defer srv.Close()
-	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "")
+	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "", "")
 	if err != nil {
 		t.Fatalf("a release without this platform's asset must still come back: %v", err)
 	}

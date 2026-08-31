@@ -78,9 +78,12 @@ func Mirrored(mirror, url string) string {
 }
 
 // Latest asks the release feed for the newest published version and picks the
-// asset built for this platform. apiBase is DefaultAPI outside of tests;
-// mirror, when set, is a proxy prefix for networks that cannot reach GitHub.
-func Latest(ctx context.Context, client *http.Client, apiBase, mirror string) (Release, error) {
+// named asset — or, when asset is empty, the desktop build for this platform.
+// The parameter exists because platform alone does not name a build: the same
+// linux/amd64 is a desktop archive on a workstation and a server tarball on a
+// headless box. apiBase is DefaultAPI outside of tests; mirror, when set, is a
+// proxy prefix for networks that cannot reach GitHub.
+func Latest(ctx context.Context, client *http.Client, apiBase, mirror, asset string) (Release, error) {
 	if apiBase == "" {
 		apiBase = DefaultAPI
 	}
@@ -113,7 +116,10 @@ func Latest(ctx context.Context, client *http.Client, apiBase, mirror string) (R
 		PublishedAt: rj.PublishedAt,
 		PageURL:     rj.HTMLURL,
 	}
-	want := AssetName(runtime.GOOS, runtime.GOARCH)
+	want := asset
+	if want == "" {
+		want = AssetName(runtime.GOOS, runtime.GOARCH)
+	}
 	for _, a := range rj.Assets {
 		switch a.Name {
 		case want:
@@ -149,6 +155,12 @@ func AssetName(goos, goarch string) string {
 	default:
 		return "agentmux-linux-" + goarch + ".tar.gz"
 	}
+}
+
+// ServerAssetName is the static headless build the release workflow publishes
+// for Linux servers — the one the serve build updates itself with.
+func ServerAssetName(goarch string) string {
+	return "agentmux-server-linux-" + goarch + ".tar.gz"
 }
 
 // Newer reports whether latest is a strictly newer version than current.

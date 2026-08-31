@@ -117,11 +117,52 @@ export function UpdateCheckButton({ current }: { current: string }) {
  * progress bar and ends with the app restarting itself. Errors land in the
  * same strip: the user who clicked is looking exactly here.
  */
-// Self-update replaces the desktop binary; in serve mode the server binary is
-// updated on the server, so the banner has nothing to offer a browser.
+// The desktop replaces its own binary, and so does the headless server build —
+// a served browser asks once whether the other side can, and offers the same
+// banner when it says yes. What stays out is what cannot act on it: a desktop
+// binary run as --serve (the method is not bound) and the phone's embedded
+// core (it answers no; the APK is the update).
 export function UpdateBanner() {
-  if (!isDesktop) return null
+  const [canApply, setCanApply] = useState(isDesktop)
+
+  useEffect(() => {
+    if (isDesktop) return
+    updateApi
+      .canApply()
+      .then(setCanApply)
+      .catch(() => {})
+  }, [])
+
+  if (!canApply) return null
   return <UpdateBannerInner />
+}
+
+/**
+ * After a server-side upgrade the process execs over itself: the page is
+ * still fine, but it is running the old bundle against a new server. Wait for
+ * the flip and reload. The gap can be shorter than one probe, so "it kept
+ * answering" after a few seconds is also taken as the restart having happened.
+ */
+async function reloadWhenServerReturns() {
+  const probe = async () => {
+    try {
+      const res = await fetch('/manifest.webmanifest', { cache: 'no-store' })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
+  const start = Date.now()
+  let sawGap = false
+  while (Date.now() - start < 120_000) {
+    await new Promise((r) => setTimeout(r, 800))
+    if (!(await probe())) {
+      sawGap = true
+      continue
+    }
+    if (sawGap || Date.now() - start > 8_000) break
+  }
+  window.location.reload()
 }
 
 function UpdateBannerInner() {
@@ -139,6 +180,18 @@ function UpdateBannerInner() {
     const offProg = on<UpdateProgress>('update:progress', (p) => {
       if (p) setProgress(p)
     })
+    // The desktop hears about updates because its own process announces them.
+    // A served page may have connected between the server's checks and missed
+    // the announcement, so it asks once on load; the answer is cached
+    // server-side, so a reload habit costs nothing.
+    if (!isDesktop) {
+      updateApi
+        .bannerCheck()
+        .then((i) => {
+          if (i?.hasUpdate) setInfo(i)
+        })
+        .catch(() => {})
+    }
     return () => {
       offAvail()
       offProg()
@@ -157,14 +210,24 @@ function UpdateBannerInner() {
         setError(res.error || t('update.failed.generic'))
         setBusy(false)
         setProgress(null)
+        return
       }
-      // On ok the app restarts itself; the "restarting" phase event already
-      // holds the strip in its final state until the window goes away.
+      // On ok the desktop restarts itself and the window goes away; a server
+      // execs over in place, and this page — old bundle, new server — reloads
+      // itself once the new build answers.
+      if (!isDesktop) void reloadWhenServerReturns()
     } catch (e) {
       setError(errText(e))
       setBusy(false)
       setProgress(null)
     }
+  }
+
+  // The desktop's Go opens the release page in the machine's browser; from a
+  // served page that machine is the server, so the page opens it itself.
+  const openNotes = () => {
+    if (isDesktop) void updateApi.openReleasePage()
+    else if (info.pageUrl) window.open(info.pageUrl, '_blank', 'noopener')
   }
 
   const phase = progress?.phase
@@ -183,7 +246,7 @@ function UpdateBannerInner() {
             {t('update.available', { latest: info.latestVersion, current: info.currentVersion })}
           </span>
           <span className="flex-1" />
-          <Button size="sm" variant="subtle" onClick={() => void updateApi.openReleasePage()}>
+          <Button size="sm" variant="subtle" onClick={openNotes}>
             {t('update.notes')}
           </Button>
           <Button size="sm" variant="subtle" onClick={() => setDismissed(info.latestVersion)}>
@@ -226,7 +289,7 @@ function UpdateBannerInner() {
           <span className="min-w-0 flex-1 truncate text-danger" title={error}>
             {t('update.failed', { error })}
           </span>
-          <Button size="sm" variant="subtle" onClick={() => void updateApi.openReleasePage()}>
+          <Button size="sm" variant="subtle" onClick={openNotes}>
             {t('update.notes')}
           </Button>
           <Button size="sm" variant="primary" onClick={() => void upgrade()}>

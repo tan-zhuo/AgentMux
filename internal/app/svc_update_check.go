@@ -26,13 +26,14 @@ type UpdateInfo struct {
 }
 
 // fetchLatest asks the release feed for the newest version and reports how it
-// compares to this build.
+// compares to this build. Which asset it looks for is the build's own answer
+// (releaseAssetName, build-tagged): the desktop archive or the server tarball.
 func fetchLatest(mirror string) (update.Release, UpdateInfo) {
 	info := UpdateInfo{CurrentVersion: Version}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	rel, err := update.Latest(ctx, update.Client(20*time.Second), "", mirror)
+	rel, err := update.Latest(ctx, update.Client(20*time.Second), "", mirror, releaseAssetName())
 	if err != nil {
 		info.Error = err.Error()
 		return rel, info

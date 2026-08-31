@@ -91,7 +91,7 @@ func serveMain(args []string) {
 	// one in a viewer installed on this machine is the desktop app's business,
 	// and would put a window on a screen nobody is sitting at.
 	desktopSvc := app.NewDesktopService(core)
-	registry := webserve.NewRegistry(
+	services := []any{
 		app.NewServerService(core),
 		app.NewTreeService(core),
 		app.NewTerminalService(core),
@@ -107,7 +107,12 @@ func serveMain(args []string) {
 		app.NewUpdateCheckService(core),
 		desktopSvc,
 		agentSvc,
-	)
+	}
+	// The headless build can replace its own binary and adds the full update
+	// service; the desktop binary running --serve cannot (its updater relaunches
+	// a window), so there it adds nothing and updates stay check-only.
+	services = append(services, serveUpdateExtras(core)...)
+	registry := webserve.NewRegistry(services...)
 	hub := webserve.NewHub()
 	core.SetEmitter(hub.Emit)
 	core.StartPoller(agentSvc, 5*time.Second)

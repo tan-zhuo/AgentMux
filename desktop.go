@@ -23,6 +23,11 @@ import (
 //go:embed build/appicon/icon.png
 var appIcon []byte
 
+// serveUpdateExtras adds nothing when the desktop binary runs --serve: its
+// update service replaces the desktop build and relaunches a window, neither
+// of which belongs on a server. Updates stay check-only there.
+func serveUpdateExtras(*app.Core) []any { return nil }
+
 // runApp opens the native window and runs until it closes.
 func runApp() {
 	core, err := app.NewCore()

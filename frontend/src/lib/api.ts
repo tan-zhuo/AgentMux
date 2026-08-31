@@ -206,12 +206,23 @@ export const windows = {
 
 export const update = {
   // The desktop's service also raises the upgrade banner; everywhere else —
-  // browser, phone — only the check-only service exists.
+  // browser, phone — the check-only service always exists.
   check: () =>
     isDesktop
       ? call<UpdateInfo>('UpdateService', 'Check')
       : call<UpdateInfo>('UpdateCheckService', 'Check'),
   apply: () => call<UpdateResult>('UpdateService', 'Apply'),
+  /**
+   * Whether the other side can replace its own binary. Only the headless
+   * server build answers yes; a desktop binary running --serve does not bind
+   * the method at all, so the call failing means no.
+   */
+  canApply: () => call<boolean>('UpdateService', 'CanApply'),
+  /**
+   * The full service's check, which also warms its cached release for a later
+   * apply. Only valid where canApply has answered yes.
+   */
+  bannerCheck: () => call<UpdateInfo>('UpdateService', 'Check'),
   openReleasePage: () => call<void>('UpdateService', 'OpenReleasePage'),
 }
 

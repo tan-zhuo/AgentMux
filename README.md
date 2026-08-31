@@ -219,12 +219,30 @@ downloading with `curl -L -O <url>` avoids it.
 The same executable also runs headless, serving the full app to any browser —
 an Android tablet, an iPad, a phone. Releases ship a dedicated server build,
 `agentmux-server-linux-{amd64,arm64}`: a fully static headless binary with no
-GTK, no webview and no display needed — copy it to any Linux server and run
-it. The desktop build enters the same mode with `--serve`:
+GTK, no webview, no display and no root needed. One line installs it and
+registers a systemd user service (restarts on failure, survives logout):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tan-zhuo/AgentMux/main/scripts/install-server.sh | bash
+```
+
+Where GitHub is hard to reach, add a mirror prefix (the same convention as the
+in-app update-mirror setting):
+
+```bash
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/tan-zhuo/AgentMux/main/scripts/install-server.sh \
+  | bash -s -- --mirror https://ghfast.top
+```
+
+Once installed, upgrades never need the server's shell again: when a newer
+release exists, the web UI shows an upgrade banner — one click and the server
+downloads it, verifies the checksum and execs the new binary in place (systemd
+sees the same process carry on). Re-running the install script upgrades too.
+Manual setup stays as simple as it was — unpack and run:
 
 ```bash
 ./agentmux                      # server build: serves by default on :8642
-agentmux --serve --addr 0.0.0.0:8642   # desktop build, same thing
+agentmux --serve --addr 0.0.0.0:8642   # desktop build, same mode (no web upgrades there)
 ```
 
 The first start generates an access token and prints it in the log (persisted
@@ -238,7 +256,14 @@ machine is needed (see `mobile/`). Both the Android app and the desktop app
 can switch between their own core and a remote serve under Settings →
 Connection, and the choice is remembered. Closing the browser stops nothing, exactly
 like closing the desktop window — the agents live in remote tmux. Put a HTTPS
-reverse proxy in front for use over the public internet.
+reverse proxy in front for use over the public internet — for example Caddy,
+which provisions its own certificate:
+
+```bash
+caddy reverse-proxy --from mux.example.com --to 127.0.0.1:8642
+```
+
+Behind a proxy, serve only needs loopback: `--addr 127.0.0.1:8642`.
 
 ## Architecture
 
