@@ -874,6 +874,21 @@ export const zhHant: Messages = {
     '這台伺服器用的是自簽憑證。請與伺服器啟動日誌裡 "certificate SHA-256 fingerprint" 一行核對：一致則信任是安全的，此後連線將全程加密、且只認這一張憑證；不一致代表有人在中間冒充，不要信任。',
   'connect.trust': '指紋一致，信任並連線',
 
+  'settings.serve': '伺服器模式',
+  'serve.blurb':
+    '讓手機、平板或另一台電腦連線這台電腦上的 AgentMux——同一份主機設定、金鑰和正在執行的終端機，這台電腦就是伺服器。',
+  'serve.addr': '監聽位址',
+  'serve.addr.hint': ':8642 表示監聽所有網卡；127.0.0.1:8642 只允許本機。',
+  'serve.tls': '加密（HTTPS，自簽憑證）',
+  'serve.start': '開啟',
+  'serve.stop': '關閉',
+  'serve.running': '服務中',
+  'serve.urls': '連線位址',
+  'serve.token': '存取權杖',
+  'serve.fingerprint': '憑證指紋（SHA-256）',
+  'serve.hint':
+    '在手機 App 的「設定 → 連線模式」裡填上面的位址，輸入存取權杖，並核對憑證指紋與此處一致。關閉這台電腦或退出應用會中斷連線——長期使用建議裝專門的伺服器版。',
+
   'transfer.export.title': '匯出設定',
   'transfer.export.blurb': '檔案裡裝的是你的主機、它們上面的專案與工作區，還有 agent 定義。它用你在這裡定的密語加密，沒有這個密語，誰都無法開啟 —— 包括 AgentMux 自己。',
   'transfer.includeSecrets': '把 SSH 密碼和金鑰密語一起帶上',

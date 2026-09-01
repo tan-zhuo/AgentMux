@@ -258,6 +258,13 @@ Manual setup stays as simple as it was — unpack and run:
 agentmux --serve --addr 0.0.0.0:8642   # desktop build, same mode (no web upgrades there)
 ```
 
+The desktop app can also become the server itself: Settings → Server mode
+switches it on and shows the connect addresses, access token and certificate
+fingerprint right there — a phone points at your running desktop app and gets
+the same hosts and the same terminals. The choice is remembered across
+launches. For something always-on, the dedicated server build is still the
+better home.
+
 The first start generates an access token and prints it in the log (persisted
 as `serve-token` in the data directory; `AGENTMUX_TOKEN` overrides it). Open
 `http://host:8642` on the tablet, enter the token once, and everything —

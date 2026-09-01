@@ -874,6 +874,21 @@ export const zh: Messages = {
     '这台服务器用的是自签名证书。请与服务器启动日志里 "certificate SHA-256 fingerprint" 一行核对：一致则信任是安全的，此后连接将全程加密、且只认这一张证书；不一致说明有人在中间冒充，不要信任。',
   'connect.trust': '指纹一致，信任并连接',
 
+  'settings.serve': '服务器模式',
+  'serve.blurb':
+    '让手机、平板或另一台电脑连接这台电脑上的 AgentMux——同一份主机配置、密钥和正在运行的终端，这台电脑就是服务器。',
+  'serve.addr': '监听地址',
+  'serve.addr.hint': ':8642 表示监听所有网卡；127.0.0.1:8642 只允许本机。',
+  'serve.tls': '加密（HTTPS，自签名证书）',
+  'serve.start': '开启',
+  'serve.stop': '关闭',
+  'serve.running': '正在服务',
+  'serve.urls': '连接地址',
+  'serve.token': '访问令牌',
+  'serve.fingerprint': '证书指纹（SHA-256）',
+  'serve.hint':
+    '在手机 App 的「设置 → 连接模式」里填上面的地址，输入访问令牌，并核对证书指纹与此处一致。关闭此电脑或退出应用会中断连接——长期使用建议装专门的服务器版。',
+
   'transfer.export.title': '导出配置',
   'transfer.export.blurb': '文件里装的是你的主机、它们上面的项目与工作区，还有 agent 定义。它用你在这里定的口令加密，没有这个口令，谁都打不开 —— 包括 AgentMux 自己。',
   'transfer.includeSecrets': '把 SSH 密码和密钥口令一起带上',

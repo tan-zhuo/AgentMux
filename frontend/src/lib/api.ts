@@ -323,6 +323,33 @@ export interface RemoteProbe {
   error: string
 }
 
+/**
+ * Serve mode: the desktop app wearing the headless build's HTTP face, so
+ * phones and other machines can connect to this very core. Desktop only.
+ */
+export const serve = {
+  config: () => call<ServeConfig>('ServeService', 'Config'),
+  start: (cfg: ServeConfig) => call<ServeStatus>('ServeService', 'Start', cfg),
+  stop: () => call<ServeStatus>('ServeService', 'Stop'),
+  status: () => call<ServeStatus>('ServeService', 'Status'),
+}
+
+export interface ServeConfig {
+  enabled: boolean
+  addr: string
+  tls: boolean
+}
+
+export interface ServeStatus {
+  running: boolean
+  addr: string
+  tls: boolean
+  urls: string[] | null
+  token: string
+  fingerprint: string
+  error: string
+}
+
 export const llm = {
   config: () => call<LLMConfig>('LLMService', 'Config'),
   saveConfig: (cfg: LLMConfig) => call<LLMStatus>('LLMService', 'SaveConfig', cfg),

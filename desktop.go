@@ -8,11 +8,13 @@ package main
 import (
 	_ "embed"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/url"
 	"time"
 
 	"agentmux/internal/app"
+	"agentmux/internal/webserve"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -48,28 +50,60 @@ func runApp() {
 		log.Printf("in-app desktop sessions are unavailable: %v", err)
 	}
 
+	// One instance of each service, bound twice: to the window over the Wails
+	// bridge, and — when serve mode is switched on — to browsers over HTTP.
+	// Two transports onto the same state, exactly like the headless build.
+	serverSvc := app.NewServerService(core)
+	treeSvc := app.NewTreeService(core)
+	terminalSvc := app.NewTerminalService(core)
+	tmuxSvc := app.NewTmuxService(core)
+	toolkitSvc := app.NewToolkitService(core)
+	fileSvc := app.NewFileService(core)
+	metricsSvc := app.NewMetricsService(core)
+	llmSvc := app.NewLLMService(core)
+	memorySvc := app.NewMemoryService(core)
+	skillSvc := app.NewSkillService(core)
+	orchSvc := app.NewOrchService(core)
+	configSvc := app.NewConfigService(core)
+
+	hub := webserve.NewHub()
+	serveSvc := app.NewServeService(core, hub)
+	dist, err := fs.Sub(assets, "frontend/dist")
+	if err != nil {
+		fatal("frontend assets missing from this build", err)
+	}
+	// The same list serveMain builds, minus what only makes sense with a
+	// native window on this machine: WindowService and the self-updating
+	// UpdateService. Check-only updates stand in for served browsers.
+	serveSvc.SetBacking([]any{
+		serverSvc, treeSvc, terminalSvc, tmuxSvc, toolkitSvc, fileSvc,
+		metricsSvc, llmSvc, memorySvc, skillSvc, orchSvc, configSvc,
+		app.NewUpdateCheckService(core), desktopSvc, agentSvc,
+	}, dist)
+
 	wailsApp := application.New(application.Options{
 		Name:        "AgentMux",
 		Description: "Multi-server AI agent and SSH cluster control plane",
 		Icon:        appIcon,
 		Services: []application.Service{
-			application.NewService(app.NewServerService(core)),
-			application.NewService(app.NewTreeService(core)),
-			application.NewService(app.NewTerminalService(core)),
-			application.NewService(app.NewTmuxService(core)),
-			application.NewService(app.NewToolkitService(core)),
-			application.NewService(app.NewFileService(core)),
-			application.NewService(app.NewMetricsService(core)),
+			application.NewService(serverSvc),
+			application.NewService(treeSvc),
+			application.NewService(terminalSvc),
+			application.NewService(tmuxSvc),
+			application.NewService(toolkitSvc),
+			application.NewService(fileSvc),
+			application.NewService(metricsSvc),
 			application.NewService(app.NewWindowService(core)),
-			application.NewService(app.NewLLMService(core)),
-			application.NewService(app.NewMemoryService(core)),
-			application.NewService(app.NewSkillService(core)),
-			application.NewService(app.NewOrchService(core)),
-			application.NewService(app.NewConfigService(core)),
+			application.NewService(llmSvc),
+			application.NewService(memorySvc),
+			application.NewService(skillSvc),
+			application.NewService(orchSvc),
+			application.NewService(configSvc),
 			application.NewService(desktopSvc),
 			application.NewService(agentSvc),
 			application.NewService(updateSvc),
 			application.NewService(connectSvc),
+			application.NewService(serveSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -90,8 +124,12 @@ func runApp() {
 		OnShutdown: func() { core.Shutdown() },
 	})
 
+	// Events fan out to both faces: the window's Wails bus, and the SSE hub
+	// that serve-mode browsers listen on. The hub with no subscribers is a
+	// map iteration over nothing.
 	core.SetEmitter(func(name string, data any) {
 		wailsApp.Event.Emit(name, data)
+		hub.Emit(name, data)
 	})
 	core.StartPoller(agentSvc, 5*time.Second)
 	// A quiet daily rhythm plus a check at launch; anyone impatient can ask
@@ -117,6 +155,9 @@ func runApp() {
 	if err := connectSvc.StartControl(); err != nil {
 		log.Printf("connect control endpoint unavailable: %v", err)
 	}
+	// A machine that was serving keeps serving; a failure lands in the
+	// settings dialog, not across the launch.
+	serveSvc.AutoStart()
 
 	// A remembered remote is only honoured when the way back — the loopback
 	// control endpoint — is standing; otherwise the local UI, which can

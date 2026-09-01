@@ -881,6 +881,21 @@ export const en = {
     'This server uses a self-signed certificate. Compare this value with the "certificate SHA-256 fingerprint" line in the server\'s startup log: if they match, trusting it is safe — the connection is then encrypted end to end and accepts only this exact certificate. If they differ, something between you and the server is impersonating it; do not trust it.',
   'connect.trust': 'Fingerprints match — trust and connect',
 
+  'settings.serve': 'Server mode',
+  'serve.blurb':
+    'Let a phone, tablet or another computer connect to the AgentMux on this machine — the same hosts, keys and running terminals. This computer becomes the server.',
+  'serve.addr': 'Listen address',
+  'serve.addr.hint': ':8642 listens on every interface; 127.0.0.1:8642 allows only this machine.',
+  'serve.tls': 'Encrypted (HTTPS, self-signed certificate)',
+  'serve.start': 'Turn on',
+  'serve.stop': 'Turn off',
+  'serve.running': 'Serving',
+  'serve.urls': 'Connect at',
+  'serve.token': 'Access token',
+  'serve.fingerprint': 'Certificate fingerprint (SHA-256)',
+  'serve.hint':
+    'On the phone, open Settings → Connection, enter an address above, type the access token, and check the certificate fingerprint against this one. Closing this computer or quitting the app drops the connection — for something permanent, install the dedicated server build.',
+
   'transfer.export.title': 'Export configuration',
   'transfer.export.blurb': 'The file holds your hosts, the projects and workspaces on them, and your agent definitions. It is encrypted with the passphrase you choose here, and nothing — including AgentMux — can open it without that passphrase.',
   'transfer.includeSecrets': 'Include SSH passwords and key passphrases',

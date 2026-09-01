@@ -10,9 +10,11 @@ import {
   getShellOrigin,
   isDesktop,
   llm as llmApi,
+  serve as serveApi,
   servers as serverApi,
   toolkit,
   tree as treeApi,
+  type ServeStatus,
 } from '../lib/api'
 import {
   LANGUAGES,
@@ -979,6 +981,8 @@ function SettingsDialog() {
 
       <ConnectSettings />
 
+      <ServeSettings />
+
       <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.theme')}</p>
       <div className="mb-5 grid grid-cols-2 gap-2">
         {themes.map((theme) => {
@@ -1234,6 +1238,116 @@ function ConnectSettings() {
           )
         )}
         {err && <p className="text-[11px] text-danger">{err}</p>}
+      </div>
+    </>
+  )
+}
+
+/**
+ * Serve mode: this desktop wearing the headless build's HTTP face, so a phone
+ * or another machine connects to this very core — same hosts, same keys, same
+ * running terminals. Desktop only: a served page or the phone's shell has no
+ * server of its own to switch on.
+ */
+function ServeSettings() {
+  const t = useT()
+  const [status, setStatus] = useState<ServeStatus | null>(null)
+  const [addr, setAddr] = useState(':8642')
+  const [useTLS, setUseTLS] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isDesktop) return
+    void serveApi
+      .status()
+      .then((st) => {
+        setStatus(st)
+        setAddr(st.addr || ':8642')
+        setUseTLS(st.tls)
+      })
+      .catch(() => {})
+  }, [])
+
+  if (!isDesktop || !status) return null
+
+  const toggle = async () => {
+    setBusy(true)
+    try {
+      const st = status.running
+        ? await serveApi.stop()
+        : await serveApi.start({ enabled: true, addr, tls: useTLS })
+      setStatus(st)
+    } catch (e) {
+      setStatus({ ...status, error: errText(e) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <p className="mb-2 text-[11px] font-semibold text-ink-300">{t('settings.serve')}</p>
+      <div className="mb-5 space-y-2">
+        <p className="text-[11px] leading-relaxed text-ink-400">{t('serve.blurb')}</p>
+
+        {!status.running && (
+          <div className="flex items-end gap-2">
+            <Field label={t('serve.addr')} hint={t('serve.addr.hint')}>
+              <input
+                className={`${inputClass} font-mono`}
+                value={addr}
+                onChange={(e) => setAddr(e.target.value)}
+                placeholder=":8642"
+                spellCheck={false}
+              />
+            </Field>
+            <label className="flex h-[22px] shrink-0 items-center gap-1.5 text-[11px] text-ink-300">
+              <input
+                type="checkbox"
+                checked={useTLS}
+                onChange={(e) => setUseTLS(e.target.checked)}
+                className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+              />
+              {t('serve.tls')}
+            </label>
+          </div>
+        )}
+
+        {status.running && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
+            <dt className="text-ink-500">{t('serve.urls')}</dt>
+            <dd className="space-y-0.5">
+              {(status.urls ?? []).map((u) => (
+                <div key={u} className="font-mono break-all text-ink-100">
+                  {u}
+                </div>
+              ))}
+            </dd>
+            <dt className="text-ink-500">{t('serve.token')}</dt>
+            <dd className="font-mono break-all text-ink-100">{status.token}</dd>
+            {status.fingerprint && (
+              <>
+                <dt className="text-ink-500">{t('serve.fingerprint')}</dt>
+                <dd className="font-mono break-all text-ink-100">{status.fingerprint}</dd>
+              </>
+            )}
+          </dl>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant={status.running ? 'danger' : 'primary'}
+            disabled={busy}
+            onClick={() => void toggle()}
+          >
+            {status.running ? t('serve.stop') : t('serve.start')}
+          </Button>
+          {status.running && <span className="text-[11px] text-ok">{t('serve.running')}</span>}
+        </div>
+        {status.running && (
+          <p className="text-[11px] leading-relaxed text-ink-400">{t('serve.hint')}</p>
+        )}
+        {status.error && <p className="text-[11px] text-danger">{status.error}</p>}
       </div>
     </>
   )
