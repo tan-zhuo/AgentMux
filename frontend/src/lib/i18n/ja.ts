@@ -3,6 +3,7 @@ import type { Messages } from './en'
 export const ja: Messages = {
   'common.cancel': 'キャンセル',
   'common.close': '閉じる',
+  'common.copy': 'コピー',
   'common.save': '保存',
   'common.saving': '保存中…',
   'common.delete': '削除',

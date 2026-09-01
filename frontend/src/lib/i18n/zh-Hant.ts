@@ -3,6 +3,7 @@ import type { Messages } from './en'
 export const zhHant: Messages = {
   'common.cancel': '取消',
   'common.close': '關閉',
+  'common.copy': '複製',
   'common.save': '儲存',
   'common.saving': '儲存中…',
   'common.delete': '刪除',

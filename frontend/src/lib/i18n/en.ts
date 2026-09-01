@@ -8,6 +8,7 @@
 export const en = {
   'common.cancel': 'Cancel',
   'common.close': 'Close',
+  'common.copy': 'Copy',
   'common.save': 'Save',
   'common.saving': 'Saving…',
   'common.delete': 'Delete',

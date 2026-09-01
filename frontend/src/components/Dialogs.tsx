@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Check, Download, Upload } from 'lucide-react'
+import { Check, ClipboardCopy, Download, Upload } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   agents as agentApi,
@@ -16,6 +16,7 @@ import {
   tree as treeApi,
   type ServeStatus,
 } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import {
   LANGUAGES,
   offsetLabel,
@@ -1244,6 +1245,34 @@ function ConnectSettings() {
 }
 
 /**
+ * A value meant to be carried to another device: shown in full, and copied
+ * whole with one click — a 48-character token is for clipboards, not for eyes.
+ */
+function CopyableValue({ value }: { value: string }) {
+  const t = useT()
+  const [copied, setCopied] = useState(false)
+
+  return (
+    <span className="inline-flex max-w-full items-start gap-1.5">
+      <span className="font-mono break-all text-ink-100">{value}</span>
+      <button
+        type="button"
+        title={t('common.copy')}
+        onClick={() => {
+          void copyText(value).then(() => {
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1500)
+          })
+        }}
+        className="shrink-0 rounded-control p-0.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+      >
+        {copied ? <Check size={11} className="text-ok" /> : <ClipboardCopy size={11} />}
+      </button>
+    </span>
+  )
+}
+
+/**
  * Serve mode: this desktop wearing the headless build's HTTP face, so a phone
  * or another machine connects to this very core — same hosts, same keys, same
  * running terminals. Desktop only: a served page or the phone's shell has no
@@ -1318,17 +1347,19 @@ function ServeSettings() {
             <dt className="text-ink-500">{t('serve.urls')}</dt>
             <dd className="space-y-0.5">
               {(status.urls ?? []).map((u) => (
-                <div key={u} className="font-mono break-all text-ink-100">
-                  {u}
-                </div>
+                <CopyableValue key={u} value={u} />
               ))}
             </dd>
             <dt className="text-ink-500">{t('serve.token')}</dt>
-            <dd className="font-mono break-all text-ink-100">{status.token}</dd>
+            <dd>
+              <CopyableValue value={status.token} />
+            </dd>
             {status.fingerprint && (
               <>
                 <dt className="text-ink-500">{t('serve.fingerprint')}</dt>
-                <dd className="font-mono break-all text-ink-100">{status.fingerprint}</dd>
+                <dd>
+                  <CopyableValue value={status.fingerprint} />
+                </dd>
               </>
             )}
           </dl>
