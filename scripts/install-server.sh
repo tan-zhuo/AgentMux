@@ -174,6 +174,15 @@ if [ -f "$UNIT" ]; then
     fi
   fi
 fi
+# Ask the binary itself what it can do, and configure only that: a release
+# from before TLS existed would otherwise be handed a flag it does not know
+# and crash-loop under systemd — the exact opposite of installed.
+if [ "$TLS" = 1 ] && ! "$PREFIX/agentmux" --serve --help 2>&1 | grep -q -- '-tls'; then
+  say "note: this release predates built-in TLS; serving plain HTTP."
+  say "      re-run this script after the next release to turn HTTPS on."
+  TLS=0
+fi
+
 TLS_FLAG=""; [ "$TLS" = 1 ] && TLS_FLAG=" --tls"
 PORT="${ADDR##*:}"
 SCHEME=$([ "$TLS" = 1 ] && echo https || echo http)
