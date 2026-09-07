@@ -2,7 +2,9 @@
 
 # AgentMux
 
-**A desktop control plane for AI coding agents — on remote hosts, and on this one.**
+**Coding agents that outlive your laptop.**
+
+A desktop control plane for Claude Code, Codex, Gemini CLI, Grok CLI, OpenCode, Aider, Cursor CLI, and similar tools — running on remote hosts **and** on this computer.
 
 English · [中文](README.zh-CN.md)
 
@@ -10,17 +12,21 @@ English · [中文](README.zh-CN.md)
 
 ---
 
+## Why
+
+Long agent runs should not depend on an SSH window staying open. Closing the client, sleeping the laptop, or dropping the network should not kill a four-hour migration.
+
+AgentMux does not own the agent process. Every agent lives in a `tmux` session on the host where the work belongs (or in AgentMux’s Windows session daemon where `tmux` cannot). The app attaches to that session — a real terminal pane, not a chat transcript — so you can leave, come back, and pick up the same scrollback.
+
+One binary. No account. No hosted control plane. State is a local SQLite file.
+
+**Not another “open N agents in tmux” launcher.** It is a control plane: multi-host tree, up to nine live panes, broadcast with delivery receipts, local-only orchestration under human approval, and this machine managed like any other host.
+
 ## Overview
 
-AgentMux operates coding agents — Claude Code, Codex, Gemini CLI, Grok CLI,
-OpenCode, Aider, Cursor CLI — that execute on the machines where the work belongs: build
-servers, GPU boxes, staging hosts, and this computer alongside them. Every agent
-runs inside a `tmux` session on its host, and the application attaches to that
-session instead of owning the process. Closing the client, suspending the laptop
-or losing the network therefore has no effect on work in progress.
+Point AgentMux at build servers, GPU boxes, staging hosts, and the machine it runs on. Agents — Claude Code, Codex, Gemini CLI, Grok CLI, OpenCode, Aider, Cursor CLI — execute there; you watch and intervene from one desktop (or a phone/tablet in serve mode).
 
-It ships as a single binary with no server component, no daemon and no account.
-All state is one SQLite file in the user's application data directory.
+On Windows, the same computer is two hosts: the default WSL distro (where `tmux` lives) and native Windows (PowerShell, MSVC, `.exe` runs) via a small detached session daemon. Remote Windows hosts get that daemon over SFTP on first use; its protocol rides an SSH port forward, never a remote shell.
 
 ## Capabilities
 
@@ -96,9 +102,9 @@ leave a partial package tree.
 **Host telemetry and file access.** Per-host metrics — CPU by mode and by core,
 memory, load, disk usage and throughput, network, file descriptors, NVIDIA GPU
 utilisation — are collected in a single command. An SFTP browser and editor
-provide file access over the same connection, with atomic writes and a
-modification check that refuses to overwrite changes made by an agent working in
-the same directory.
+provide file access over the same connection, with temp-file writes and a
+modification-time check that refuses to overwrite changes made by an agent working in
+the same directory (best-effort conflict avoidance, not a distributed lock).
 
 **Interface.** Apple's system palette by default, with six alternative themes
 including Nord, Solarized and a light theme.
