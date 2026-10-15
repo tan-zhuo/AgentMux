@@ -16,6 +16,7 @@ import {
   Pencil,
   RefreshCw,
   Rocket,
+  Search,
   TerminalSquare,
   Trash2,
   Upload,
@@ -25,7 +26,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { errText, files as filesApi, on, tree as treeApi, windows as windowsApi } from '../lib/api'
 import { copyText } from '../lib/clipboard'
 import type { MsgKey, TFunc } from '../lib/i18n'
-import type { FileEntry, Listing, Transfer } from '../lib/types'
+import type { FileEntry, Listing, SearchHit, Transfer } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
@@ -92,6 +93,15 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [newDir, setNewDir] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ path: string; name: string } | null>(null)
+  // The search box: null closed, otherwise its text. Typing narrows the
+  // current directory instantly; Enter asks the host to look underneath it.
+  const [query, setQuery] = useState<string | null>(null)
+  const [deep, setDeep] = useState<{
+    q: string
+    hits: SearchHit[]
+    truncated: boolean
+    busy: boolean
+  } | null>(null)
   // Set when the rocket on a row is clicked or a folder's menu asks to run an
   // agent: the picker targets that folder instead of the one currently open, and
   // opens where the pointer already is.
@@ -173,6 +183,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   const load = useCallback(
     async (dir: string) => {
       setLoading(true)
+      // Arriving somewhere is leaving the search: results pointed here, and a
+      // filter from the old directory has nothing to say about the new one.
+      setDeep(null)
+      setQuery((q) => (q === null ? null : ''))
       try {
         const l = await filesApi.list(tab.serverId, dir)
         setListing(l)
@@ -188,6 +202,25 @@ export function FileBrowser({ tab }: { tab: Tab }) {
     },
     [tab.serverId, tab.id, setTabState],
   )
+
+  /** Asks the host to look for the query everywhere under this directory. */
+  async function deepSearch() {
+    const q = (query ?? '').trim()
+    if (!q) return
+    setDeep({ q, hits: [], truncated: false, busy: true })
+    try {
+      const res = await filesApi.search(tab.serverId, cwd, q)
+      setDeep({ q, hits: res.hits ?? [], truncated: res.truncated, busy: false })
+    } catch (e) {
+      setDeep(null)
+      toast('error', errText(e))
+    }
+  }
+
+  function closeSearch() {
+    setQuery(null)
+    setDeep(null)
+  }
 
   useEffect(() => {
     void load(tab.command ?? '')
@@ -216,6 +249,12 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   }, [])
 
   const entries = listing?.entries ?? []
+  // The box filters what is on screen as it is typed; folders surface first
+  // because finding one is the usual reason for typing at all.
+  const filter = (query ?? '').trim().toLowerCase()
+  const shown = filter
+    ? entries.filter((e) => e.name.toLowerCase().includes(filter))
+    : entries
   const active = transfers.filter((t) => t.status === 'running')
 
   async function upload() {
@@ -404,6 +443,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
             </span>
           ))}
         </div>
+        <Button
+          size="sm"
+          variant="subtle"
+          title={t('files.search')}
+          onClick={() => (query === null ? setQuery('') : closeSearch())}
+        >
+          <Search size={12} className={query !== null ? 'text-accent' : undefined} />
+        </Button>
         <Button size="sm" variant="subtle" title={t('files.newFolder')} onClick={() => setNewDir('')}>
           <FolderPlus size={12} />
         </Button>
@@ -427,6 +474,37 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         )}
         <LaunchHere serverId={tab.serverId} dir={cwd} onLaunched={openAgentTab} />
       </div>
+
+      {query !== null && (
+        <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-2">
+          <Search size={12} className="shrink-0 text-ink-500" />
+          <input
+            autoFocus
+            className={inputClass}
+            value={query}
+            placeholder={t('files.search.placeholder')}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setDeep(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') closeSearch()
+              if (e.key === 'Enter') void deepSearch()
+            }}
+          />
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={!query.trim() || deep?.busy}
+            onClick={() => void deepSearch()}
+          >
+            {deep?.busy ? t('files.search.searching') : t('files.search.deep')}
+          </Button>
+          <Button size="sm" title={t('common.close')} onClick={closeSearch}>
+            <X size={11} />
+          </Button>
+        </div>
+      )}
 
       {newDir !== null && (
         <div className="flex gap-1.5 border-b hairline bg-ink-900 px-2.5 py-2">
@@ -467,14 +545,56 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <p className="border-b hairline px-3 py-2 text-[11px] leading-relaxed text-danger">{error}</p>
       )}
 
-      {/* Listing */}
+      {/* Listing — or, mid-search, what the host found underneath here. */}
       <div className="min-h-0 flex-1 overflow-auto">
-        {!error && entries.length === 0 && !loading && (
+        {deep && (
+          <div>
+            {deep.busy && (
+              <p className="px-3 py-2 text-[11px] text-ink-400">{t('files.search.searching')}</p>
+            )}
+            {!deep.busy && deep.hits.length === 0 && (
+              <Empty title={t('files.search.none', { q: deep.q })} hint={t('files.search.none.hint')} />
+            )}
+            {deep.hits.map((h) => {
+              const base = cwd.replace(/\/+$/, '')
+              const rel = h.path.startsWith(base + '/') ? h.path.slice(base.length + 1) : h.path
+              return (
+                <button
+                  key={h.path}
+                  onClick={() =>
+                    h.dir
+                      ? void load(h.path)
+                      : openEditor({
+                          name: h.path.split('/').pop() ?? h.path,
+                          path: h.path,
+                        } as FileEntry)
+                  }
+                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900"
+                >
+                  {h.dir ? (
+                    <Folder size={13} className="shrink-0 text-accent" />
+                  ) : (
+                    <FileIcon size={13} className="shrink-0 text-ink-500" />
+                  )}
+                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200">{rel}</span>
+                </button>
+              )
+            })}
+            {!deep.busy && deep.truncated && (
+              <p className="px-3 py-2 text-[11px] text-ink-500">{t('files.search.truncated')}</p>
+            )}
+          </div>
+        )}
+        {!deep && !error && entries.length === 0 && !loading && (
           <Empty title={t('files.empty')} hint={t('files.empty.hint')} />
         )}
+        {!deep && !error && entries.length > 0 && filter !== '' && shown.length === 0 && (
+          <Empty title={t('files.search.noMatch', { q: query ?? '' })} hint={t('files.search.noMatch.hint')} />
+        )}
+        {!deep && (
         <table className="w-full text-xs">
           <tbody>
-            {entries.map((e) => {
+            {shown.map((e) => {
               const isDir = e.isDir || e.targetIsDir
               return (
                 <tr
@@ -695,6 +815,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
             })}
           </tbody>
         </table>
+        )}
       </div>
 
       {/* Transfers */}

@@ -199,6 +199,17 @@ export interface Listing {
   entries: FileEntry[]
 }
 
+/** One path a deep search found. */
+export interface SearchHit {
+  path: string
+  dir: boolean
+}
+
+export interface SearchResult {
+  hits: SearchHit[] | null
+  truncated: boolean
+}
+
 export interface FileContent {
   path: string
   /** Empty in a write result — the caller already has what it just sent, and

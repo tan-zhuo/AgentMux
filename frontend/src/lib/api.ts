@@ -35,6 +35,7 @@ import type {
   Presence,
   Workspace,
   Listing,
+  SearchResult,
   FileContent,
   Transfer,
   MetricSample,
@@ -184,6 +185,9 @@ export const toolkit = {
 
 export const files = {
   list: (serverId: string, dir: string) => call<Listing>('FileService', 'List', serverId, dir),
+  /** Finds files and folders under dir whose names contain query. */
+  search: (serverId: string, dir: string, query: string) =>
+    call<SearchResult>('FileService', 'Search', serverId, dir, query),
   listWorkspace: (workspaceId: string) => call<Listing>('FileService', 'ListWorkspace', workspaceId),
   home: (serverId: string) => call<string>('FileService', 'Home', serverId),
   mkdir: (serverId: string, dir: string) => call<void>('FileService', 'Mkdir', serverId, dir),
