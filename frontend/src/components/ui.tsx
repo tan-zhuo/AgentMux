@@ -56,24 +56,32 @@ export function Button({
         'focus-visible:focus-ring',
         size === 'sm' ? 'h-[22px] px-2 text-[11px]' : 'h-7 px-3 text-xs',
 
+        // Held down, every variant takes its fill one step past hover. That
+        // is how macOS gives a small control its press — on a 22px button the
+        // shrink alone is a single pixel and reads as nothing. The filled
+        // button darkens instead, there being no deeper blue to step to that
+        // is still the accent. Disabled buttons take no pointer events, so no
+        // press reaches them.
+
         // The filled accent button is the single strongest Apple cue in the
         // whole interface: one clearly primary action per surface, in system
         // blue, with white text. Everything else stays quiet so it can be loud.
         // The top highlight and the tinted shadow are what make it a glass
         // bead rather than a flat fill.
         variant === 'primary' &&
-          'bg-accent text-white hover:brightness-110 ' +
+          'bg-accent text-white hover:brightness-110 active:brightness-95 ' +
             'shadow-[inset_0_1px_0_rgb(255_255_255/0.22),0_1px_2px_rgb(0_0_0/0.2),0_4px_12px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]',
 
         // The push button: a raised tone with a hairline, not a box. The top
         // highlight is what makes it read as a surface catching light.
         variant === 'ghost' &&
-          'border hairline bg-ink-800 text-ink-100 shadow-sm hover:bg-ink-750 ' +
+          'border hairline bg-ink-800 text-ink-100 shadow-sm hover:bg-ink-750 active:bg-ink-700 ' +
             'inset-shadow-[0_1px_0_rgb(255_255_255/0.06)]',
 
-        variant === 'subtle' && 'bg-transparent text-ink-300 hover:bg-ink-800 hover:text-ink-100',
+        variant === 'subtle' &&
+          'bg-transparent text-ink-300 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750',
 
-        variant === 'danger' && 'bg-danger/12 text-danger hover:bg-danger/20',
+        variant === 'danger' && 'bg-danger/12 text-danger hover:bg-danger/20 active:bg-danger/28',
         className,
       )}
     >
@@ -127,9 +135,12 @@ export const textareaClass = `${controlBase} py-1.5 leading-relaxed`
  * use, so the same button was 19px in the tree, 20px in the file list and 21px
  * in the terminal toolbar. Colour stays with the caller — the same box is quiet
  * on a toolbar and destructive at the end of a row.
+ *
+ * The press is firmer than a Button's, 0.92 against 0.96, because at this size
+ * the standard shrink is a single pixel and reads as nothing.
  */
 export const iconButtonClass =
-  'pressable inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-control ' +
+  'pressable [--press-scale:0.92] inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-control ' +
   'focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-40'
 
 /**
