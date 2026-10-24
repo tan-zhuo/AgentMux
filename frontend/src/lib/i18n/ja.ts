@@ -856,6 +856,13 @@ export const ja: Messages = {
   'term.select.hint': 'ドラッグで選択してからコピー',
   'term.select.empty': 'まだ何も選択されていません — 文字の上をドラッグしてください',
   'term.select.done': '選択モードを終了',
+  'term.textView': 'テキスト表示',
+  'term.textView.menu': 'テキストとして表示…',
+  'term.text.screen': '画面の内容',
+  'term.text.history': '履歴すべて',
+  'term.text.copyAll': 'すべてコピー',
+  'term.text.share': '共有',
+  'term.text.empty': 'まだ何もありません',
 
   // 画面上のキーバー：ソフトウェアキーボードにないキー。
   'keys.show': 'ターミナルキーを表示',

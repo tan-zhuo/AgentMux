@@ -12,6 +12,7 @@ import { Splitter } from './components/Splitter'
 import { StatusBar } from './components/StatusBar'
 import { TerminalArea } from './components/TerminalArea'
 import { TerminalKeyBar } from './components/TerminalKeyBar'
+import { TerminalTextSheet } from './components/TerminalTextSheet'
 import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -321,6 +322,7 @@ export default function App() {
       {touch && onTerminal && <TerminalKeyBar />}
       {compact ? <MobileNav /> : <StatusBar />}
       <Dialogs />
+      <TerminalTextSheet />
       <CommandPalette />
       <ConfirmDialog />
       <ContextMenu />

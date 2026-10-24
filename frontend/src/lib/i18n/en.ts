@@ -860,6 +860,15 @@ export const en = {
   'term.select.hint': 'Drag to select, then copy',
   'term.select.empty': 'Nothing selected yet — drag across the text first',
   'term.select.done': 'Leave select mode',
+  // The text view: the terminal's rows in a sheet where the phone's own
+  // selection, copy and share work.
+  'term.textView': 'Text view',
+  'term.textView.menu': 'View as text…',
+  'term.text.screen': 'Visible screen',
+  'term.text.history': 'All history',
+  'term.text.copyAll': 'Copy all',
+  'term.text.share': 'Share',
+  'term.text.empty': 'Nothing here yet',
 
   // The on-screen key bar: what a software keyboard does not have.
   'keys.show': 'Show the terminal keys',

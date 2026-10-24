@@ -1,13 +1,14 @@
-import { ClipboardPaste, Copy, Eraser, Search, TextSelect } from 'lucide-react'
+import { ClipboardPaste, Copy, Eraser, FileText, Search, TextSelect } from 'lucide-react'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
-import { errText, on, terminal as termApi } from '../lib/api'
+import { agents as agentApi, errText, on, terminal as termApi, tmux as tmuxApi } from '../lib/api'
 import { STREAM_RESUMED } from '../lib/webTransport'
 import { copyText, readText } from '../lib/clipboard'
 import { applyMods } from '../lib/termKeys'
+import { HISTORY_LINES, bufferText, tidyTerminalText, type TextScope } from '../lib/termText'
 import type { ShellInfo } from '../lib/types'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
@@ -32,6 +33,12 @@ const isMac =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 const copyHint = isMac ? '⌘C' : 'Ctrl+Shift+C'
 const pasteHint = isMac ? '⌘V' : 'Ctrl+Shift+V'
+
+// Two taps this close together, in time and in place, are one gesture. The
+// time is what a desktop uses for a double click; the distance is a finger's
+// worth rather than a pointer's, because no finger lands twice on one pixel.
+const MULTI_TAP_MS = 300
+const MULTI_TAP_SLOP = 24
 
 function toBase64(text: string): string {
   const bytes = encoder.encode(text)
@@ -158,6 +165,13 @@ function enableTouchScroll(
  * Everywhere else a shift-drag means "extend the selection I already have",
  * and with nothing selected yet it does nothing whatsoever. Which mode the
  * terminal is in is on the element: xterm marks it `enable-mouse-events`.
+ *
+ * Taps in quick succession on one spot count up the way clicks do, and xterm
+ * reads the count off the event: two select the word under the finger, three
+ * the line. Those are the two selections a phone most often wants — a path, a
+ * hash, a whole command — and the two a drag is worst at. A fourth tap starts
+ * the count over, as a fourth click does not: xterm has nothing for it, and a
+ * tap that did nothing would read as a broken screen.
  */
 function enableTouchSelect(host: HTMLElement): () => void {
   const screen: Element = host.querySelector('.xterm-screen') ?? host
@@ -165,14 +179,23 @@ function enableTouchSelect(host: HTMLElement): () => void {
   // Decided once per drag, at the press: a program that turns mouse reporting
   // on mid-drag must not change what this gesture means half way through.
   let force = false
+  let taps = 0
+  let lastTapAt = 0
+  let lastTapX = 0
+  let lastTapY = 0
 
-  const send = (type: 'mousedown' | 'mousemove' | 'mouseup', t: Touch, buttons: number) => {
+  const send = (
+    type: 'mousedown' | 'mousemove' | 'mouseup',
+    t: Touch,
+    buttons: number,
+    detail = 1,
+  ) => {
     screen.dispatchEvent(
       new MouseEvent(type, {
         bubbles: true,
         cancelable: true,
         view: window,
-        detail: 1,
+        detail,
         button: 0,
         buttons,
         clientX: t.clientX,
@@ -188,8 +211,17 @@ function enableTouchSelect(host: HTMLElement): () => void {
   const onStart = (e: TouchEvent) => {
     if (e.touches.length !== 1) return
     e.preventDefault()
+    const t = e.touches[0]
+    const again =
+      e.timeStamp - lastTapAt < MULTI_TAP_MS &&
+      Math.abs(t.clientX - lastTapX) < MULTI_TAP_SLOP &&
+      Math.abs(t.clientY - lastTapY) < MULTI_TAP_SLOP
+    taps = again ? (taps % 3) + 1 : 1
+    lastTapAt = e.timeStamp
+    lastTapX = t.clientX
+    lastTapY = t.clientY
     force = xterm?.classList.contains('enable-mouse-events') ?? false
-    send('mousedown', e.touches[0], 1)
+    send('mousedown', t, 1, taps)
   }
   const onMove = (e: TouchEvent) => {
     if (e.touches.length !== 1) return
@@ -239,6 +271,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
   // change; this keeps it pointed at the current render's copy.
   const copyRef = useRef<() => Promise<void>>(async () => {})
   const pasteRef = useRef<() => Promise<void>>(async () => {})
+  const textOfRef = useRef<(scope: TextScope) => Promise<string>>(async () => '')
   // The selection as it stood the instant a click arrived, captured before
   // anything the engine does with that click can drop it. Some webviews clear
   // xterm's selection on the right-click that opens the menu, which left the
@@ -572,6 +605,7 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
       blur: () => termRef.current?.blur(),
       selectAll: () => termRef.current?.selectAll(),
       copySelection: () => void copyRef.current(),
+      textOf: (scope) => textOfRef.current(scope),
     }
     setKeySink(own)
     return () => clearKeySink(own)
@@ -631,6 +665,34 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
 
   pasteRef.current = pasteIntoTerminal
 
+  // The pane as text, for the text view. The screen is read out of xterm's
+  // buffer. History is the multiplexer's where there is one: tmux keeps a
+  // pane's scrollback to itself and only ever draws xterm the screenful it is
+  // showing, so for an agent or a tmux tab the lines above the screen are on
+  // the server, and are fetched from there — by pane for an agent, whose
+  // record knows which pane it lives in, and by session for a tmux tab, which
+  // gives the pane the person is looking at. A plain shell's history is all
+  // in xterm already. Should the fetch fail — the session gone, the link down
+  // — the buffer is still the truth about what was on screen, and answers.
+  async function textOf(scope: TextScope): Promise<string> {
+    const term = termRef.current
+    if (!term) return ''
+    if (scope === 'history' && (tab.kind === 'agent' || tab.kind === 'tmux')) {
+      try {
+        const raw =
+          tab.kind === 'agent'
+            ? await agentApi.logs(tab.agentId, HISTORY_LINES)
+            : await tmuxApi.capture(tab.serverId, tab.tmuxSession, HISTORY_LINES)
+        return tidyTerminalText(raw)
+      } catch {
+        /* fall through to what xterm has */
+      }
+    }
+    return bufferText(term, scope)
+  }
+
+  textOfRef.current = textOf
+
   function terminalMenu(e: React.MouseEvent) {
     const term = termRef.current
     // What was selected when the click arrived wins over what is selected
@@ -659,6 +721,14 @@ export function TerminalPane({ tab, active }: { tab: Tab; active: boolean }) {
         label: t('term.selectAll'),
         icon: TextSelect,
         onSelect: () => term?.selectAll(),
+      },
+      {
+        label: t('term.textView.menu'),
+        icon: FileText,
+        // This pane's text, whichever pane has focus: the menu was opened on
+        // this one.
+        onSelect: () =>
+          useTermKeys.getState().openTextView({ read: (scope) => textOfRef.current(scope) }),
       },
       separator,
       {

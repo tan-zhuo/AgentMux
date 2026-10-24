@@ -74,6 +74,12 @@
   --animate-drawer-out: drawer-out 200ms var(--ease-in) both;
   --animate-drawer-in-right: drawer-in-right var(--duration-base) var(--ease-out);
   --animate-drawer-out-right: drawer-out-right 200ms var(--ease-in) both;
+  /* A sheet rising from the bottom edge, the way one does on a phone. It
+     travels most of the screen, so it gets the longer duration, and it
+     arrives on the spring: the slight overshoot and settle is what makes it
+     land rather than stop. */
+  --animate-drawer-in-bottom: drawer-in-bottom var(--duration-slow) var(--ease-spring);
+  --animate-drawer-out-bottom: drawer-out-bottom 200ms var(--ease-in) both;
   --animate-reveal-left: reveal-left var(--duration-base) var(--ease-out);
   --animate-reveal-right: reveal-right var(--duration-base) var(--ease-out);
   --animate-breathe: breathe 2.2s var(--ease-out) infinite;
@@ -194,6 +200,22 @@
     }
     to {
       transform: translateX(100%);
+    }
+  }
+  @keyframes drawer-in-bottom {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  @keyframes drawer-out-bottom {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(100%);
     }
   }
   /* A docked panel opening: its content slides in from behind the seam while

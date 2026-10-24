@@ -5,6 +5,7 @@ import { ContextMenu } from './components/ContextMenu'
 import { EditorPane } from './components/EditorPane'
 import { FileBrowser } from './components/FileBrowser'
 import { TerminalPane } from './components/TerminalPane'
+import { TerminalTextSheet } from './components/TerminalTextSheet'
 import { Toasts } from './components/Toasts'
 import { Empty } from './components/ui'
 import { errText, on, terminal as termApi, windows } from './lib/api'
@@ -160,6 +161,7 @@ export function DetachedApp({ token }: { token: string }) {
         )}
       </div>
 
+      <TerminalTextSheet />
       <ContextMenu />
       <Toasts />
     </div>
