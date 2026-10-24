@@ -36,6 +36,7 @@ import type { MsgKey } from '../lib/i18n'
 import { useSlidingPill } from '../lib/motion'
 import { isDesktopKind, isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
+import { useTouchDevice } from '../lib/useCompact'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
@@ -43,7 +44,11 @@ import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
 import { AttentionDot, Badge, Button, ConnDot, IconButton, StatusDot } from './ui'
 
+// A row under a mouse, and a row under a finger. The list is virtual and does
+// its arithmetic in this, so it cannot be a class like the other touch sizes;
+// the component picks one with the same test the `touch:` variant makes.
 const ROW_H = 26
+const ROW_H_TOUCH = 40
 const OVERSCAN = 8
 
 type Row =
@@ -83,6 +88,7 @@ function TabBtn({
       onClick={onClick}
       className={clsx(
         'pressable relative z-10 flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
+        'touch:h-9 touch:px-3 touch:text-xs',
         active ? 'text-ink-100' : 'text-ink-400 hover:bg-ink-800/70 hover:text-ink-200',
       )}
     >
@@ -124,6 +130,7 @@ export function Sidebar() {
   const toggleBroadcastTarget = useAppStore((s) => s.toggleBroadcastTarget)
   const refreshSnapshot = useAppStore((s) => s.refreshSnapshot)
   const openDialog = useDialogs((s) => s.open)
+  const rowH = useTouchDevice() ? ROW_H_TOUCH : ROW_H
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -276,9 +283,9 @@ export function Sidebar() {
     return out
   }, [snapshot, q, expanded, sidebarTab])
 
-  const total = rows.length * ROW_H
-  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN)
-  const last = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN)
+  const total = rows.length * rowH
+  const first = Math.max(0, Math.floor(scrollTop / rowH) - OVERSCAN)
+  const last = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / rowH) + OVERSCAN)
   const visible = rows.slice(first, last)
 
   async function startAgent(a: Agent, ws: Workspace) {
@@ -393,7 +400,7 @@ export function Sidebar() {
       <div className="border-b hairline px-2 py-2">
         <label
           className={clsx(
-            'flex h-[26px] items-center gap-1.5 rounded-capsule border hairline bg-ink-850 px-2.5',
+            'flex h-[26px] items-center gap-1.5 rounded-capsule border hairline bg-ink-850 px-2.5 touch:h-9',
             'transition-[box-shadow,border-color] duration-[var(--duration-quick)] focus-within:focus-ring',
           )}
         >
@@ -403,14 +410,16 @@ export function Sidebar() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('tree.filter')}
             spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500"
+            className="min-w-0 flex-1 bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500 touch:text-[13px]"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch('')}
               aria-label={t('tree.clear')}
-              className="pressable flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-capsule bg-ink-600 text-ink-900 hover:bg-ink-500"
+              // A 14px dot stays a 14px dot; under a finger its halo makes it
+              // a 36px one.
+              className="pressable flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-capsule bg-ink-600 text-ink-900 hover:bg-ink-500 touch:relative touch:before:absolute touch:before:-inset-[11px]"
             >
               <X size={9} strokeWidth={3} />
             </button>
@@ -418,7 +427,9 @@ export function Sidebar() {
         </label>
       </div>
 
-      <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1">
+      {/* The gap opens up on touch so the haloed buttons at the right end do
+          not reach into one another. */}
+      <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1 touch:gap-3.5">
         <div ref={tabStripRef} className="relative flex items-center gap-0.5">
           <span
             aria-hidden
@@ -477,7 +488,7 @@ export function Sidebar() {
         // bar that is always there is a bar nobody reads. Icons rather than
         // words, because the sidebar is narrow by design and four labelled
         // buttons wrap into a paragraph in it.
-        <div className="flex items-center gap-1 border-b hairline bg-ink-850 px-2 py-1">
+        <div className="flex items-center gap-1 border-b hairline bg-ink-850 px-2 py-1 touch:gap-3.5">
           <span className="text-[11px] text-ink-300">
             {/* Counted against the tree rather than the tick list: a host
                 removed elsewhere leaves its id behind, and a bar claiming
@@ -525,15 +536,15 @@ export function Sidebar() {
           className="animate-rise-in"
         >
           {visible.map((row, i) => {
-            const top = (first + i) * ROW_H
-            const style = { position: 'absolute' as const, top, left: 0, right: 0, height: ROW_H }
+            const top = (first + i) * rowH
+            const style = { position: 'absolute' as const, top, left: 0, right: 0, height: rowH }
 
             if (row.kind === 'hint') {
               return (
                 <div
                   key={row.key}
                   style={style}
-                  className="flex items-center px-2.5 text-[11px] text-ink-600"
+                  className="flex items-center px-2.5 text-[11px] text-ink-600 touch:text-xs"
                 >
                   <span style={{ paddingLeft: row.depth * 14 + 16 }}>{t(row.text)}</span>
                 </div>
@@ -887,7 +898,7 @@ export function Sidebar() {
                       onChange={() => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' })}
                       onClick={(e) => e.stopPropagation()}
                       title={t('tree.includeInBroadcast')}
-                      className="h-3 w-3 shrink-0 accent-accent"
+                      className="h-3 w-3 shrink-0 accent-accent touch:h-[18px] touch:w-[18px]"
                     />
                   }
                   actions={
@@ -1121,7 +1132,7 @@ export function Sidebar() {
                     onChange={() => toggleServerSelected(s.id)}
                     onClick={(e) => e.stopPropagation()}
                     title={t('tree.selectServer')}
-                    className="h-3 w-3 shrink-0 accent-accent"
+                    className="h-3 w-3 shrink-0 accent-accent touch:h-[18px] touch:w-[18px]"
                   />
                 }
                 icon={
@@ -1285,6 +1296,9 @@ function TreeRow({
         // An inset rounded pill, the way a macOS sidebar shows selection —
         // not a full-bleed band, which reads as a highlighted table row.
         'group mx-1.5 flex cursor-default items-center gap-1.5 rounded-control pr-1.5 text-xs',
+        // The row is 40px on touch (see ROW_H_TOUCH), and type a step larger
+        // to fill it.
+        'touch:text-[13px]',
         'transition-colors duration-[var(--duration-quick)]',
         selected
           ? // Inside the pill everything adopts the selection foreground.
@@ -1305,6 +1319,10 @@ function TreeRow({
           }}
           className={clsx(
             'shrink-0 rounded-control p-0.5',
+            // The fold target under a finger: 36px tall, reaching left into
+            // the indent, which is empty, rather than right onto the
+            // checkbox, which is not.
+            'touch:relative touch:before:absolute touch:before:-inset-y-[10px] touch:before:-left-3.5 touch:before:-right-1.5',
             selected ? 'text-white/80 hover:text-white' : 'text-ink-500 hover:text-ink-100',
           )}
         >
@@ -1327,7 +1345,7 @@ function TreeRow({
       {meta && (
         <span
           className={clsx(
-            'min-w-0 flex-1 truncate text-[11px]',
+            'min-w-0 flex-1 truncate text-[11px] touch:text-xs',
             selected ? 'text-white/70' : metaWarn ? 'text-warn' : metaDim ? 'text-ink-500' : 'text-ink-400',
           )}
         >
@@ -1336,7 +1354,17 @@ function TreeRow({
       )}
       {!meta && <span className="flex-1" />}
       {badge && <span className="flex shrink-0 items-center">{badge}</span>}
-      <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">{actions}</span>
+      {/* Hover reveals the actions, and a touch screen has no hover: there
+          they belong to the selected row instead, so the first tap picks the
+          row and the second one acts on it. Haloed buttons, hence the gap. */}
+      <span
+        className={clsx(
+          'hidden shrink-0 items-center gap-0.5 group-hover:flex touch:gap-3.5',
+          selected && 'touch:flex',
+        )}
+      >
+        {actions}
+      </span>
     </div>
   )
 }

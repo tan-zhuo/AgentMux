@@ -76,7 +76,7 @@ export function StatusBar() {
         <button
           onClick={refresh}
           disabled={busy}
-          className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750"
+          className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750 touch:relative touch:before:absolute touch:before:-inset-2"
         >
           <RefreshCw size={12} className={busy ? 'animate-spin' : undefined} />
         </button>
@@ -84,7 +84,7 @@ export function StatusBar() {
       <Tooltip label={t('settings.title')}>
         <button
           onClick={() => openDialog({ kind: 'settings' })}
-          className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750"
+          className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750 touch:relative touch:before:absolute touch:before:-inset-2"
         >
           <Settings size={12} />
         </button>
@@ -94,7 +94,7 @@ export function StatusBar() {
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="pressable hidden rounded-control px-1 py-0.5 text-ink-600 hover:bg-ink-800 hover:text-ink-300 active:bg-ink-750 sm:inline-flex"
+          className="pressable hidden rounded-control px-1 py-0.5 text-ink-600 hover:bg-ink-800 hover:text-ink-300 active:bg-ink-750 sm:inline-flex touch:relative touch:before:absolute touch:before:-inset-x-1 touch:before:-inset-y-2"
         >
           ⌘K
         </button>

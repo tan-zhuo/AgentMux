@@ -412,7 +412,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   return (
     <div className="flex h-full w-full flex-col bg-ink-950">
       {/* Path + actions */}
-      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5">
+      {/* The buttons here keep their size on touch and gain halos, which need
+          the gap to open a little so a halo does not reach the next button;
+          the crumbs, being plain text, simply grow to the touch height. */}
+      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5 touch:gap-2.5">
         <Button
           size="sm"
           variant="subtle"
@@ -436,7 +439,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
               {i > 0 && <ChevronRight size={11} className="text-ink-600" />}
               <button
                 onClick={() => void load(c.path)}
-                className="flex h-[22px] items-center rounded-control px-1.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                className="flex h-[22px] items-center rounded-control px-1.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100 touch:h-9 touch:px-2.5 touch:text-xs"
               >
                 {c.label}
               </button>
@@ -569,14 +572,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           path: h.path,
                         } as FileEntry)
                   }
-                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900"
+                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900 touch:py-3"
                 >
                   {h.dir ? (
                     <Folder size={13} className="shrink-0 text-accent" />
                   ) : (
                     <FileIcon size={13} className="shrink-0 text-ink-500" />
                   )}
-                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200">{rel}</span>
+                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200 touch:text-xs">{rel}</span>
                 </button>
               )
             })}
@@ -592,7 +595,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
           <Empty title={t('files.search.noMatch', { q: query ?? '' })} hint={t('files.search.noMatch.hint')} />
         )}
         {!deep && (
-        <table className="w-full text-xs">
+        <table className="w-full text-xs touch:text-[13px]">
           <tbody>
             {shown.map((e) => {
               const isDir = e.isDir || e.targetIsDir
@@ -683,7 +686,9 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                     ])
                   }}
                   className={clsx(
-                    'group cursor-default border-b hairline',
+                    // On a table row a height is a floor, which is all a
+                    // finger needs of it.
+                    'group cursor-default border-b hairline touch:h-10',
                     // Finder fills the selected row and turns everything in it
                     // white. The cells carry their own greys, so they are
                     // overridden by descendant rules rather than by hoping each
@@ -739,7 +744,19 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                   </td>
                   <td className="w-24 py-1 pr-2 font-mono text-[10.5px] text-ink-600">{e.mode}</td>
                   <td className="w-28 py-1 pr-3">
-                    <span className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100">
+                    {/* Revealed by hover, which a touch screen has not got.
+                        There the selected row shows them instead — tap to
+                        pick the row, tap again to act — and every other row
+                        hides them outright: a transparent button is still a
+                        button, and with its halo a wide one, so a tap at the
+                        end of a row would otherwise land on a delete nobody
+                        could see. */}
+                    <span
+                      className={clsx(
+                        'flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 touch:gap-3.5',
+                        selected === e.path ? 'touch:opacity-100' : 'touch:invisible',
+                      )}
+                    >
                       {isDir && (
                         <button
                           title={t('files.addProjectRow', { name: e.name })}

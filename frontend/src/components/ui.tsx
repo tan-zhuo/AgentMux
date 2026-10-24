@@ -22,6 +22,24 @@ import { Tooltip } from './Tooltip'
  * what makes a control feel like a thing rather than a drawing of one.
  */
 
+/**
+ * What makes a small control a finger-sized target without making it bigger.
+ *
+ * The controls here are 22px because that is the right size under a mouse, and
+ * redrawing every toolbar and row at phone size would undo that for everyone.
+ * So on a touch screen each one grows a halo instead: an invisible
+ * pseudo-element reaching 7px past every edge, so the finger gets 36px while
+ * the eye still gets 22 and nothing in the layout moves. The halo hangs off
+ * the button's own box, which is why `relative` rides along — a control that
+ * is already `absolute` wants the two `before:` classes alone.
+ *
+ * A halo reaches into the neighbours. In a row of these the one later in the
+ * document is hit first, so with a 2px gap the right edge of each button
+ * belongs to the next one; a row of haloed buttons therefore widens its gap
+ * to 14px on touch (`touch:gap-3.5`), which is where the halos meet.
+ */
+export const touchHalo = 'touch:relative touch:before:absolute touch:before:-inset-[7px]'
+
 export function Button({
   children,
   onClick,
@@ -59,7 +77,11 @@ export function Button({
         'pressable inline-flex shrink-0 items-center gap-1.5 rounded-control leading-none font-medium',
         'disabled:pointer-events-none disabled:opacity-40',
         'focus-visible:focus-ring',
-        size === 'sm' ? 'h-[22px] px-2 text-[11px]' : 'h-7 px-3 text-xs',
+        // Under a finger both sizes reach 36px through their halo: 7px around
+        // the small one, 4px around the medium.
+        size === 'sm'
+          ? `h-[22px] px-2 text-[11px] ${touchHalo}`
+          : 'h-7 px-3 text-xs touch:relative touch:before:absolute touch:before:-inset-1',
 
         // Held down, every variant takes its fill one step past hover. That
         // is how macOS gives a small control its press — on a 22px button the
@@ -144,10 +166,13 @@ export const textareaClass = `${controlBase} py-1.5 leading-relaxed`
  *
  * The press is firmer than a Button's, 0.92 against 0.96, because at this size
  * the standard shrink is a single pixel and reads as nothing.
+ *
+ * On a touch screen the square keeps its 22px and gains the halo described
+ * above, so a toolbar of these needs `touch:gap-3.5` between them.
  */
 export const iconButtonClass =
   'pressable [--press-scale:0.92] inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-control ' +
-  'focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-40'
+  `focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-40 ${touchHalo}`
 
 /**
  * An icon-only button with its name in a tooltip: `iconButtonClass`, the
@@ -227,6 +252,9 @@ export function Switch({
           'group/switch relative h-[22px] w-[38px] shrink-0 rounded-capsule',
           'transition-colors duration-[var(--duration-base)] ease-[var(--ease-out)]',
           'focus-visible:focus-ring',
+          // Already positioned, so the halo alone; the knob's stops are in
+          // pixels, which is why the track itself does not grow on touch.
+          'touch:before:absolute touch:before:-inset-[7px]',
           checked ? 'bg-accent' : 'bg-ink-700',
           // A faint inner edge so the track reads as a groove the knob sits
           // in, rather than a pill the knob sits on.
@@ -281,7 +309,10 @@ export function Segmented<T extends string>({
       className={clsx(
         'relative inline-flex items-stretch gap-[2px] rounded-control bg-ink-800 p-[2px]',
         'shadow-[inset_0_0_0_0.5px_rgb(0_0_0/0.1)]',
-        size === 'sm' ? 'h-[22px]' : 'h-7',
+        // The segments are the whole control, so a halo has nothing to hang
+        // off that is not another segment; the track grows instead. The pill
+        // is measured, so it follows.
+        size === 'sm' ? 'h-[22px] touch:h-9' : 'h-7 touch:h-9',
         className,
       )}
     >
@@ -313,7 +344,7 @@ export function Segmented<T extends string>({
               'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-[5px] px-2.5 leading-none',
               'font-medium whitespace-nowrap transition-colors duration-[var(--duration-quick)]',
               'active:scale-[0.97]',
-              size === 'sm' ? 'text-[11px]' : 'text-xs',
+              size === 'sm' ? 'text-[11px] touch:text-xs' : 'text-xs touch:text-[13px]',
               selected ? 'text-ink-100' : 'text-ink-400 hover:text-ink-200',
             )}
           >
@@ -385,6 +416,7 @@ export function Modal({
             className={clsx(
               'pressable absolute right-3 flex h-[22px] w-[22px] items-center justify-center rounded-capsule',
               'bg-ink-800/70 text-ink-400 hover:bg-ink-750 hover:text-ink-100',
+              'touch:before:absolute touch:before:-inset-[7px]',
             )}
           >
             <X size={13} />

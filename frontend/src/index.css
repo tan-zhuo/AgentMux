@@ -1,6 +1,22 @@
 @import 'tailwindcss';
 @import '@xterm/xterm/css/xterm.css';
 
+/* A finger rather than a pointer: a phone, or a tablet at any width. This is
+   the same test `useTouchDevice` makes in JS, so a component can write
+   `touch:h-10` in its classes and switch a constant on the hook and the two
+   never disagree about which world they are in.
+
+   The interface is drawn at desktop density — a 22px button, a 26px row — and
+   that is right under a mouse. Under a finger it is not: Apple asks for 44
+   points and Material for 48, and on a 375px screen two thirds of what could
+   be tapped here had a side under 32. The variant lets each control say how
+   it grows there and leaves the desktop exactly as it was. */
+@custom-variant touch {
+  @media (hover: none) and (pointer: coarse) {
+    @slot;
+  }
+}
+
 @theme {
   --color-ink-950: #080a0f;
   --color-ink-900: #0b0d12;
@@ -265,6 +281,15 @@
       'Segoe UI', system-ui, Roboto, 'Helvetica Neue', sans-serif;
     font-size: 13px;
     line-height: 1.45;
+    /* A step up on a touch screen, which is held further from the eye than a
+       monitor. Only a step: nearly every control names its own size in
+       root-relative units (`text-xs` is 12px whatever the body says), so this
+       reaches just the unsized remainder — a paragraph in a dialog, a cell in
+       a panel. The lists and menus, where it matters, each raise their own
+       size under the same variant alongside their taller rows. */
+    @variant touch {
+      font-size: 14px;
+    }
     /* macOS renders text with these on; without them the same stack looks
        heavier and wider than a native window beside it. */
     -webkit-font-smoothing: antialiased;

@@ -485,7 +485,8 @@ export function TerminalArea() {
   return (
     // Positioned: the tear-out hint below the strip is placed against this.
     <div className="relative flex min-w-0 flex-1 flex-col bg-ink-950">
-      <div className="flex h-9 shrink-0 items-stretch border-b hairline bg-ink-900">
+      {/* 44px on touch, which with the tabs' 4px margins makes them 36. */}
+      <div className="flex h-9 shrink-0 items-stretch border-b hairline bg-ink-900 touch:h-11">
         {/* `isolate`, so that a tab's own fill — kept beneath it at negative
             z-index — sits above the bar and below the pill: the pill passes
             under a filled tab on its way and must not vanish behind it. */}
@@ -635,6 +636,7 @@ export function TerminalArea() {
                   // natively (the browser cancels our pointer drag, which
                   // onPointerCancel tidies up); a mouse still reorders tabs.
                   'group relative my-1 flex min-w-0 shrink-0 cursor-default touch-pan-x items-center gap-1.5 rounded-control px-2.5 text-xs select-none',
+                  'touch:px-3 touch:text-[13px]',
                   'transition-[color,opacity] duration-[var(--duration-quick)]',
                   active
                     ? 'text-ink-100'
@@ -690,7 +692,17 @@ export function TerminalArea() {
                       e.stopPropagation()
                       void closeTab(tab.id)
                     }}
-                    className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-100/10 hover:text-ink-100 focus-visible:opacity-100 active:bg-ink-100/15"
+                    className={clsx(
+                      'pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-100/10 hover:text-ink-100 focus-visible:opacity-100 active:bg-ink-100/15',
+                      // Hover reveals it, and a touch screen has no hover: there
+                      // the active tab shows its close outright, as a 28px
+                      // square with a halo to 36, and the other tabs hide
+                      // theirs completely — a transparent button at the end of
+                      // a tab would close it when the tab was meant.
+                      'touch:relative touch:flex touch:h-7 touch:w-7 touch:items-center touch:justify-center touch:p-0',
+                      'touch:before:absolute touch:before:-inset-1',
+                      active ? 'touch:opacity-100' : 'touch:invisible',
+                    )}
                   >
                     <X size={11} />
                   </button>
@@ -706,7 +718,7 @@ export function TerminalArea() {
         </div>
 
         {tabs.length > 0 && (
-          <div className="flex shrink-0 items-center gap-0.5 border-l hairline px-1.5">
+          <div className="flex shrink-0 items-center gap-0.5 border-l hairline px-1.5 touch:gap-3.5 touch:px-2.5">
             {panes.length > 1 && canFlip && (
               <IconButton
                 onClick={() => setSplitAxis(splitAxis === 'cols' ? 'rows' : 'cols')}
@@ -758,7 +770,7 @@ export function TerminalArea() {
       </div>
 
       {tearing && (
-        <div className="pointer-events-none absolute inset-x-0 top-9 z-20 flex justify-center">
+        <div className="pointer-events-none absolute inset-x-0 top-9 z-20 flex justify-center touch:top-11">
           <span className="material animate-rise-in rounded-b-card border border-t-0 border-accent-dim px-3 py-1 text-[11px] text-accent shadow-pop">
             {t('area.releaseToDetach')}
           </span>
@@ -817,22 +829,28 @@ export function TerminalArea() {
                     selects a word. So the zoom is a control of its own, on the
                     pane it acts on, appearing on hover. */}
                 {panes.length > 1 && (shown || filling) && (
-                  <button
-                    onClick={toggleZoom}
-                    title={
-                      zoomed
-                        ? 'Back to the split — ⇧⌘↵, or double-click the tab'
-                        : 'Fill the area with this pane — ⇧⌘↵, or double-click the tab'
-                    }
-                    className={clsx(
-                      iconButtonClass,
-                      'material absolute top-1.5 right-1.5 text-ink-300 opacity-0 shadow-pop',
-                      'transition-opacity duration-[var(--duration-quick)]',
-                      'group-hover/pane:opacity-100 hover:text-ink-100 focus-visible:opacity-100',
-                    )}
-                  >
-                    {zoomed ? <Shrink size={12} /> : <Expand size={12} />}
-                  </button>
+                  // The corner belongs to a wrapper: the button's touch halo
+                  // positions it relative, which an `absolute` of its own
+                  // would lose. And where there is no hover to reveal it, it
+                  // is simply shown.
+                  <span className="absolute top-1.5 right-1.5 flex">
+                    <button
+                      onClick={toggleZoom}
+                      title={
+                        zoomed
+                          ? 'Back to the split — ⇧⌘↵, or double-click the tab'
+                          : 'Fill the area with this pane — ⇧⌘↵, or double-click the tab'
+                      }
+                      className={clsx(
+                        iconButtonClass,
+                        'material text-ink-300 opacity-0 shadow-pop',
+                        'transition-opacity duration-[var(--duration-quick)]',
+                        'group-hover/pane:opacity-100 hover:text-ink-100 focus-visible:opacity-100 touch:opacity-100',
+                      )}
+                    >
+                      {zoomed ? <Shrink size={12} /> : <Expand size={12} />}
+                    </button>
+                  </span>
                 )}
               </div>
             )

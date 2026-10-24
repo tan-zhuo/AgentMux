@@ -204,7 +204,7 @@ export function TitleBar() {
         {loading ? t('title.loading') : (active?.title ?? t('title.tagline'))}
       </span>
 
-      <div className="ml-auto flex items-center gap-0.5">
+      <div className="ml-auto flex items-center gap-0.5 touch:gap-2.5">
         <TitleBarButton
           active={sidebarOpen}
           tip={t('title.toggleSidebar')}
@@ -238,6 +238,8 @@ function TitleBarButton({
         onClick={onClick}
         className={clsx(
           'no-drag-region pressable rounded-control p-1.5 active:bg-ink-750',
+          // 26px drawn; 36px under a finger, through a halo (see touchHalo).
+          'touch:relative touch:before:absolute touch:before:-inset-[5px]',
           active
             ? 'text-ink-200 hover:bg-ink-800'
             : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',

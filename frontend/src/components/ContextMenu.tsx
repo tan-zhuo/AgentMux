@@ -129,12 +129,15 @@ export function ContextMenu() {
       }}
       className={clsx(
         'material fixed z-90 min-w-52 overflow-hidden rounded-card p-1 shadow-pop',
+        // Opened by a long press on a touch screen, and read at arm's length:
+        // the items are 40px there, the type a step larger, the menu wider.
+        'touch:min-w-60 touch:p-1.5',
         exiting ? 'animate-pop-out pointer-events-none' : 'animate-pop-in',
       )}
     >
       {items.map((item, i) =>
         !item.label ? (
-          <div key={`sep-${i}`} className="mx-2 my-1 h-px bg-ink-700/60" />
+          <div key={`sep-${i}`} className="mx-2 my-1 h-px bg-ink-700/60 touch:my-1.5" />
         ) : (
           <button
             key={`${item.label}-${i}`}
@@ -148,6 +151,7 @@ export function ContextMenu() {
             }}
             className={clsx(
               'flex h-[26px] w-full items-center gap-2.5 rounded-[6px] px-2.5 text-left text-xs',
+              'touch:h-10 touch:rounded-[8px] touch:px-3 touch:text-[13px]',
               'transition-colors duration-[var(--duration-quick)]',
               item.disabled && 'cursor-not-allowed text-ink-600',
               // The hovered item fills with the accent and takes white text,
@@ -168,7 +172,7 @@ export function ContextMenu() {
             {item.hint && (
               <span
                 className={clsx(
-                  'shrink-0 text-[10.5px]',
+                  'shrink-0 text-[10.5px] touch:text-xs',
                   cursor === i && !item.disabled ? 'text-white/70' : 'text-ink-600',
                 )}
               >
