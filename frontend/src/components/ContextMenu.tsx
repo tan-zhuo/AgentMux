@@ -148,7 +148,7 @@ export function ContextMenu() {
             }}
             className={clsx(
               'flex h-[26px] w-full items-center gap-2.5 rounded-[6px] px-2.5 text-left text-xs',
-              'transition-colors duration-75',
+              'transition-colors duration-[var(--duration-quick)]',
               item.disabled && 'cursor-not-allowed text-ink-600',
               // The hovered item fills with the accent and takes white text,
               // the way a highlighted menu item does on macOS. A tinted

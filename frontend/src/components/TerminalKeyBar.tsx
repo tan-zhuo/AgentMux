@@ -248,7 +248,7 @@ function KeyButton({
       // key press must not become a text selection or a magnifier.
       className={clsx(
         'h-9 shrink-0 rounded-control font-mono text-[12.5px] leading-none select-none',
-        'touch-manipulation transition-[background-color] duration-75',
+        'touch-manipulation transition-[background-color] duration-[var(--duration-quick)]',
         cap.wide
           ? 'min-w-[2.625rem] px-1'
           : cap.narrow

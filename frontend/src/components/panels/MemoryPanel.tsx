@@ -222,7 +222,7 @@ export function MemoryPanel() {
           </div>
           <div className="mt-1.5 h-1 overflow-hidden rounded-capsule bg-ink-800">
             <div
-              className="h-full bg-accent transition-[width] duration-300"
+              className="h-full bg-accent transition-[width] duration-[var(--duration-slow)]"
               style={{
                 width: `${reindex.total ? Math.round((reindex.done / reindex.total) * 100) : 0}%`,
               }}

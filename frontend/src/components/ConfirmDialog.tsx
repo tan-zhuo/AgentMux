@@ -89,7 +89,8 @@ export function ConfirmDialog() {
     <div
       className={clsx(
         'fixed inset-0 z-80 flex items-center justify-center bg-black/50 p-10 backdrop-blur-[3px]',
-        exiting ? 'animate-fade-out' : 'animate-fade-in',
+        // Inert while it fades, or the click after an answer is swallowed.
+        exiting ? 'animate-fade-out pointer-events-none' : 'animate-fade-in',
       )}
       onClick={() => !exiting && settle(false)}
       role="presentation"

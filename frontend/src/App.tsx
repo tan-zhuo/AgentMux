@@ -218,14 +218,17 @@ export default function App() {
                 aria-label="Close sidebar"
                 className={clsx(
                   'absolute inset-0 z-30 bg-black/45',
-                  side.exiting ? 'animate-fade-out' : 'animate-fade-in',
+                  // Inert on the way out, scrim and drawer both: the scrim
+                  // toggles the drawer, so a tap during its fade would bring
+                  // back what the previous tap had just closed.
+                  side.exiting ? 'animate-fade-out pointer-events-none' : 'animate-fade-in',
                 )}
                 onClick={toggleSidebar}
               />
               <div
                 className={clsx(
                   'material-bar absolute inset-y-0 left-0 z-40 w-[min(320px,85vw)] border-r hairline shadow-2xl',
-                  side.exiting ? 'animate-drawer-out' : 'animate-drawer-in',
+                  side.exiting ? 'animate-drawer-out pointer-events-none' : 'animate-drawer-in',
                 )}
               >
                 <Sidebar />
@@ -271,14 +274,14 @@ export default function App() {
                 aria-label="Close panel"
                 className={clsx(
                   'absolute inset-0 z-30 bg-black/45',
-                  right.exiting ? 'animate-fade-out' : 'animate-fade-in',
+                  right.exiting ? 'animate-fade-out pointer-events-none' : 'animate-fade-in',
                 )}
                 onClick={toggleRight}
               />
               <div
                 className={clsx(
                   'material-bar absolute inset-y-0 right-0 z-40 w-[min(360px,92vw)] border-l hairline shadow-2xl',
-                  right.exiting ? 'animate-drawer-out-right' : 'animate-drawer-in-right',
+                  right.exiting ? 'animate-drawer-out-right pointer-events-none' : 'animate-drawer-in-right',
                 )}
               >
                 <RightPanel />

@@ -57,7 +57,7 @@ function TrafficLight({
       <svg
         viewBox="0 0 12 12"
         className={clsx(
-          'absolute inset-0 h-3 w-3 transition-opacity duration-100',
+          'absolute inset-0 h-3 w-3 transition-opacity duration-[var(--duration-quick)]',
           hovered && !inactive ? 'opacity-100' : 'opacity-0',
         )}
         aria-hidden

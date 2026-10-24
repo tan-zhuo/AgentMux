@@ -266,7 +266,7 @@ function UpdateBannerInner() {
             style={{ background: 'color-mix(in oklab, var(--color-accent) 18%, transparent)' }}
           >
             <div
-              className="h-full rounded-capsule bg-accent transition-[width] duration-300"
+              className="h-full rounded-capsule bg-accent transition-[width] duration-[var(--duration-slow)]"
               style={{ width: `${phase === 'download' || !phase ? pct : 100}%` }}
             />
           </div>

@@ -621,8 +621,13 @@ export function TerminalArea() {
                     )}
                   />
                 )}
+                {/* Still opening: the ring breathes, as a live status dot's
+                    does, rather than blinking. */}
                 {tab.status === 'opening' && (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-capsule bg-warn" />
+                  <span className="relative inline-flex h-1.5 w-1.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-breathe rounded-capsule bg-warn" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-capsule bg-warn" />
+                  </span>
                 )}
                 {(tab.status === 'closed' || tab.status === 'error') && (
                   <span className="h-1.5 w-1.5 rounded-capsule bg-ink-600" />

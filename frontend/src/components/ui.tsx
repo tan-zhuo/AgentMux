@@ -199,7 +199,7 @@ export function Switch({
           className={clsx(
             'absolute top-[2px] h-[18px] w-[18px] rounded-capsule bg-white shadow-knob',
             'transition-[left,width,transform] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
-            'group-active/switch:w-[22px] group-active/switch:duration-100',
+            'group-active/switch:w-[22px] group-active/switch:duration-[var(--duration-quick)]',
             checked ? 'left-[18px] group-active/switch:left-[14px]' : 'left-[2px]',
           )}
         />
@@ -317,7 +317,10 @@ export function Modal({
     <div
       className={clsx(
         'fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 backdrop-blur-[3px] sm:p-10',
-        exiting ? 'animate-fade-out' : 'animate-fade-in',
+        // The scrim is held for the fade along with the sheet, and a held
+        // scrim still covers the window. Without this the first click after
+        // a dismissal lands on it and goes nowhere.
+        exiting ? 'animate-fade-out pointer-events-none' : 'animate-fade-in',
       )}
     >
       <div

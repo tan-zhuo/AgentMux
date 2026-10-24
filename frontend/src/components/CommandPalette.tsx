@@ -351,7 +351,9 @@ export function CommandPalette() {
     <div
       className={clsx(
         'fixed inset-0 z-60 flex items-start justify-center bg-black/40 p-3 pt-10 backdrop-blur-[3px] sm:p-24',
-        exiting ? 'animate-fade-out' : 'animate-fade-in',
+        // Inert while it fades, like the sheet below: Escape and then a click
+        // on the status bar should reach the status bar.
+        exiting ? 'animate-fade-out pointer-events-none' : 'animate-fade-in',
       )}
       onClick={() => setOpen(false)}
     >
@@ -439,7 +441,7 @@ export function CommandPalette() {
                     // tinting it, which is what makes the selection legible at a
                     // glance while the list is scrolling under the keyboard.
                     'flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-xs',
-                    'transition-colors duration-75',
+                    'transition-colors duration-[var(--duration-quick)]',
                     i === cursor ? 'bg-accent text-white' : 'text-ink-200',
                   )}
                 >
