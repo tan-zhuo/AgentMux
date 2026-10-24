@@ -84,9 +84,9 @@ const emptySnapshot: Snapshot = {
   agents: [],
 }
 
-/** Pane width limits. The maxima leave room for a usable terminal even on a
- *  small window; the exact figure is re-clamped against the real window width
- *  while dragging. */
+/** Pane width limits, for the widths as stored. What a panel is actually given
+ *  on a particular window — and how far its splitter will go — is decided by
+ *  the fit in lib/panes.ts, which keeps room for a usable terminal. */
 export const SIDEBAR_DEFAULT = 288
 export const SIDEBAR_MIN = 200
 export const SIDEBAR_MAX = 620

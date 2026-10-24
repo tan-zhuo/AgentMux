@@ -17,18 +17,11 @@ import { Toasts } from './components/Toasts'
 import { UpdateBanner } from './components/UpdateBanner'
 import { on } from './lib/api'
 import { STREAM_RESUMED } from './lib/webTransport'
-import { useCompact, useKeyboardInset, useTouchDevice } from './lib/useCompact'
+import { useCompact, useKeyboardInset, useMedium, useTouchDevice, useViewportResizing } from './lib/useCompact'
 import { usePresence } from './lib/motion'
+import { useFittedPanes } from './lib/panes'
 import type { Agent, ConnState } from './lib/types'
-import {
-  RIGHT_DEFAULT,
-  RIGHT_MAX,
-  RIGHT_MIN,
-  SIDEBAR_DEFAULT,
-  SIDEBAR_MAX,
-  SIDEBAR_MIN,
-  useAppStore,
-} from './store/useAppStore'
+import { RIGHT_DEFAULT, RIGHT_MIN, SIDEBAR_DEFAULT, SIDEBAR_MIN, useAppStore } from './store/useAppStore'
 import { useI18n } from './store/useI18n'
 import { useTermKeys } from './store/useTermKeys'
 import { useTheme } from './store/useTheme'
@@ -52,20 +45,35 @@ export default function App() {
   const activeKind = useAppStore((s) => s.tabs.find((tb) => tb.id === s.activeTabId)?.kind)
   const initTermKeys = useTermKeys((s) => s.init)
   const compact = useCompact()
+  const medium = useMedium()
   const touch = useTouchDevice()
   const keyboardInset = useKeyboardInset()
 
   // Each side panel is held through its exit so it can slide shut rather than
   // vanish, and the width transition is switched off while its splitter is
   // being dragged — a transition on a value the pointer is driving makes the
-  // seam trail the hand.
+  // seam trail the hand. The window edge drives it too, while the window is
+  // being resized and the panels re-fitted to it.
   const side = usePresence(sidebarOpen ? true : null, 300)
   const right = usePresence(rightOpen ? true : null, 300)
   const [resizing, setResizing] = useState(false)
+  const windowResizing = useViewportResizing()
   // Nor while the persisted widths are still being read: a width that lands
   // from the store should be where the panel starts, not somewhere it slides to.
   const loading = useAppStore((s) => s.loading)
-  const animateWidth = !resizing && !loading
+  const animateWidth = !resizing && !windowResizing && !loading
+
+  // Where each panel goes. Below 768px neither can dock, so both ride over the
+  // terminal as drawers; up to 1023px — a tablet held upright — the tree docks
+  // and the panel floats; from 1024px both dock. A docked panel gets its stored
+  // width where the window has room for it beside a usable terminal, and a
+  // narrower one where it has not: widths chosen on a monitor would otherwise
+  // squeeze a tablet's terminal down to a word a line. A panel fitted to null
+  // has no dock at all and floats.
+  const fit = useFittedPanes(
+    !compact && side.value ? sidebarWidth : null,
+    !compact && !medium && right.value ? rightWidth : null,
+  )
 
   // The key bar belongs to a terminal. A file browser or an editor has its own
   // controls, and Esc into either of them means nothing.
@@ -80,6 +88,15 @@ export default function App() {
     // Only on entering compact — the user may reopen them afterwards.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compact])
+
+  // Likewise a tablet held upright starts with the tree and the terminal, not
+  // with the panel it has no room to dock lying over the terminal. It comes
+  // back as a drawer when asked for.
+  useEffect(() => {
+    if (!medium) return
+    const s = useAppStore.getState()
+    if (s.rightOpen) s.toggleRight()
+  }, [medium])
 
   // Picking a tab from the drawer means "show me that", so the drawer yields.
   useEffect(() => {
@@ -209,7 +226,7 @@ export default function App() {
 
       <div className="relative flex min-h-0 flex-1">
         {side.value &&
-          (compact ? (
+          (fit.side == null ? (
             // On a phone there is no room to dock three columns, so the tree
             // rides over the terminal as a drawer; picking something closes it.
             <>
@@ -237,7 +254,7 @@ export default function App() {
           ) : (
             <>
               <div
-                style={{ width: side.exiting ? 0 : sidebarWidth }}
+                style={{ width: side.exiting ? 0 : fit.side }}
                 className={clsx(
                   'relative shrink-0 overflow-hidden',
                   animateWidth && 'transition-[width] duration-[var(--duration-base)] ease-[var(--ease-out)]',
@@ -247,16 +264,16 @@ export default function App() {
                 {/* Pinned to its full width inside the clipping wrapper, so the
                     tree slides behind the seam rather than squashing as the
                     panel closes. */}
-                <div style={{ width: sidebarWidth }} className="absolute inset-y-0 right-0">
+                <div style={{ width: fit.side }} className="absolute inset-y-0 right-0">
                   <Sidebar />
                 </div>
               </div>
               {!side.exiting && (
                 <Splitter
                   label="Sidebar width"
-                  value={sidebarWidth}
+                  value={fit.side}
                   min={SIDEBAR_MIN}
-                  max={SIDEBAR_MAX}
+                  max={fit.sideMax}
                   resetTo={SIDEBAR_DEFAULT}
                   onChange={(w) => setSidebarWidth(w)}
                   onCommit={(w) => setSidebarWidth(w, true)}
@@ -267,7 +284,9 @@ export default function App() {
           ))}
         <TerminalArea />
         {right.value &&
-          (compact ? (
+          (fit.right == null ? (
+            // Without a dock — a phone, a tablet upright, or a window with no
+            // room for it beside the tree — the panel floats the same way.
             <>
               <button
                 type="button"
@@ -292,9 +311,9 @@ export default function App() {
               {!right.exiting && (
                 <Splitter
                   label="Panel width"
-                  value={rightWidth}
+                  value={fit.right}
                   min={RIGHT_MIN}
-                  max={RIGHT_MAX}
+                  max={fit.rightMax}
                   resetTo={RIGHT_DEFAULT}
                   invert
                   onChange={(w) => setRightWidth(w)}
@@ -303,14 +322,14 @@ export default function App() {
                 />
               )}
               <div
-                style={{ width: right.exiting ? 0 : rightWidth }}
+                style={{ width: right.exiting ? 0 : fit.right }}
                 className={clsx(
                   'relative shrink-0 overflow-hidden',
                   animateWidth && 'transition-[width] duration-[var(--duration-base)] ease-[var(--ease-out)]',
                   !right.exiting && 'animate-reveal-right',
                 )}
               >
-                <div style={{ width: rightWidth }} className="absolute inset-y-0 left-0">
+                <div style={{ width: fit.right }} className="absolute inset-y-0 left-0">
                   <RightPanel />
                 </div>
               </div>

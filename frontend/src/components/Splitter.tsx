@@ -36,12 +36,10 @@ export function Splitter({
   const [dragging, setDragging] = useState(false)
   const start = useRef({ x: 0, value: 0, latest: 0 })
 
-  const clamp = (v: number) => {
-    // Re-clamped against the live window so a pane can never squeeze the
-    // terminal out of existence on a small display.
-    const roomy = Math.max(min, Math.min(max, window.innerWidth - 420))
-    return Math.round(Math.max(min, Math.min(roomy, v)))
-  }
+  // `max` comes from the parent already fitted to the window and to whatever
+  // else is docked in it, so a pane can never squeeze the terminal out of
+  // existence on a small display.
+  const clamp = (v: number) => Math.round(Math.max(min, Math.min(max, v)))
 
   return (
     <div
