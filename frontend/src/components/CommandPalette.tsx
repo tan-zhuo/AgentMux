@@ -408,7 +408,7 @@ export function CommandPalette() {
                 setCursor(0)
               }}
               aria-label={t('tree.clear')}
-              className="pressable flex h-4 w-4 items-center justify-center rounded-capsule bg-ink-600 text-ink-900 hover:bg-ink-500"
+              className="pressable flex h-4 w-4 items-center justify-center rounded-capsule bg-ink-600 text-ink-900 hover:bg-ink-500 touch:relative touch:before:absolute touch:before:-inset-2.5"
             >
               <X size={10} strokeWidth={3} />
             </button>
@@ -441,13 +441,16 @@ export function CommandPalette() {
                     // tinting it, which is what makes the selection legible at a
                     // glance while the list is scrolling under the keyboard.
                     'flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-xs',
+                    // A list row for a finger: 44px, with the type and the
+                    // glyph tile a step larger so the row does not look empty.
+                    'touch:h-11 touch:rounded-[10px] touch:text-[13px]',
                     'transition-colors duration-[var(--duration-quick)]',
                     i === cursor ? 'bg-accent text-white' : 'text-ink-200',
                   )}
                 >
                   <span
                     className={clsx(
-                      'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px]',
+                      'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] touch:h-7 touch:w-7',
                       i === cursor ? 'bg-white/18 text-white' : 'bg-ink-800 text-ink-400',
                     )}
                   >
@@ -457,7 +460,7 @@ export function CommandPalette() {
                   {c.hint && (
                     <span
                       className={clsx(
-                        'min-w-0 flex-1 truncate text-[11px]',
+                        'min-w-0 flex-1 truncate text-[11px] touch:text-xs',
                         i === cursor ? 'text-white/70' : 'text-ink-500',
                       )}
                     >

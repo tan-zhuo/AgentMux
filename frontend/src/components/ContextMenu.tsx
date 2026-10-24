@@ -1,7 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePresence } from '../lib/motion'
-import { useTouchDevice } from '../lib/useCompact'
 import { useContextMenu, type MenuItem } from '../store/useContextMenu'
 
 /**
@@ -50,8 +49,6 @@ export function ContextMenu() {
   const hide = useContextMenu((s) => s.hide)
   const items = useMemo(() => tidy(raw), [raw])
   // A finger needs more to aim at than a pointer does. Apple asks for 44pt;
-  // 40px keeps a long menu on a phone screen and is still an easy target.
-  const touch = useTouchDevice()
 
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ left: x, top: y })
@@ -132,14 +129,16 @@ export function ContextMenu() {
         transformOrigin: `${x > pos.left + 4 ? 'right' : 'left'} ${y > pos.top + 4 ? 'bottom' : 'top'}`,
       }}
       className={clsx(
-        'material fixed z-90 overflow-hidden rounded-card p-1 shadow-pop',
-        touch ? 'min-w-60' : 'min-w-52',
+        'material fixed z-90 min-w-52 overflow-hidden rounded-card p-1 shadow-pop',
+        // Opened by a long press on a touch screen, and read at arm's length:
+        // the items are 40px there, the type a step larger, the menu wider.
+        'touch:min-w-60 touch:p-1.5',
         exiting ? 'animate-pop-out pointer-events-none' : 'animate-pop-in',
       )}
     >
       {items.map((item, i) =>
         !item.label ? (
-          <div key={`sep-${i}`} className="mx-2 my-1 h-px bg-ink-700/60" />
+          <div key={`sep-${i}`} className="mx-2 my-1 h-px bg-ink-700/60 touch:my-1.5" />
         ) : (
           <button
             key={`${item.label}-${i}`}
@@ -152,8 +151,8 @@ export function ContextMenu() {
               void item.onSelect?.()
             }}
             className={clsx(
-              'flex w-full items-center gap-2.5 rounded-[6px] text-left',
-              touch ? 'h-10 px-3 text-[13px]' : 'h-[26px] px-2.5 text-xs',
+              'flex h-[26px] w-full items-center gap-2.5 rounded-[6px] px-2.5 text-left text-xs',
+              'touch:h-10 touch:rounded-[8px] touch:px-3 touch:text-[13px]',
               'transition-colors duration-[var(--duration-quick)]',
               item.disabled && 'cursor-not-allowed text-ink-600',
               // The hovered item fills with the accent and takes white text,
@@ -174,7 +173,7 @@ export function ContextMenu() {
             {item.hint && (
               <span
                 className={clsx(
-                  'shrink-0 text-[10.5px]',
+                  'shrink-0 text-[10.5px] touch:text-xs',
                   cursor === i && !item.disabled ? 'text-white/70' : 'text-ink-600',
                 )}
               >

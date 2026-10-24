@@ -201,7 +201,8 @@ export function RightPanel() {
 
   return (
     <div className="flex h-full w-full flex-col border-l hairline bg-ink-900">
-      <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1">
+      {/* 44px on touch, which with the tabs' 4px margins makes them 36. */}
+      <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1 touch:h-11">
         {/* The strip scrolls rather than squeezing: five tabs do not fit a
             narrow panel, and shrinking them to fit makes every label unreadable
             instead of just the ones off-screen. touch-pan-x: a finger dragged
@@ -236,6 +237,7 @@ export function RightPanel() {
                   onClick={() => setPanel(tab.id)}
                   className={clsx(
                     'relative z-10 my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
+                    'touch:my-1 touch:px-3 touch:text-xs',
                     'text-[11px] font-medium whitespace-nowrap transition-colors duration-[var(--duration-quick)]',
                     'active:scale-[0.97]',
                     active ? 'text-ink-100' : 'text-ink-400 hover:bg-ink-800/70 hover:text-ink-200',
@@ -260,7 +262,7 @@ export function RightPanel() {
         <button
           onClick={toggleRight}
           title={t('panel.collapse')}
-          className="shrink-0 border-l hairline px-2 text-ink-500 transition-colors duration-[var(--duration-quick)] hover:text-ink-100"
+          className="shrink-0 border-l hairline px-2 text-ink-500 transition-colors duration-[var(--duration-quick)] hover:text-ink-100 touch:px-3"
         >
           <PanelRightClose size={14} />
         </button>
@@ -356,7 +358,7 @@ function DetailRouter() {
             <button
               key={a.id}
               onClick={() => useAppStore.getState().select({ kind: 'agent', id: a.id })}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850 touch:py-3 touch:text-xs"
             >
               <Bot size={12} className="text-ink-500" />
               <span className="min-w-0 flex-1 truncate text-ink-200">{a.name}</span>
@@ -420,7 +422,7 @@ function DetailRouter() {
               <button
                 key={w.id}
                 onClick={() => useAppStore.getState().select({ kind: 'workspace', id: w.id })}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850 touch:py-3 touch:text-xs"
               >
                 <span className="min-w-0 flex-1 truncate text-ink-200">{w.name}</span>
                 <span className="truncate text-ink-600">{server?.name ?? t('common.none')}</span>

@@ -417,7 +417,10 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   return (
     <div className="flex h-full w-full flex-col bg-ink-950">
       {/* Path + actions */}
-      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5">
+      {/* The buttons here keep their size on touch and gain halos, which need
+          the gap to open a little so a halo does not reach the next button;
+          the crumbs, being plain text, simply grow to the touch height. */}
+      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5 touch:gap-2.5">
         <Button
           size="sm"
           variant="subtle"
@@ -441,7 +444,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
               {i > 0 && <ChevronRight size={11} className="text-ink-600" />}
               <button
                 onClick={() => void load(c.path)}
-                className="flex h-[22px] items-center rounded-control px-1.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                className="flex h-[22px] items-center rounded-control px-1.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100 touch:h-9 touch:px-2.5 touch:text-xs"
               >
                 {c.label}
               </button>
@@ -574,14 +577,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           path: h.path,
                         } as FileEntry)
                   }
-                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900"
+                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900 touch:py-3"
                 >
                   {h.dir ? (
                     <Folder size={13} className="shrink-0 text-accent" />
                   ) : (
                     <FileIcon size={13} className="shrink-0 text-ink-500" />
                   )}
-                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200">{rel}</span>
+                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200 touch:text-xs">{rel}</span>
                 </button>
               )
             })}
@@ -600,7 +603,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         // Below the compact width the date and mode columns go, and the table lays
         // out fixed, so a long name is cut short instead of pushing the end of the
         // row, more button and all, off the screen.
-        <table className="w-full table-fixed text-xs md:table-auto">
+        <table className="w-full table-fixed text-xs md:table-auto touch:text-[13px]">
           <tbody>
             {shown.map((e) => {
               const isDir = e.isDir || e.targetIsDir
@@ -694,7 +697,9 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                   onDoubleClick={() => (isDir ? void load(e.path) : openEditor(e))}
                   onContextMenu={openRowMenu}
                   className={clsx(
-                    'group cursor-default border-b hairline',
+                    // On a table row a height is a floor, which is all a
+                    // finger needs of it.
+                    'group cursor-default border-b hairline touch:h-10',
                     // Finder fills the selected row and turns everything in it
                     // white. The cells carry their own greys, so they are
                     // overridden by descendant rules rather than by hoping each
