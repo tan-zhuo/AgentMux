@@ -395,7 +395,7 @@ function Check({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-3 w-3 shrink-0 accent-[#4c8dff]"
+        className="mt-0.5 h-3 w-3 shrink-0 accent-accent"
       />
       <span className="min-w-0">
         <span className="block text-[11px] text-ink-200">{label}</span>

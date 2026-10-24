@@ -12,6 +12,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSlidingPill } from '../lib/motion'
 import { on, orch as orchApi, skills as skillApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
@@ -86,7 +87,6 @@ export function RightPanel() {
   const setPanel = useAppStore((s) => s.setRightPanel)
   const toggleRight = useAppStore((s) => s.toggleRight)
   const targets = useAppStore((s) => s.broadcastTargets)
-  const width = useAppStore((s) => s.rightWidth)
   // Agents waiting on a human. A number, so the store only re-renders this
   // component when the count itself moves, not on every status poll.
   const attention = useAppStore((s) =>
@@ -95,6 +95,7 @@ export function RightPanel() {
 
   const stripRef = useRef<HTMLDivElement | null>(null)
   const activeRef = useRef<HTMLButtonElement | null>(null)
+  const pill = useSlidingPill(stripRef, panel)
   const [overflow, setOverflow] = useState({ left: false, right: false })
   const [drafts, setDrafts] = useState(0)
   const [pending, setPending] = useState(0)
@@ -168,10 +169,18 @@ export function RightPanel() {
     }
   }, [syncOverflow])
 
-  // Re-check when the panel is resized or the badge changes the strip's width.
+  // Re-check whenever the strip or anything in it changes size: the panel
+  // resized, a badge landing on a tab, a language with longer labels, a phone
+  // turned on its side. As a drawer on a phone the strip's width is not the
+  // panel-width setting, so the width itself is watched rather than the setting.
   useEffect(() => {
-    syncOverflow()
-  }, [width, targets.length, syncOverflow])
+    const el = stripRef.current
+    if (!el) return
+    const ro = new ResizeObserver(syncOverflow)
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => ro.disconnect()
+  }, [syncOverflow])
 
   // Selecting a tab that is scrolled out of view should bring it into view.
   useEffect(() => {
@@ -192,12 +201,31 @@ export function RightPanel() {
 
   return (
     <div className="flex h-full w-full flex-col border-l hairline bg-ink-900">
-      <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1">
+      {/* 44px on touch, which with the tabs' 4px margins makes them 36. */}
+      <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1 touch:h-11">
         {/* The strip scrolls rather than squeezing: five tabs do not fit a
             narrow panel, and shrinking them to fit makes every label unreadable
-            instead of just the ones off-screen. */}
+            instead of just the ones off-screen. touch-pan-x: a finger dragged
+            along it scrolls it, and nothing behind it. */}
         <div className="relative min-w-0 flex-1">
-          <div ref={stripRef} className="no-scrollbar flex h-full items-stretch gap-0.5 overflow-x-auto">
+          <div
+            ref={stripRef}
+            className="no-scrollbar relative flex h-full touch-pan-x items-stretch gap-0.5 overflow-x-auto"
+          >
+            {/* A raised pill rather than an underline. Underlined tabs are a
+                web convention; on Apple's platforms selection in a strip like
+                this is shown by lifting the chosen one — and the lift slides
+                to the new tab rather than reappearing there. */}
+            <span
+              aria-hidden
+              style={pill.style}
+              className={clsx(
+                'pointer-events-none absolute top-0 left-0 rounded-control bg-raised shadow-sm',
+                'inset-shadow-[0_1px_0_rgb(255_255_255/0.08)]',
+                pill.ready &&
+                  'transition-[transform,width] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
+              )}
+            />
             {tabs.map((tab) => {
               const Icon = tab.icon
               const active = panel === tab.id
@@ -205,16 +233,14 @@ export function RightPanel() {
                 <button
                   key={tab.id}
                   ref={active ? activeRef : undefined}
+                  data-pill-key={tab.id}
                   onClick={() => setPanel(tab.id)}
                   className={clsx(
-                    // A raised pill rather than an underline. Underlined tabs
-                    // are a web convention; on Apple's platforms selection in a
-                    // strip like this is shown by lifting the chosen one.
-                    'my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
-                    'text-[11px] font-medium whitespace-nowrap transition-colors duration-100',
-                    active
-                      ? 'bg-raised text-ink-100 shadow-sm'
-                      : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
+                    'relative z-10 my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
+                    'touch:my-1 touch:px-3 touch:text-xs',
+                    'text-[11px] font-medium whitespace-nowrap transition-colors duration-[var(--duration-quick)]',
+                    'active:scale-[0.97]',
+                    active ? 'text-ink-100' : 'text-ink-400 hover:bg-ink-800/70 hover:text-ink-200',
                   )}
                 >
                   <Icon size={12} />
@@ -236,13 +262,15 @@ export function RightPanel() {
         <button
           onClick={toggleRight}
           title={t('panel.collapse')}
-          className="shrink-0 border-l hairline px-2 text-ink-500 hover:text-ink-100"
+          className="shrink-0 border-l hairline px-2 text-ink-500 transition-colors duration-[var(--duration-quick)] hover:text-ink-100 touch:px-3"
         >
           <PanelRightClose size={14} />
         </button>
       </div>
 
-      <div className="min-h-0 flex-1">
+      {/* Keyed on the panel so a switch remounts the body with a short rise,
+          which is the cue that the content changed and not just the tab. */}
+      <div key={panel} className="min-h-0 flex-1 animate-rise-in">
         {panel === 'broadcast' && <BroadcastPanel />}
         {panel === 'metrics' && <ForServer render={(id) => <MetricsPanel serverId={id} />} />}
         {panel === 'tmux' && <ForServer render={(id) => <TmuxPanel serverId={id} />} />}
@@ -330,7 +358,7 @@ function DetailRouter() {
             <button
               key={a.id}
               onClick={() => useAppStore.getState().select({ kind: 'agent', id: a.id })}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850 touch:py-3 touch:text-xs"
             >
               <Bot size={12} className="text-ink-500" />
               <span className="min-w-0 flex-1 truncate text-ink-200">{a.name}</span>
@@ -394,7 +422,7 @@ function DetailRouter() {
               <button
                 key={w.id}
                 onClick={() => useAppStore.getState().select({ kind: 'workspace', id: w.id })}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-ink-850 touch:py-3 touch:text-xs"
               >
                 <span className="min-w-0 flex-1 truncate text-ink-200">{w.name}</span>
                 <span className="truncate text-ink-600">{server?.name ?? t('common.none')}</span>

@@ -15,6 +15,7 @@ export const en = {
   'common.refresh': 'Refresh',
   'common.loading': 'Loading…',
   'common.none': '—',
+  'common.more': 'More',
 
   'nav.tree': 'Tree',
   'nav.palette': 'Commands',
@@ -388,6 +389,13 @@ export const en = {
   'palette.attach': 'Attach {name}',
   'palette.start': 'Start {name}',
   'palette.goto': 'Go to {name}',
+  'palette.section.actions': 'Actions',
+  'palette.section.themes': 'Themes',
+  'palette.section.hosts': 'Hosts',
+  'palette.section.agents': 'Agents',
+  'palette.hint.navigate': 'navigate',
+  'palette.hint.open': 'open',
+  'palette.hint.close': 'close',
   'toast.paneLimit': '{n} panes is the limit — close one before adding another',
 
   'split.placeholder': 'A host, a workspace, an agent, or a tab already open',
@@ -853,6 +861,15 @@ export const en = {
   'term.select.hint': 'Drag to select, then copy',
   'term.select.empty': 'Nothing selected yet — drag across the text first',
   'term.select.done': 'Leave select mode',
+  // The text view: the terminal's rows in a sheet where the phone's own
+  // selection, copy and share work.
+  'term.textView': 'Text view',
+  'term.textView.menu': 'View as text…',
+  'term.text.screen': 'Visible screen',
+  'term.text.history': 'All history',
+  'term.text.copyAll': 'Copy all',
+  'term.text.share': 'Share',
+  'term.text.empty': 'Nothing here yet',
 
   // The on-screen key bar: what a software keyboard does not have.
   'keys.show': 'Show the terminal keys',

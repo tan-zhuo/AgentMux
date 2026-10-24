@@ -7,6 +7,7 @@ import {
   ClipboardCopy,
   CornerUpLeft,
   Download,
+  Ellipsis,
   File as FileIcon,
   FileCode2,
   Folder,
@@ -27,9 +28,10 @@ import { errText, files as filesApi, on, tree as treeApi, windows as windowsApi 
 import { copyText } from '../lib/clipboard'
 import type { MsgKey, TFunc } from '../lib/i18n'
 import type { FileEntry, Listing, SearchHit, Transfer } from '../lib/types'
+import { useTouchDevice } from '../lib/useCompact'
 import { useAppStore, type Tab } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
-import { openContextMenu, separator } from '../store/useContextMenu'
+import { anchorBelow, openContextMenu, separator, type MenuAnchor } from '../store/useContextMenu'
 import { useFmt, useT } from '../store/useI18n'
 import { AgentPicker, LaunchHere } from './LaunchHere'
 import { Button, Empty, iconButtonClass, inputClass } from './ui'
@@ -84,6 +86,9 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   const setTabState = useAppStore((s) => s.setTabState)
   const t = useT()
   const fmt = useFmt()
+  // The row buttons show on hover, which a finger cannot do; on a touch screen
+  // each row has one button that opens its menu instead.
+  const touch = useTouchDevice()
 
   const [listing, setListing] = useState<Listing | null>(null)
   const [cwd, setCwd] = useState(tab.command ?? '')
@@ -412,11 +417,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
   return (
     <div className="flex h-full w-full flex-col bg-ink-950">
       {/* Path + actions */}
-      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5">
+      {/* The buttons here keep their size on touch and gain halos, which need
+          the gap to open a little so a halo does not reach the next button;
+          the crumbs, being plain text, simply grow to the touch height. */}
+      <div className="flex items-center gap-1.5 border-b hairline bg-ink-900 px-2.5 py-1.5 touch:gap-2.5">
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.home')}
+          tip={t('files.home')}
           onClick={() => void load('')}
         >
           <Home size={12} />
@@ -424,7 +432,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.up')}
+          tip={t('files.up')}
           disabled={!listing?.parent}
           onClick={() => listing?.parent && void load(listing.parent)}
         >
@@ -436,7 +444,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
               {i > 0 && <ChevronRight size={11} className="text-ink-600" />}
               <button
                 onClick={() => void load(c.path)}
-                className="flex h-[22px] items-center rounded-control px-1.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                className="flex h-[22px] items-center rounded-control px-1.5 font-mono text-[11px] text-ink-300 hover:bg-ink-800 hover:text-ink-100 touch:h-9 touch:px-2.5 touch:text-xs"
               >
                 {c.label}
               </button>
@@ -446,25 +454,25 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.search')}
+          tip={t('files.search')}
           onClick={() => (query === null ? setQuery('') : closeSearch())}
         >
           <Search size={12} className={query !== null ? 'text-accent' : undefined} />
         </Button>
-        <Button size="sm" variant="subtle" title={t('files.newFolder')} onClick={() => setNewDir('')}>
+        <Button size="sm" variant="subtle" tip={t('files.newFolder')} onClick={() => setNewDir('')}>
           <FolderPlus size={12} />
         </Button>
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.addAsProject.title', {
+          tip={t('files.addAsProject.title', {
             name: cwd.split('/').filter(Boolean).pop() || cwd,
           })}
           onClick={() => void addAsProject(cwd)}
         >
           <Boxes size={12} />
         </Button>
-        <Button size="sm" variant="subtle" title={t('common.refresh')} onClick={() => void load(cwd)} disabled={loading}>
+        <Button size="sm" variant="subtle" tip={t('common.refresh')} onClick={() => void load(cwd)} disabled={loading}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : undefined} />
         </Button>
         {!isLocalHost && (
@@ -500,7 +508,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
           >
             {deep?.busy ? t('files.search.searching') : t('files.search.deep')}
           </Button>
-          <Button size="sm" title={t('common.close')} onClick={closeSearch}>
+          <Button size="sm" tip={t('common.close')} onClick={closeSearch}>
             <X size={11} />
           </Button>
         </div>
@@ -569,14 +577,14 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                           path: h.path,
                         } as FileEntry)
                   }
-                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900"
+                  className="flex w-full items-center gap-2 border-b hairline px-3 py-1.5 text-left hover:bg-ink-900 touch:py-3"
                 >
                   {h.dir ? (
                     <Folder size={13} className="shrink-0 text-accent" />
                   ) : (
                     <FileIcon size={13} className="shrink-0 text-ink-500" />
                   )}
-                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200">{rel}</span>
+                  <span className="min-w-0 truncate font-mono text-[11px] text-ink-200 touch:text-xs">{rel}</span>
                 </button>
               )
             })}
@@ -592,98 +600,106 @@ export function FileBrowser({ tab }: { tab: Tab }) {
           <Empty title={t('files.search.noMatch', { q: query ?? '' })} hint={t('files.search.noMatch.hint')} />
         )}
         {!deep && (
-        <table className="w-full text-xs">
+        // Below the compact width the date and mode columns go, and the table lays
+        // out fixed, so a long name is cut short instead of pushing the end of the
+        // row, more button and all, off the screen.
+        <table className="w-full table-fixed text-xs md:table-auto touch:text-[13px]">
           <tbody>
             {shown.map((e) => {
               const isDir = e.isDir || e.targetIsDir
+              // The row's menu: by right-click, or on a touch screen from the
+              // more button at the end of the row.
+              const openRowMenu = (ev: MenuAnchor) => {
+                setSelected(e.path)
+                // Where the menu was opened, so anything it opens in turn
+                // appears in the same place rather than jumping.
+                const at = { x: ev.clientX, y: ev.clientY }
+                openContextMenu(ev, [
+                  isDir
+                    ? {
+                        label: t('files.menu.open'),
+                        icon: Folder,
+                        onSelect: () => void load(e.path),
+                      }
+                    : {
+                        label: t('files.menu.edit'),
+                        icon: FileCode2,
+                        onSelect: () => openEditor(e),
+                      },
+                  isDir || isLocalHost
+                    ? {}
+                    : {
+                        label: t('files.menu.download'),
+                        icon: Download,
+                        onSelect: () => void download(e),
+                      },
+                  isDir
+                    ? {
+                        label: t('files.menu.runAgent'),
+                        icon: Rocket,
+                        onSelect: () => setLaunch({ dir: e.path, ...at }),
+                      }
+                    : {},
+                  isDir
+                    ? {
+                        label: t('files.menu.addProject'),
+                        icon: Boxes,
+                        hint: t('files.menu.addProject.hint'),
+                        onSelect: () => void addAsProject(e.path),
+                      }
+                    : {},
+                  isDir
+                    ? {
+                        label: t('files.menu.terminalHere'),
+                        icon: TerminalSquare,
+                        onSelect: () => {
+                          openTab({
+                            title: e.name,
+                            kind: 'command',
+                            serverId: tab.serverId,
+                            workspaceId: '',
+                            agentId: '',
+                            tmuxSession: '',
+                            command: `cd ${shellQuote(e.path)} && exec "\${SHELL:-/bin/sh}" -l`,
+                          })
+                        },
+                      }
+                    : {},
+                  separator,
+                  {
+                    label: t('files.menu.copyPath'),
+                    icon: ClipboardCopy,
+                    onSelect: () => void copyText(e.path),
+                  },
+                  {
+                    label: t('files.menu.copyName'),
+                    icon: ClipboardCopy,
+                    onSelect: () => void copyText(e.name),
+                  },
+                  separator,
+                  {
+                    label: t('files.menu.rename'),
+                    icon: Pencil,
+                    onSelect: () => setRenaming({ path: e.path, name: e.name }),
+                  },
+                  {
+                    label: isDir ? t('files.deleteDir') : t('files.deleteFile'),
+                    icon: Trash2,
+                    danger: true,
+                    onSelect: () => void remove(e),
+                  },
+                ])
+              }
               return (
                 <tr
                   key={e.path}
                   onClick={() => setSelected(e.path)}
                   onDoubleClick={() => (isDir ? void load(e.path) : openEditor(e))}
-                  onContextMenu={(ev) => {
-                    setSelected(e.path)
-                    // Where the menu was opened, so anything it opens in turn
-                    // appears in the same place rather than jumping.
-                    const at = { x: ev.clientX, y: ev.clientY }
-                    openContextMenu(ev, [
-                      isDir
-                        ? {
-                            label: t('files.menu.open'),
-                            icon: Folder,
-                            onSelect: () => void load(e.path),
-                          }
-                        : {
-                            label: t('files.menu.edit'),
-                            icon: FileCode2,
-                            onSelect: () => openEditor(e),
-                          },
-                      isDir || isLocalHost
-                        ? {}
-                        : {
-                            label: t('files.menu.download'),
-                            icon: Download,
-                            onSelect: () => void download(e),
-                          },
-                      isDir
-                        ? {
-                            label: t('files.menu.runAgent'),
-                            icon: Rocket,
-                            onSelect: () => setLaunch({ dir: e.path, ...at }),
-                          }
-                        : {},
-                      isDir
-                        ? {
-                            label: t('files.menu.addProject'),
-                            icon: Boxes,
-                            hint: t('files.menu.addProject.hint'),
-                            onSelect: () => void addAsProject(e.path),
-                          }
-                        : {},
-                      isDir
-                        ? {
-                            label: t('files.menu.terminalHere'),
-                            icon: TerminalSquare,
-                            onSelect: () => {
-                              openTab({
-                                title: e.name,
-                                kind: 'command',
-                                serverId: tab.serverId,
-                                workspaceId: '',
-                                agentId: '',
-                                tmuxSession: '',
-                                command: `cd ${shellQuote(e.path)} && exec "\${SHELL:-/bin/sh}" -l`,
-                              })
-                            },
-                          }
-                        : {},
-                      separator,
-                      {
-                        label: t('files.menu.copyPath'),
-                        icon: ClipboardCopy,
-                        onSelect: () => void copyText(e.path),
-                      },
-                      {
-                        label: t('files.menu.copyName'),
-                        icon: ClipboardCopy,
-                        onSelect: () => void copyText(e.name),
-                      },
-                      separator,
-                      {
-                        label: t('files.menu.rename'),
-                        icon: Pencil,
-                        onSelect: () => setRenaming({ path: e.path, name: e.name }),
-                      },
-                      {
-                        label: isDir ? t('files.deleteDir') : t('files.deleteFile'),
-                        icon: Trash2,
-                        danger: true,
-                        onSelect: () => void remove(e),
-                      },
-                    ])
-                  }}
+                  onContextMenu={openRowMenu}
                   className={clsx(
-                    'group cursor-default border-b hairline',
+                    // On a table row a height is a floor, which is all a
+                    // finger needs of it.
+                    'group cursor-default border-b hairline touch:h-10',
                     // Finder fills the selected row and turns everything in it
                     // white. The cells carry their own greys, so they are
                     // overridden by descendant rules rather than by hoping each
@@ -703,7 +719,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                       <FileIcon size={13} className="text-ink-500" />
                     )}
                   </td>
-                  <td className="py-1 pl-1.5">
+                  <td className="truncate py-1 pl-1.5">
                     {renaming?.path === e.path ? (
                       <input
                         autoFocus
@@ -734,81 +750,94 @@ export function FileBrowser({ tab }: { tab: Tab }) {
                   <td className="w-24 py-1 pr-2 text-right tabular-nums text-ink-500">
                     {isDir ? '' : bytes(e.size)}
                   </td>
-                  <td className="w-36 py-1 pr-2 text-right tabular-nums text-ink-600">
+                  <td className="hidden w-36 py-1 pr-2 text-right tabular-nums text-ink-600 md:table-cell">
                     {e.modTime ? fmt.dateTime(e.modTime) : ''}
                   </td>
-                  <td className="w-24 py-1 pr-2 font-mono text-[10.5px] text-ink-600">{e.mode}</td>
-                  <td className="w-28 py-1 pr-3">
-                    <span className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100">
-                      {isDir && (
+                  <td className="hidden w-24 py-1 pr-2 font-mono text-[10.5px] text-ink-600 md:table-cell">{e.mode}</td>
+                  <td className={clsx('py-1 pr-3', touch ? 'w-10 text-right' : 'w-28')}>
+                    {touch ? (
+                      <button
+                        aria-label={t('common.more')}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          openRowMenu(anchorBelow(ev.currentTarget))
+                        }}
+                        className={clsx(iconButtonClass, 'min-w-7 text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
+                      >
+                        <Ellipsis size={12} />
+                      </button>
+                    ) : (
+                      <span className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100">
+                        {isDir && (
+                          <button
+                            title={t('files.addProjectRow', { name: e.name })}
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              void addAsProject(e.path)
+                            }}
+                            className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-accent')}
+                          >
+                            <Boxes size={12} />
+                          </button>
+                        )}
+                        {isDir && (
+                          <button
+                            title={t('files.runAgentRow', { name: e.name })}
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              setLaunch({ dir: e.path, x: ev.clientX, y: ev.clientY })
+                            }}
+                            className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-accent')}
+                          >
+                            <Rocket size={12} />
+                          </button>
+                        )}
+                        {!isDir && (
+                          <button
+                            title={t('files.menu.edit')}
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              openEditor(e)
+                            }}
+                            className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-accent')}
+                          >
+                            <FileCode2 size={12} />
+                          </button>
+                        )}
+                        {!isDir && !isLocalHost && (
+                          <button
+                            title={t('files.menu.download')}
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              void download(e)
+                            }}
+                            className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
+                          >
+                            <Download size={12} />
+                          </button>
+                        )}
                         <button
-                          title={t('files.addProjectRow', { name: e.name })}
+                          title={t('files.rename')}
                           onClick={(ev) => {
                             ev.stopPropagation()
-                            void addAsProject(e.path)
-                          }}
-                          className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-accent')}
-                        >
-                          <Boxes size={12} />
-                        </button>
-                      )}
-                      {isDir && (
-                        <button
-                          title={t('files.runAgentRow', { name: e.name })}
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            setLaunch({ dir: e.path, x: ev.clientX, y: ev.clientY })
-                          }}
-                          className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-accent')}
-                        >
-                          <Rocket size={12} />
-                        </button>
-                      )}
-                      {!isDir && (
-                        <button
-                          title={t('files.menu.edit')}
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            openEditor(e)
-                          }}
-                          className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-accent')}
-                        >
-                          <FileCode2 size={12} />
-                        </button>
-                      )}
-                      {!isDir && !isLocalHost && (
-                        <button
-                          title={t('files.menu.download')}
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            void download(e)
+                            setRenaming({ path: e.path, name: e.name })
                           }}
                           className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
                         >
-                          <Download size={12} />
+                          <Pencil size={12} />
                         </button>
-                      )}
-                      <button
-                        title={t('files.rename')}
-                        onClick={(ev) => {
-                          ev.stopPropagation()
-                          setRenaming({ path: e.path, name: e.name })
-                        }}
-                        className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        title={t('files.delete')}
-                        onClick={(ev) => {
-                          ev.stopPropagation()
-                          void remove(e)
-                        }}
-                        className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-danger')}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </span>
+                        <button
+                          title={t('files.delete')}
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            void remove(e)
+                          }}
+                          className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-danger')}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </span>
+                    )}
                   </td>
                 </tr>
               )

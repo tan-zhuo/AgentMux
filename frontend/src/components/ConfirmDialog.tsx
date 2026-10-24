@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { AlertTriangle, Info, ShieldAlert } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { tAround } from '../lib/i18n'
+import { usePresence } from '../lib/motion'
 import { useConfirm, type ConfirmTone } from '../store/useConfirm'
 import { useT } from '../store/useI18n'
 import { Button, inputClass } from './ui'
@@ -40,8 +41,10 @@ const toneStyle: Record<
  */
 export function ConfirmDialog() {
   const t = useT()
-  const request = useConfirm((s) => s.request)
+  const live = useConfirm((s) => s.request)
   const settle = useConfirm((s) => s.settle)
+  // Held for a beat after it is answered, so the sheet can leave properly.
+  const { value: request, exiting } = usePresence(live)
 
   const [typed, setTyped] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -61,7 +64,7 @@ export function ConfirmDialog() {
   }, [request])
 
   useEffect(() => {
-    if (!request) return
+    if (!request || exiting) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -74,7 +77,7 @@ export function ConfirmDialog() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [request, ready, settle])
+  }, [request, exiting, ready, settle])
 
   if (!request) return null
 
@@ -84,8 +87,12 @@ export function ConfirmDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-80 flex items-center justify-center bg-black/60 p-10 backdrop-blur-sm"
-      onClick={() => settle(false)}
+      className={clsx(
+        'fixed inset-0 z-80 flex items-center justify-center bg-black/50 p-10 backdrop-blur-[3px]',
+        // Inert while it fades, or the click after an answer is swallowed.
+        exiting ? 'animate-fade-out pointer-events-none' : 'animate-fade-in',
+      )}
+      onClick={() => !exiting && settle(false)}
       role="presentation"
     >
       <div
@@ -93,18 +100,22 @@ export function ConfirmDialog() {
         aria-modal="true"
         aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
-        className="material max-h-[85vh] w-full max-w-md overflow-y-auto rounded-sheet shadow-sheet"
+        className={clsx(
+          'material max-h-[85vh] w-full max-w-md overflow-y-auto rounded-sheet shadow-sheet',
+          exiting ? 'animate-sheet-out pointer-events-none' : 'animate-sheet-in',
+        )}
       >
         <div className="flex gap-3 px-4 pt-4">
           <span
             className={clsx(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-card border',
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-card border',
+              'shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]',
               style.ring,
               style.bg,
               style.text,
             )}
           >
-            <Icon size={16} />
+            <Icon size={17} />
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="confirm-title" className="text-sm font-semibold text-ink-100">
@@ -156,7 +167,7 @@ export function ConfirmDialog() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2 border-t hairline bg-ink-900 px-4 py-3">
+        <div className="mt-4 flex items-center justify-end gap-2 border-t hairline bg-ink-900/50 px-4 py-3">
           <Button onClick={() => settle(false)}>
             {request.cancelLabel ?? t('common.cancel')}
           </Button>

@@ -227,7 +227,7 @@ function UpdateBannerInner() {
 
   return (
     <div
-      className="flex items-center gap-3 border-b hairline px-3 py-1.5 text-[11px]"
+      className="flex animate-rise-in items-center gap-3 border-b hairline px-3 py-1.5 text-[11px]"
       style={{ background: 'color-mix(in oklab, var(--color-accent) 12%, transparent)' }}
     >
       <ArrowUpCircle size={13} className="shrink-0 text-accent" />
@@ -266,7 +266,7 @@ function UpdateBannerInner() {
             style={{ background: 'color-mix(in oklab, var(--color-accent) 18%, transparent)' }}
           >
             <div
-              className="h-full rounded-capsule bg-accent transition-[width] duration-300"
+              className="h-full rounded-capsule bg-accent transition-[width] duration-[var(--duration-slow)]"
               style={{ width: `${phase === 'download' || !phase ? pct : 100}%` }}
             />
           </div>

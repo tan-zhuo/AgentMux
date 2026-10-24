@@ -2,11 +2,11 @@ import clsx from 'clsx'
 import {
   Activity,
   Bot,
-  ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   ClipboardCopy,
+  Ellipsis,
   FolderTree,
   Laptop,
   Layers,
@@ -34,16 +34,22 @@ import { agents as agentApi, errText, servers as serverApi, tree as treeApi } fr
 import { agentActivityLabel } from '../lib/agentStatus'
 import { copyText } from '../lib/clipboard'
 import type { MsgKey } from '../lib/i18n'
+import { useSlidingPill } from '../lib/motion'
 import { isDesktopKind, isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
+import { useTouchDevice } from '../lib/useCompact'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
-import { openContextMenu, separator } from '../store/useContextMenu'
+import { anchorBelow, openContextMenu, separator, type MenuAnchor } from '../store/useContextMenu'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
-import { AttentionDot, Badge, Button, ConnDot, StatusDot, iconButtonClass } from './ui'
+import { AttentionDot, Badge, Button, ConnDot, IconButton, StatusDot } from './ui'
 
+// A row under a mouse, and a row under a finger. The list is virtual and does
+// its arithmetic in this, so it cannot be a class like the other touch sizes;
+// the component picks one with the same test the `touch:` variant makes.
 const ROW_H = 26
+const ROW_H_TOUCH = 40
 const OVERSCAN = 8
 
 type Row =
@@ -53,8 +59,11 @@ type Row =
   | { key: string; kind: 'server'; depth: number; server: Server }
   | { key: string; kind: 'hint'; depth: number; text: MsgKey }
 
-/** One half of the tree, as a tab: an icon, a name and how much is in it. */
+/** One half of the tree, as a tab: an icon, a name and how much is in it.
+ *  It paints no selection of its own — the strip's pill slides under
+ *  whichever is chosen — and only changes the colour of its text. */
 function TabBtn({
+  id,
   active,
   icon,
   label,
@@ -62,6 +71,8 @@ function TabBtn({
   highlight,
   onClick,
 }: {
+  /** What the strip's pill looks for. */
+  id: 'projects' | 'servers'
   active: boolean
   icon: React.ReactNode
   label: string
@@ -74,10 +85,12 @@ function TabBtn({
   return (
     <button
       type="button"
+      data-pill-key={id}
       onClick={onClick}
       className={clsx(
-        'flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
-        active ? 'bg-ink-750 text-ink-100' : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
+        'pressable relative z-10 flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
+        'touch:h-9 touch:px-3 touch:text-xs',
+        active ? 'text-ink-100' : 'text-ink-400 hover:bg-ink-800/70 hover:text-ink-200',
       )}
     >
       {icon}
@@ -118,10 +131,15 @@ export function Sidebar() {
   const toggleBroadcastTarget = useAppStore((s) => s.toggleBroadcastTarget)
   const refreshSnapshot = useAppStore((s) => s.refreshSnapshot)
   const openDialog = useDialogs((s) => s.open)
+  const rowH = useTouchDevice() ? ROW_H_TOUCH : ROW_H
 
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportH, setViewportH] = useState(600)
+  // The projects / servers strip: one raised pill slides between the two
+  // tabs, as in the side panels, rather than each tab lighting up.
+  const tabStripRef = useRef<HTMLDivElement | null>(null)
+  const tabPill = useSlidingPill(tabStripRef, sidebarTab)
 
   useEffect(() => {
     const el = scrollRef.current
@@ -266,9 +284,9 @@ export function Sidebar() {
     return out
   }, [snapshot, q, expanded, sidebarTab])
 
-  const total = rows.length * ROW_H
-  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN)
-  const last = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN)
+  const total = rows.length * rowH
+  const first = Math.max(0, Math.floor(scrollTop / rowH) - OVERSCAN)
+  const last = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / rowH) + OVERSCAN)
   const visible = rows.slice(first, last)
 
   async function startAgent(a: Agent, ws: Workspace) {
@@ -377,41 +395,71 @@ export function Sidebar() {
 
   return (
     <div className="flex h-full w-full flex-col border-r hairline bg-ink-900">
-      <div className="flex items-center gap-2 border-b hairline px-2.5 py-2">
-        <Search size={13} className="shrink-0 text-ink-500" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('tree.filter')}
-          className="w-full bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            className="text-[10px] text-ink-500 hover:text-ink-200"
-          >
-            {t('tree.clear')}
-          </button>
-        )}
+      {/* The sidebar's own search field: a capsule, the way Finder and Mail
+          draw theirs. It is the one control in this column that is drawn as
+          a box, so it has to be a soft one. */}
+      <div className="border-b hairline px-2 py-2">
+        <label
+          className={clsx(
+            'flex h-[26px] items-center gap-1.5 rounded-capsule border hairline bg-ink-850 px-2.5 touch:h-9',
+            'transition-[box-shadow,border-color] duration-[var(--duration-quick)] focus-within:focus-ring',
+          )}
+        >
+          <Search size={12} className="shrink-0 text-ink-500" strokeWidth={2.2} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('tree.filter')}
+            spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500 touch:text-[13px]"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label={t('tree.clear')}
+              // A 14px dot stays a 14px dot; under a finger its halo makes it
+              // a 36px one.
+              className="pressable flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-capsule bg-ink-600 text-ink-900 hover:bg-ink-500 touch:relative touch:before:absolute touch:before:-inset-[11px]"
+            >
+              <X size={9} strokeWidth={3} />
+            </button>
+          )}
+        </label>
       </div>
 
-      <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1">
-        <TabBtn
-          active={sidebarTab === 'projects'}
-          icon={<FolderTree size={11} />}
-          label={t('tree.projects')}
-          count={counts.projects}
-          highlight={!!q && counts.projects > 0}
-          onClick={() => setSidebarTab('projects')}
-        />
-        <TabBtn
-          active={sidebarTab === 'servers'}
-          icon={<ServerIcon size={11} />}
-          label={t('tree.servers')}
-          count={counts.servers}
-          highlight={!!q && counts.servers > 0}
-          onClick={() => setSidebarTab('servers')}
-        />
+      {/* The gap opens up on touch so the haloed buttons at the right end do
+          not reach into one another. */}
+      <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1 touch:gap-3.5">
+        <div ref={tabStripRef} className="relative flex items-center gap-0.5">
+          <span
+            aria-hidden
+            style={tabPill.style}
+            className={clsx(
+              'pointer-events-none absolute top-0 left-0 rounded-control bg-ink-750',
+              tabPill.ready &&
+                'transition-[transform,width] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
+            )}
+          />
+          <TabBtn
+            id="projects"
+            active={sidebarTab === 'projects'}
+            icon={<FolderTree size={11} />}
+            label={t('tree.projects')}
+            count={counts.projects}
+            highlight={!!q && counts.projects > 0}
+            onClick={() => setSidebarTab('projects')}
+          />
+          <TabBtn
+            id="servers"
+            active={sidebarTab === 'servers'}
+            icon={<ServerIcon size={11} />}
+            label={t('tree.servers')}
+            count={counts.servers}
+            highlight={!!q && counts.servers > 0}
+            onClick={() => setSidebarTab('servers')}
+          />
+        </div>
         <span className="flex-1" />
         {sidebarTab === 'projects' && (
           <>
@@ -441,7 +489,7 @@ export function Sidebar() {
         // bar that is always there is a bar nobody reads. Icons rather than
         // words, because the sidebar is narrow by design and four labelled
         // buttons wrap into a paragraph in it.
-        <div className="flex items-center gap-1 border-b hairline bg-ink-850 px-2 py-1">
+        <div className="flex items-center gap-1 border-b hairline bg-ink-850 px-2 py-1 touch:gap-3.5">
           <span className="text-[11px] text-ink-300">
             {/* Counted against the tree rather than the tick list: a host
                 removed elsewhere leaves its id behind, and a bar claiming
@@ -479,17 +527,25 @@ export function Sidebar() {
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         className="min-h-0 flex-1 overflow-y-auto"
       >
-        <div style={{ height: total, position: 'relative' }}>
+        {/* Keyed on the tab so a switch remounts the rows with a short rise,
+            as the side panels do: the cue that the content changed and not
+            just the pill. The scroller itself stays, and with it the offset
+            the virtual window is computed from. */}
+        <div
+          key={sidebarTab}
+          style={{ height: total, position: 'relative' }}
+          className="animate-rise-in"
+        >
           {visible.map((row, i) => {
-            const top = (first + i) * ROW_H
-            const style = { position: 'absolute' as const, top, left: 0, right: 0, height: ROW_H }
+            const top = (first + i) * rowH
+            const style = { position: 'absolute' as const, top, left: 0, right: 0, height: rowH }
 
             if (row.kind === 'hint') {
               return (
                 <div
                   key={row.key}
                   style={style}
-                  className="flex items-center px-2.5 text-[11px] text-ink-600"
+                  className="flex items-center px-2.5 text-[11px] text-ink-600 touch:text-xs"
                 >
                   <span style={{ paddingLeft: row.depth * 14 + 16 }}>{t(row.text)}</span>
                 </div>
@@ -843,7 +899,7 @@ export function Sidebar() {
                       onChange={() => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' })}
                       onClick={(e) => e.stopPropagation()}
                       title={t('tree.includeInBroadcast')}
-                      className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                      className="h-3 w-3 shrink-0 accent-accent touch:h-[18px] touch:w-[18px]"
                     />
                   }
                   actions={
@@ -1077,7 +1133,7 @@ export function Sidebar() {
                     onChange={() => toggleServerSelected(s.id)}
                     onClick={(e) => e.stopPropagation()}
                     title={t('tree.selectServer')}
-                    className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                    className="h-3 w-3 shrink-0 accent-accent touch:h-[18px] touch:w-[18px]"
                   />
                 }
                 icon={
@@ -1215,7 +1271,7 @@ function TreeRow({
   selected?: boolean
   onClick?: () => void
   onDoubleClick?: () => void
-  onContextMenu?: (e: React.MouseEvent) => void
+  onContextMenu?: (e: MenuAnchor) => void
   chevron?: 'right' | 'down'
   onChevron?: () => void
   icon?: React.ReactNode
@@ -1229,8 +1285,13 @@ function TreeRow({
   /** Always-visible marker on the row's right edge; unlike actions it does not
    *  wait for a hover, because it exists for the eye that is only scanning. */
   badge?: React.ReactNode
+  /** Shortcuts shown while the pointer rests on the row. A touch screen has no
+   *  hover to wait for, so there they give way to one button that is always
+   *  there and opens the row's menu, which carries every one of them. */
   actions?: React.ReactNode
 }) {
+  const t = useT()
+  const touch = useTouchDevice()
   return (
     <div
       style={style}
@@ -1241,6 +1302,10 @@ function TreeRow({
         // An inset rounded pill, the way a macOS sidebar shows selection —
         // not a full-bleed band, which reads as a highlighted table row.
         'group mx-1.5 flex cursor-default items-center gap-1.5 rounded-control pr-1.5 text-xs',
+        // The row is 40px on touch (see ROW_H_TOUCH), and type a step larger
+        // to fill it.
+        'touch:text-[13px]',
+        'transition-colors duration-[var(--duration-quick)]',
         selected
           ? // Inside the pill everything adopts the selection foreground.
             // Children carry their own greys, and grey on system blue is
@@ -1260,10 +1325,22 @@ function TreeRow({
           }}
           className={clsx(
             'shrink-0 rounded-control p-0.5',
+            // The fold target under a finger: 36px tall, reaching left into
+            // the indent, which is empty, rather than right onto the
+            // checkbox, which is not.
+            'touch:relative touch:before:absolute touch:before:-inset-y-[10px] touch:before:-left-3.5 touch:before:-right-1.5',
             selected ? 'text-white/80 hover:text-white' : 'text-ink-500 hover:text-ink-100',
           )}
         >
-          {chevron === 'down' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {/* One glyph that turns, rather than two that swap: a fold is a
+              motion, and the eye follows a turn where it would miss a swap. */}
+          <ChevronRight
+            size={12}
+            className={clsx(
+              'transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]',
+              chevron === 'down' && 'rotate-90',
+            )}
+          />
         </button>
       ) : (
         <div className="w-[18px] shrink-0" />
@@ -1274,7 +1351,7 @@ function TreeRow({
       {meta && (
         <span
           className={clsx(
-            'min-w-0 flex-1 truncate text-[11px]',
+            'min-w-0 flex-1 truncate text-[11px] touch:text-xs',
             selected ? 'text-white/70' : metaWarn ? 'text-warn' : metaDim ? 'text-ink-500' : 'text-ink-400',
           )}
         >
@@ -1283,7 +1360,18 @@ function TreeRow({
       )}
       {!meta && <span className="flex-1" />}
       {badge && <span className="flex shrink-0 items-center">{badge}</span>}
-      <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">{actions}</span>
+      {touch ? (
+        onContextMenu && (
+          <RowBtn
+            icon={<Ellipsis size={12} />}
+            title={t('common.more')}
+            onClick={(e) => onContextMenu(anchorBelow(e.currentTarget))}
+            className="min-w-7"
+          />
+        )
+      ) : (
+        <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">{actions}</span>
+      )}
     </div>
   )
 }
@@ -1293,26 +1381,28 @@ function RowBtn({
   title,
   onClick,
   danger,
+  className,
 }: {
   icon: React.ReactNode
   title: string
-  onClick: () => void
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   danger?: boolean
+  className?: string
 }) {
   return (
-    <button
-      title={title}
+    <IconButton
+      tip={title}
       onClick={(e) => {
         e.stopPropagation()
-        onClick()
+        onClick(e)
       }}
       className={clsx(
-        iconButtonClass,
-        'text-ink-400 hover:bg-ink-750',
+        'text-ink-400 hover:bg-ink-750 active:bg-ink-700',
         danger ? 'hover:text-danger' : 'hover:text-ink-100',
+        className,
       )}
     >
       {icon}
-    </button>
+    </IconButton>
   )
 }

@@ -10,6 +10,7 @@ export const ja: Messages = {
   'common.refresh': '更新',
   'common.loading': '読み込み中…',
   'common.none': '—',
+  'common.more': 'その他',
 
   'nav.tree': 'ツリー',
   'nav.palette': 'コマンド',
@@ -384,6 +385,13 @@ export const ja: Messages = {
   'palette.attach': '{name} に接続',
   'palette.start': '{name} を起動',
   'palette.goto': '{name} へ移動',
+  'palette.section.actions': '操作',
+  'palette.section.themes': 'テーマ',
+  'palette.section.hosts': 'ホスト',
+  'palette.section.agents': 'エージェント',
+  'palette.hint.navigate': '移動',
+  'palette.hint.open': '開く',
+  'palette.hint.close': '閉じる',
   'toast.paneLimit': 'ペインは {n} 枚までです — ひとつ閉じてから追加してください',
 
   'split.placeholder': 'ホスト、ワークスペース、エージェント、または開いているタブ',
@@ -849,6 +857,13 @@ export const ja: Messages = {
   'term.select.hint': 'ドラッグで選択してからコピー',
   'term.select.empty': 'まだ何も選択されていません — 文字の上をドラッグしてください',
   'term.select.done': '選択モードを終了',
+  'term.textView': 'テキスト表示',
+  'term.textView.menu': 'テキストとして表示…',
+  'term.text.screen': '画面の内容',
+  'term.text.history': '履歴すべて',
+  'term.text.copyAll': 'すべてコピー',
+  'term.text.share': '共有',
+  'term.text.empty': 'まだ何もありません',
 
   // 画面上のキーバー：ソフトウェアキーボードにないキー。
   'keys.show': 'ターミナルキーを表示',

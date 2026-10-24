@@ -360,7 +360,7 @@ export function AgentDetail({ agent, workspace }: { agent: Agent; workspace: Wor
             type="checkbox"
             checked={execute}
             onChange={(e) => setExecute(e.target.checked)}
-            className="h-3 w-3 accent-[#4c8dff]"
+            className="h-3 w-3 accent-accent"
           />
           {t('agentDetail.pressEnter')}
         </label>

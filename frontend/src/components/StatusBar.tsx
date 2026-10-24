@@ -5,6 +5,7 @@ import { isDesktopKind } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
+import { Tooltip } from './Tooltip'
 
 export function StatusBar() {
   const t = useT()
@@ -14,6 +15,7 @@ export function StatusBar() {
   const applyAgents = useAppStore((s) => s.applyAgents)
   const refreshConnections = useAppStore((s) => s.refreshConnections)
   const toast = useAppStore((s) => s.toast)
+  const setPaletteOpen = useAppStore((s) => s.setPaletteOpen)
   const openDialog = useDialogs((s) => s.open)
 
   const [lastRefresh, setLastRefresh] = useState(Date.now())
@@ -46,7 +48,7 @@ export function StatusBar() {
   }
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-3 border-t hairline bg-ink-900 px-2.5 text-[11px] text-ink-400">
+    <footer className="material-bar flex h-7 shrink-0 items-center gap-3 border-t hairline px-2.5 text-[11px] text-ink-400">
       <span className="flex items-center gap-1.5">
         <Server size={12} className="opacity-60" />
         {t('status.connected', { n: connected, total: reachable })}
@@ -59,33 +61,44 @@ export function StatusBar() {
       <span className="flex-1" />
 
       {diagnostics && !diagnostics.keyLocationOk && (
-        <button
-          onClick={() => openDialog({ kind: 'settings' })}
-          className="flex items-center gap-1.5 text-warn hover:underline"
-          title={t('status.keyInFile.title')}
-        >
-          <ShieldAlert size={12} /> {t('status.keyInFile')}
-        </button>
+        <Tooltip label={t('status.keyInFile.title')}>
+          <button
+            onClick={() => openDialog({ kind: 'settings' })}
+            className="flex items-center gap-1.5 text-warn hover:underline"
+          >
+            <ShieldAlert size={12} /> {t('status.keyInFile')}
+          </button>
+        </Tooltip>
       )}
 
       <span className="hidden text-ink-600 sm:inline">{t('status.refreshedAgo', { n: ago })}</span>
-      <button
-        onClick={refresh}
-        disabled={busy}
-        title={t('status.refreshNow')}
-        className="hover:text-ink-100"
-      >
-        <RefreshCw size={12} className={busy ? 'animate-spin' : undefined} />
-      </button>
-      <button
-        onClick={() => openDialog({ kind: 'settings' })}
-        title={t('settings.title')}
-        className="hover:text-ink-100"
-      >
-        <Settings size={12} />
-      </button>
+      <Tooltip label={t('status.refreshNow')}>
+        <button
+          onClick={refresh}
+          disabled={busy}
+          className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750 touch:relative touch:before:absolute touch:before:-inset-2"
+        >
+          <RefreshCw size={12} className={busy ? 'animate-spin' : undefined} />
+        </button>
+      </Tooltip>
+      <Tooltip label={t('settings.title')}>
+        <button
+          onClick={() => openDialog({ kind: 'settings' })}
+          className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750 touch:relative touch:before:absolute touch:before:-inset-2"
+        >
+          <Settings size={12} />
+        </button>
+      </Tooltip>
       {/* A keyboard hint means nothing where there is no keyboard. */}
-      <span className="hidden text-ink-600 sm:inline">⌘K</span>
+      <Tooltip label={t('nav.palette')}>
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="pressable hidden rounded-control px-1 py-0.5 text-ink-600 hover:bg-ink-800 hover:text-ink-300 active:bg-ink-750 sm:inline-flex touch:relative touch:before:absolute touch:before:-inset-x-1 touch:before:-inset-y-2"
+        >
+          ⌘K
+        </button>
+      </Tooltip>
     </footer>
   )
 }

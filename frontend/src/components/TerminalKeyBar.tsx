@@ -10,6 +10,7 @@ import {
   selectAllInTerminal,
   sendKeys,
   useTermKeys,
+  viewTerminalText,
   type ModState,
 } from '../store/useTermKeys'
 import { useT } from '../store/useI18n'
@@ -92,6 +93,9 @@ export function TerminalKeyBar() {
             <span className="min-w-0 flex-1 truncate text-[11px] text-ink-400">
               {t('term.select.hint')}
             </span>
+            {/* The way out of select mode's finger-as-mouse: the same text in
+                a sheet where the phone's own selection works. */}
+            <TextButton label={t('term.textView')} onPress={viewTerminalText} />
             <TextButton label={t('term.selectAll')} onPress={selectAllInTerminal} />
             <TextButton label={t('term.copy')} onPress={copyTerminalSelection} primary />
           </div>
@@ -248,7 +252,7 @@ function KeyButton({
       // key press must not become a text selection or a magnifier.
       className={clsx(
         'h-9 shrink-0 rounded-control font-mono text-[12.5px] leading-none select-none',
-        'touch-manipulation transition-[background-color] duration-75',
+        'touch-manipulation transition-[background-color] duration-[var(--duration-quick)]',
         cap.wide
           ? 'min-w-[2.625rem] px-1'
           : cap.narrow

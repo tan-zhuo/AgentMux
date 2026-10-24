@@ -41,7 +41,8 @@ import type {
 } from '../lib/types'
 import { isDesktopKind, isLocalKind } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
-import { useDialogs } from '../store/useDialogs'
+import { useDialogs, type Dialog } from '../store/useDialogs'
+import { ExitingContext, usePresence } from '../lib/motion'
 import { useFmt, useI18n, useT } from '../store/useI18n'
 import { useTheme } from '../store/useTheme'
 import { DesktopDialog } from './DesktopDialog'
@@ -52,23 +53,36 @@ import { UpdateCheckButton, UpdateMirrorField } from './UpdateBanner'
 import { Button, Field, Modal, Segmented, inputClass, textareaClass } from './ui'
 
 export function Dialogs() {
-  const dialog = useDialogs((s) => s.dialog)
+  const live = useDialogs((s) => s.dialog)
+  // The sheet is held for one beat after it closes so it can leave the way it
+  // arrived. Every dialog below reads its own state from the store, which has
+  // already moved on, so during that beat each guards itself with `?? live`
+  // — the descriptor the sheet was opened with.
+  const { value: dialog, exiting } = usePresence(live)
   if (!dialog) return null
+  return (
+    <ExitingContext.Provider value={exiting}>
+      <DialogFor dialog={dialog} />
+    </ExitingContext.Provider>
+  )
+}
+
+function DialogFor({ dialog }: { dialog: NonNullable<Dialog> }) {
   switch (dialog.kind) {
     case 'server':
-      return <ServerDialog />
+      return <ServerDialog held={dialog} />
     case 'project':
-      return <ProjectDialog />
+      return <ProjectDialog held={dialog} />
     case 'workspace':
-      return <WorkspaceDialog />
+      return <WorkspaceDialog held={dialog} />
     case 'agent':
-      return <AgentDialog />
+      return <AgentDialog held={dialog} />
     case 'settings':
       return <SettingsDialog />
     case 'skill':
-      return <SkillDialog />
+      return <SkillDialog held={dialog} />
     case 'skillHistory':
-      return <SkillHistoryDialog />
+      return <SkillHistoryDialog held={dialog} />
     case 'split':
       return <SplitDialog />
     case 'transfer':
@@ -105,9 +119,11 @@ function desktopPort(os: DesktopOS): number {
   return os === 'windows' ? 3389 : 5900
 }
 
-function ServerDialog() {
+function ServerDialog({ held }: { held: NonNullable<Dialog> }) {
   const t = useT()
-  const dialog = useDialogs((s) => s.dialog)
+  // The descriptor this sheet was opened with — not the store's, which is
+  // already null while the sheet plays its exit.
+  const dialog = held
   // A host handed in with no id is a starting point rather than an edit: the
   // "add this machine over SSH too" offer fills the address in and leaves the
   // rest of the form to be answered.
@@ -529,9 +545,11 @@ function ServerDialog() {
   )
 }
 
-function ProjectDialog() {
+function ProjectDialog({ held }: { held: NonNullable<Dialog> }) {
   const t = useT()
-  const dialog = useDialogs((s) => s.dialog)
+  // The descriptor this sheet was opened with — not the store's, which is
+  // already null while the sheet plays its exit.
+  const dialog = held
   const existing = dialog?.kind === 'project' ? dialog.project : undefined
   const { close, submit, saving } = useDialogPlumbing()
 
@@ -584,9 +602,11 @@ function ProjectDialog() {
   )
 }
 
-function WorkspaceDialog() {
+function WorkspaceDialog({ held }: { held: NonNullable<Dialog> }) {
   const t = useT()
-  const dialog = useDialogs((s) => s.dialog)
+  // The descriptor this sheet was opened with — not the store's, which is
+  // already null while the sheet plays its exit.
+  const dialog = held
   const existing = dialog?.kind === 'workspace' ? dialog.workspace : undefined
   const presetProject = dialog?.kind === 'workspace' ? dialog.projectId : undefined
   const snapshot = useAppStore((s) => s.snapshot)
@@ -734,9 +754,11 @@ function parseEnv(text: string): Record<string, string> {
 /** The select's value for "none of these — I'll type the command myself". */
 const CUSTOM_AGENT = '__custom__'
 
-function AgentDialog() {
+function AgentDialog({ held }: { held: NonNullable<Dialog> }) {
   const t = useT()
-  const dialog = useDialogs((s) => s.dialog)
+  // The descriptor this sheet was opened with — not the store's, which is
+  // already null while the sheet plays its exit.
+  const dialog = held
   const existing = dialog?.kind === 'agent' ? dialog.agent : undefined
   const presetWorkspace = dialog?.kind === 'agent' ? dialog.workspaceId : undefined
   const presetCommand = dialog?.kind === 'agent' ? dialog.presetCommand : undefined
@@ -994,15 +1016,17 @@ function SettingsDialog() {
               type="button"
               onClick={() => setTheme(theme.id)}
               className={clsx(
-                'flex flex-col gap-2 rounded-card border p-2.5 text-left transition-colors',
+                'flex flex-col gap-2 rounded-card border p-2.5 text-left',
+                'transition-[background-color,border-color,box-shadow,transform] duration-[var(--duration-quick)] ease-[var(--ease-out)]',
+                'hover:-translate-y-px active:translate-y-0 active:scale-[0.99]',
                 selected
-                  ? 'border-accent bg-accent/10'
-                  : 'hairline bg-ink-800 hover:border-ink-600',
+                  ? 'border-accent bg-accent/10 shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]'
+                  : 'hairline bg-ink-800 hover:border-ink-600 hover:shadow-pop',
               )}
             >
               <span className="flex items-center gap-2">
                 <span className="text-xs font-medium text-ink-100">{theme.name}</span>
-                {selected && <Check size={12} className="text-accent" />}
+                {selected && <Check size={12} className="animate-pop-in text-accent" />}
                 <span className="ml-auto text-[10px] text-ink-500">
                   {theme.mode === 'dark' ? t('theme.dark') : t('theme.light')}
                 </span>
@@ -1335,7 +1359,7 @@ function ServeSettings() {
                 type="checkbox"
                 checked={useTLS}
                 onChange={(e) => setUseTLS(e.target.checked)}
-                className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                className="h-3 w-3 shrink-0 accent-accent"
               />
               {t('serve.tls')}
             </label>

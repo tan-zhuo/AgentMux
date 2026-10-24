@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { errText, skills as skillApi } from '../lib/api'
 import type { Skill, SkillScope, SkillStep, SkillVersion, ToolMeta } from '../lib/types'
 import { useAppStore } from '../store/useAppStore'
-import { useDialogs } from '../store/useDialogs'
+import { useDialogs, type Dialog } from '../store/useDialogs'
 import { useFmt, useT } from '../store/useI18n'
 import { Badge, Button, Field, Modal, inputClass, textareaClass } from './ui'
 
@@ -28,8 +28,10 @@ const blank: Partial<Skill> = {
  * vague trigger will never be found, and nothing else in the interface would
  * explain why.
  */
-export function SkillDialog() {
-  const dialog = useDialogs((s) => s.dialog)
+export function SkillDialog({ held }: { held: NonNullable<Dialog> }) {
+  // The descriptor this sheet was opened with — not the store's, which is
+  // already null while the sheet plays its exit.
+  const dialog = held
   const close = useDialogs((s) => s.close)
   const toast = useAppStore((s) => s.toast)
   const projects = useAppStore((s) => s.snapshot.projects)
@@ -297,8 +299,10 @@ export function SkillDialog() {
 }
 
 /** The version history of one skill, with a way back to any of it. */
-export function SkillHistoryDialog() {
-  const dialog = useDialogs((s) => s.dialog)
+export function SkillHistoryDialog({ held }: { held: NonNullable<Dialog> }) {
+  // The descriptor this sheet was opened with — not the store's, which is
+  // already null while the sheet plays its exit.
+  const dialog = held
   const close = useDialogs((s) => s.close)
   const toast = useAppStore((s) => s.toast)
   const t = useT()

@@ -10,6 +10,7 @@ export const zhHant: Messages = {
   'common.refresh': '重新整理',
   'common.loading': '載入中…',
   'common.none': '—',
+  'common.more': '更多',
 
   'nav.tree': '目錄',
   'nav.palette': '命令',
@@ -382,6 +383,13 @@ export const zhHant: Messages = {
   'palette.attach': '接入 {name}',
   'palette.start': '啟動 {name}',
   'palette.goto': '跳到 {name}',
+  'palette.section.actions': '操作',
+  'palette.section.themes': '主題',
+  'palette.section.hosts': '主機',
+  'palette.section.agents': '智慧代理',
+  'palette.hint.navigate': '移動',
+  'palette.hint.open': '開啟',
+  'palette.hint.close': '關閉',
   'toast.paneLimit': '最多 {n} 個面板 —— 先關掉一個再加',
 
   'split.placeholder': '一台主機、一個工作區、一個 agent，或已經開啟的分頁',
@@ -847,6 +855,13 @@ export const zhHant: Messages = {
   'term.select.hint': '拖曳選取文字，再點複製',
   'term.select.empty': '還沒有選取內容 —— 先在文字上拖曳',
   'term.select.done': '離開選取模式',
+  'term.textView': '文字檢視',
+  'term.textView.menu': '以文字檢視…',
+  'term.text.screen': '可見畫面',
+  'term.text.history': '全部歷史',
+  'term.text.copyAll': '複製全部',
+  'term.text.share': '分享',
+  'term.text.empty': '這裡還沒有內容',
 
   // 螢幕功能鍵列：軟體鍵盤上沒有的那些鍵。
   'keys.show': '顯示終端機功能鍵',

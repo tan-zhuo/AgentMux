@@ -100,7 +100,7 @@ export function TmuxPanel({ serverId }: { serverId: string }) {
                   checked={isTarget({ agentId: '', serverId, session: s.name })}
                   onChange={() => toggleTarget({ agentId: '', serverId, session: s.name })}
                   title={t('tree.includeInBroadcast')}
-                  className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                  className="h-3 w-3 shrink-0 accent-accent"
                 />
                 <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-100">
                   {s.name}

@@ -10,6 +10,7 @@ export const zh: Messages = {
   'common.refresh': '刷新',
   'common.loading': '加载中…',
   'common.none': '—',
+  'common.more': '更多',
 
   'nav.tree': '目录',
   'nav.palette': '命令',
@@ -382,6 +383,13 @@ export const zh: Messages = {
   'palette.attach': '接入 {name}',
   'palette.start': '启动 {name}',
   'palette.goto': '跳到 {name}',
+  'palette.section.actions': '操作',
+  'palette.section.themes': '主题',
+  'palette.section.hosts': '主机',
+  'palette.section.agents': '智能体',
+  'palette.hint.navigate': '移动',
+  'palette.hint.open': '打开',
+  'palette.hint.close': '关闭',
   'toast.paneLimit': '最多 {n} 个面板 —— 先关掉一个再加',
 
   'split.placeholder': '一台主机、一个工作区、一个 agent，或已经打开的标签',
@@ -847,6 +855,13 @@ export const zh: Messages = {
   'term.select.hint': '拖动选中文本，再点复制',
   'term.select.empty': '还没有选中内容 —— 先在文字上拖动',
   'term.select.done': '退出选择模式',
+  'term.textView': '文本视图',
+  'term.textView.menu': '以文本查看…',
+  'term.text.screen': '可见屏幕',
+  'term.text.history': '全部历史',
+  'term.text.copyAll': '复制全部',
+  'term.text.share': '分享',
+  'term.text.empty': '这里还没有内容',
 
   // 屏幕功能键栏：软键盘上没有的那些键。
   'keys.show': '显示终端功能键',

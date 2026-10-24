@@ -3,8 +3,10 @@ import clsx from 'clsx'
 import { PanelLeft, PanelRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { isDesktop } from '../lib/api'
+import { useCompact } from '../lib/useCompact'
 import { useAppStore } from '../store/useAppStore'
 import { useT } from '../store/useI18n'
+import { Tooltip } from './Tooltip'
 
 type Light = 'close' | 'minimise' | 'zoom'
 
@@ -40,13 +42,13 @@ function TrafficLight({
   const inactive = !focused
 
   return (
-    // Deliberately no title attribute: macOS shows no tooltip here, and the
-    // native one pops a white box over the title bar.
+    // Deliberately no tooltip, native or ours: macOS shows none on these, and
+    // the dots are their own explanation.
     <button
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="no-drag-region relative block h-3 w-3 rounded-capsule transition-colors duration-150"
+      className="no-drag-region relative block h-3 w-3 rounded-capsule transition-[background-color,box-shadow] duration-[var(--duration-base)] ease-[var(--ease-out)]"
       style={{
         // The lit colours are macOS's and stay fixed across themes — that is
         // what makes them recognisable. Only the unfocused grey follows the theme.
@@ -57,7 +59,7 @@ function TrafficLight({
       <svg
         viewBox="0 0 12 12"
         className={clsx(
-          'absolute inset-0 h-3 w-3 transition-opacity duration-100',
+          'absolute inset-0 h-3 w-3 transition-opacity duration-[var(--duration-quick)]',
           hovered && !inactive ? 'opacity-100' : 'opacity-0',
         )}
         aria-hidden
@@ -113,6 +115,7 @@ export function TitleBar() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const toggleRight = useAppStore((s) => s.toggleRight)
   const loading = useAppStore((s) => s.loading)
+  const compact = useCompact()
 
   const [focused, setFocused] = useState(true)
   const [hovered, setHovered] = useState(false)
@@ -146,7 +149,7 @@ export function TitleBar() {
   const active = tabs.find((t) => t.id === activeTabId)
 
   return (
-    <header className="drag-region relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline bg-ink-900 pr-2 pl-3 select-none">
+    <header className="drag-region material-bar relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline pr-2 pl-3 select-none">
       {/* In a browser there is no native window to close or move, so the
           traffic lights stay off and the bar is just a bar. */}
       {isDesktop && (
@@ -186,7 +189,7 @@ export function TitleBar() {
 
       <span
         className={clsx(
-          'ml-2 text-xs font-semibold tracking-tight transition-colors',
+          'ml-2 text-xs font-semibold tracking-tight transition-colors duration-[var(--duration-base)]',
           focused ? 'text-ink-100' : 'text-ink-500',
         )}
       >
@@ -196,53 +199,61 @@ export function TitleBar() {
       {/* Centred document title, the way a native window titles itself. */}
       <span
         className={clsx(
-          'pointer-events-none absolute inset-x-0 mx-auto hidden max-w-[46%] truncate text-center text-[11px] transition-colors sm:block',
+          'pointer-events-none absolute inset-x-0 mx-auto hidden max-w-[46%] truncate text-center text-[11px] transition-colors duration-[var(--duration-base)] sm:block',
           focused ? 'text-ink-400' : 'text-ink-600',
         )}
       >
         {loading ? t('title.loading') : (active?.title ?? t('title.tagline'))}
       </span>
 
-      <div className="ml-auto flex items-center gap-0.5">
-        <TitleBarButton
-          active={sidebarOpen}
-          title={t('title.toggleSidebar')}
-          onClick={toggleSidebar}
-        >
-          <PanelLeft size={14} />
-        </TitleBarButton>
-        <TitleBarButton active={rightOpen} title={t('title.togglePanel')} onClick={toggleRight}>
-          <PanelRight size={14} />
-        </TitleBarButton>
-      </div>
+      {/* On a phone the bar along the bottom has these two at a size a thumb
+          can hit; a second pair up here, 26px wide, would be the ones nobody
+          could use. */}
+      {!compact && (
+        <div className="ml-auto flex items-center gap-0.5 touch:gap-2.5">
+          <TitleBarButton
+            active={sidebarOpen}
+            tip={t('title.toggleSidebar')}
+            onClick={toggleSidebar}
+          >
+            <PanelLeft size={14} />
+          </TitleBarButton>
+          <TitleBarButton active={rightOpen} tip={t('title.togglePanel')} onClick={toggleRight}>
+            <PanelRight size={14} />
+          </TitleBarButton>
+        </div>
+      )}
     </header>
   )
 }
 
 function TitleBarButton({
   children,
-  title,
+  tip,
   active,
   onClick,
 }: {
   children: React.ReactNode
-  title: string
+  tip: string
   active?: boolean
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={clsx(
-        'no-drag-region rounded-control p-1.5 transition-colors',
-        active
-          ? 'text-ink-200 hover:bg-ink-800'
-          : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip label={tip}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={clsx(
+          'no-drag-region pressable rounded-control p-1.5 active:bg-ink-750',
+          // 26px drawn; 36px under a finger, through a halo (see touchHalo).
+          'touch:relative touch:before:absolute touch:before:-inset-[5px]',
+          active
+            ? 'text-ink-200 hover:bg-ink-800'
+            : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
   )
 }
