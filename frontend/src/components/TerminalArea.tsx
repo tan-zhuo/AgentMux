@@ -21,7 +21,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isDesktop } from '../lib/api'
 import { useSlideIntoPlace, useSlidingPill } from '../lib/motion'
-import { useTouchDevice } from '../lib/useCompact'
 import { MAX_PANES, useAppStore, type SplitAxis, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useT } from '../store/useI18n'
@@ -304,8 +303,6 @@ export function TerminalArea() {
   const toggleZoom = useAppStore((s) => s.toggleZoom)
   // A zoom only exists inside a split; one pane already fills the area.
   const zoomed = useAppStore((s) => s.paneZoom) && panes.length > 1
-  // Nothing on a touch screen can be hover-only, or it may as well not exist.
-  const touch = useTouchDevice()
 
   // The grid shape depends on the space available, so the space is measured.
   const areaRef = useRef<HTMLDivElement | null>(null)
