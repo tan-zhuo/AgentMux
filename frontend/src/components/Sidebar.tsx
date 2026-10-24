@@ -33,6 +33,7 @@ import { agents as agentApi, errText, servers as serverApi, tree as treeApi } fr
 import { agentActivityLabel } from '../lib/agentStatus'
 import { copyText } from '../lib/clipboard'
 import type { MsgKey } from '../lib/i18n'
+import { useSlidingPill } from '../lib/motion'
 import { isDesktopKind, isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
@@ -52,8 +53,11 @@ type Row =
   | { key: string; kind: 'server'; depth: number; server: Server }
   | { key: string; kind: 'hint'; depth: number; text: MsgKey }
 
-/** One half of the tree, as a tab: an icon, a name and how much is in it. */
+/** One half of the tree, as a tab: an icon, a name and how much is in it.
+ *  It paints no selection of its own — the strip's pill slides under
+ *  whichever is chosen — and only changes the colour of its text. */
 function TabBtn({
+  id,
   active,
   icon,
   label,
@@ -61,6 +65,8 @@ function TabBtn({
   highlight,
   onClick,
 }: {
+  /** What the strip's pill looks for. */
+  id: 'projects' | 'servers'
   active: boolean
   icon: React.ReactNode
   label: string
@@ -73,10 +79,11 @@ function TabBtn({
   return (
     <button
       type="button"
+      data-pill-key={id}
       onClick={onClick}
       className={clsx(
-        'pressable flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
-        active ? 'bg-ink-750 text-ink-100' : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
+        'pressable relative z-10 flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
+        active ? 'text-ink-100' : 'text-ink-400 hover:bg-ink-800/70 hover:text-ink-200',
       )}
     >
       {icon}
@@ -121,6 +128,10 @@ export function Sidebar() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportH, setViewportH] = useState(600)
+  // The projects / servers strip: one raised pill slides between the two
+  // tabs, as in the side panels, rather than each tab lighting up.
+  const tabStripRef = useRef<HTMLDivElement | null>(null)
+  const tabPill = useSlidingPill(tabStripRef, sidebarTab)
 
   useEffect(() => {
     const el = scrollRef.current
@@ -408,22 +419,35 @@ export function Sidebar() {
       </div>
 
       <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1">
-        <TabBtn
-          active={sidebarTab === 'projects'}
-          icon={<FolderTree size={11} />}
-          label={t('tree.projects')}
-          count={counts.projects}
-          highlight={!!q && counts.projects > 0}
-          onClick={() => setSidebarTab('projects')}
-        />
-        <TabBtn
-          active={sidebarTab === 'servers'}
-          icon={<ServerIcon size={11} />}
-          label={t('tree.servers')}
-          count={counts.servers}
-          highlight={!!q && counts.servers > 0}
-          onClick={() => setSidebarTab('servers')}
-        />
+        <div ref={tabStripRef} className="relative flex items-center gap-0.5">
+          <span
+            aria-hidden
+            style={tabPill.style}
+            className={clsx(
+              'pointer-events-none absolute top-0 left-0 rounded-control bg-ink-750',
+              tabPill.ready &&
+                'transition-[transform,width] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
+            )}
+          />
+          <TabBtn
+            id="projects"
+            active={sidebarTab === 'projects'}
+            icon={<FolderTree size={11} />}
+            label={t('tree.projects')}
+            count={counts.projects}
+            highlight={!!q && counts.projects > 0}
+            onClick={() => setSidebarTab('projects')}
+          />
+          <TabBtn
+            id="servers"
+            active={sidebarTab === 'servers'}
+            icon={<ServerIcon size={11} />}
+            label={t('tree.servers')}
+            count={counts.servers}
+            highlight={!!q && counts.servers > 0}
+            onClick={() => setSidebarTab('servers')}
+          />
+        </div>
         <span className="flex-1" />
         {sidebarTab === 'projects' && (
           <>
@@ -491,7 +515,15 @@ export function Sidebar() {
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         className="min-h-0 flex-1 overflow-y-auto"
       >
-        <div style={{ height: total, position: 'relative' }}>
+        {/* Keyed on the tab so a switch remounts the rows with a short rise,
+            as the side panels do: the cue that the content changed and not
+            just the pill. The scroller itself stays, and with it the offset
+            the virtual window is computed from. */}
+        <div
+          key={sidebarTab}
+          style={{ height: total, position: 'relative' }}
+          className="animate-rise-in"
+        >
           {visible.map((row, i) => {
             const top = (first + i) * ROW_H
             const style = { position: 'absolute' as const, top, left: 0, right: 0, height: ROW_H }

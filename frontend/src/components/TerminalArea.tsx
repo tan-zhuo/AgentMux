@@ -18,8 +18,9 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isDesktop } from '../lib/api'
+import { useSlideIntoPlace, useSlidingPill } from '../lib/motion'
 import { MAX_PANES, useAppStore, type SplitAxis, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useT } from '../store/useI18n'
@@ -350,27 +351,51 @@ export function TerminalArea() {
   useEffect(() => {
     const strip = stripRef.current
     if (!strip || !activeTabId || strip.scrollWidth <= strip.clientWidth) return
-    const index = tabs.findIndex((t) => t.id === activeTabId)
-    if (index < 0) return
     strip
-      .querySelector(`[data-tab-index="${index}"]`)
+      .querySelector(`[data-tab-id="${CSS.escape(activeTabId)}"]`)
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeTabId, tabs])
   const [dragId, setDragId] = useState<string | null>(null)
+  /** Where the dragged tab is shown, and will land: its index in the order
+   *  the drop would produce. */
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [tearing, setTearing] = useState(false)
 
-  /** Which slot the pointer is currently over, measured from the real tab
-   *  geometry rather than assumed widths — tab labels differ in length. */
-  function slotAt(clientX: number): number {
+  // While a tab is dragged the strip shows the order its drop would produce,
+  // so the other tabs make way and the drag previews its own result. The
+  // store's order is untouched until release.
+  const shownTabs = useMemo(() => {
+    if (!dragId || dropIndex === null) return tabs
+    const from = tabs.findIndex((t) => t.id === dragId)
+    if (from < 0 || from === dropIndex) return tabs
+    const next = tabs.slice()
+    next.splice(dropIndex, 0, ...next.splice(from, 1))
+    return next
+  }, [tabs, dragId, dropIndex])
+
+  // One raised pill marks the active tab and slides to the next, as in the
+  // side panels; keyed on the shown order so it follows a tab that is dragged
+  // or whose neighbour closed. The tabs themselves slide into any new place:
+  // making way during a drag, closing up after a close.
+  const pill = useSlidingPill(stripRef, activeTabId ?? '', shownTabs)
+  useSlideIntoPlace(stripRef)
+
+  /** Where the dragged tab belongs for a pointer at `clientX`: after every
+   *  other tab whose middle it has passed. Measured from the real geometry —
+   *  labels differ in length — and from the other tabs only: the dragged one
+   *  sits wherever the last answer put it, and asking it would make the
+   *  answer chase itself. A tab, once passed, moves a whole tab-width away
+   *  from the pointer, which is what keeps the order from flapping. */
+  function slotAt(clientX: number, draggedId: string): number {
     const strip = stripRef.current
     if (!strip) return 0
-    const els = Array.from(strip.querySelectorAll<HTMLElement>('[data-tab-index]'))
-    for (let i = 0; i < els.length; i++) {
-      const r = els[i].getBoundingClientRect()
-      if (clientX < r.left + r.width / 2) return i
+    let slot = 0
+    for (const el of Array.from(strip.querySelectorAll<HTMLElement>('[data-tab-id]'))) {
+      if (el.dataset.tabId === draggedId) continue
+      const r = el.getBoundingClientRect()
+      if (clientX >= r.left + r.width / 2) slot++
     }
-    return els.length
+    return slot
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>, tab: Tab, index: number) {
@@ -416,7 +441,7 @@ export function TerminalArea() {
       setTearing(outside)
     }
     setDragId(d.id)
-    setDropIndex(outside ? null : slotAt(e.clientX))
+    setDropIndex(outside ? null : slotAt(e.clientX, d.id))
   }
 
   async function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -431,25 +456,21 @@ export function TerminalArea() {
 
     const wasTearing = d.tearing
     const slot = dropIndex
+    // The order the strip has been showing becomes the real one in the same
+    // render that ends the drag, so nothing moves on release.
+    if (d.moved && !wasTearing && slot !== null && slot !== d.fromIndex) {
+      moveTab(d.fromIndex, slot)
+    }
     setDragId(null)
     setDropIndex(null)
     setTearing(false)
 
-    if (!d.moved) return
-
-    if (wasTearing) {
-      // Open the new window roughly where the tab was dropped, so it lands
-      // under the pointer the way a browser's does.
-      const w = Math.max(720, Math.round(window.innerWidth * 0.62))
-      const h = Math.max(480, Math.round(window.innerHeight * 0.72))
-      await detachTab(d.id, Math.round(e.screenX - d.grabOffset), Math.round(e.screenY - 20), w, h)
-      return
-    }
-
-    if (slot === null) return
-    // Removing the tab first shifts every later slot down by one.
-    const to = slot > d.fromIndex ? slot - 1 : slot
-    moveTab(d.fromIndex, to)
+    if (!d.moved || !wasTearing) return
+    // Open the new window roughly where the tab was dropped, so it lands
+    // under the pointer the way a browser's does.
+    const w = Math.max(720, Math.round(window.innerWidth * 0.62))
+    const h = Math.max(480, Math.round(window.innerHeight * 0.72))
+    await detachTab(d.id, Math.round(e.screenX - d.grabOffset), Math.round(e.screenY - 20), w, h)
   }
 
   const grid = paneGrid(panes.length, splitAxis, area.w, area.h)
@@ -464,11 +485,29 @@ export function TerminalArea() {
     // Positioned: the tear-out hint below the strip is placed against this.
     <div className="relative flex min-w-0 flex-1 flex-col bg-ink-950">
       <div className="flex h-9 shrink-0 items-stretch border-b hairline bg-ink-900">
+        {/* `isolate`, so that a tab's own fill — kept beneath it at negative
+            z-index — sits above the bar and below the pill: the pill passes
+            under a filled tab on its way and must not vanish behind it. */}
         <div
           ref={stripRef}
-          className="relative flex min-w-0 flex-1 items-stretch gap-px overflow-x-auto"
+          className="relative isolate flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto px-1.5"
         >
-          {tabs.map((tab, index) => {
+          {/* The raised pill, as in the side panels and the segmented control:
+              selection is a lift that slides, not a colour that reappears. It
+              fades with the tab under it while that tab is dragged. */}
+          <span
+            aria-hidden
+            style={pill.style}
+            className={clsx(
+              'pointer-events-none absolute top-0 left-0 rounded-control bg-raised shadow-sm',
+              'inset-shadow-[0_1px_0_rgb(255_255_255/0.08)]',
+              pill.ready &&
+                'transition-[transform,width,opacity] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
+              dragId !== null && dragId === activeTabId && 'opacity-50',
+            )}
+          />
+          {shownTabs.map((tab) => {
+            const index = tabs.indexOf(tab)
             const Icon = kindIcon[tab.kind]
             const active = tab.id === activeTabId
             // The agent behind this tab wants a look — the badge shows on
@@ -487,7 +526,9 @@ export function TerminalArea() {
             return (
               <div
                 key={tab.id}
-                data-tab-index={index}
+                data-tab-id={tab.id}
+                data-pill-key={tab.id}
+                data-flip-key={tab.id}
                 // Double-clicking the tab zooms its pane. The pane itself cannot
                 // take the gesture: inside a terminal a double-click selects a
                 // word, and inside the file browser it opens what was hit.
@@ -592,24 +633,33 @@ export function TerminalArea() {
                   // touch-pan-x: a finger swiping sideways scrolls the strip
                   // natively (the browser cancels our pointer drag, which
                   // onPointerCancel tidies up); a mouse still reorders tabs.
-                  'group relative flex min-w-0 shrink-0 cursor-default touch-pan-x items-center gap-1.5 border-r hairline px-3 text-xs select-none',
-                  'transition-[background-color,color,opacity] duration-[var(--duration-quick)]',
-                  onScreen
-                    ? active
-                      ? 'bg-ink-950 text-ink-100'
-                      : 'bg-ink-950 text-ink-300'
-                    : 'bg-ink-900 text-ink-400 hover:bg-ink-850 hover:text-ink-200',
+                  'group relative my-1 flex min-w-0 shrink-0 cursor-default touch-pan-x items-center gap-1.5 rounded-control px-2.5 text-xs select-none',
+                  'transition-[color,opacity] duration-[var(--duration-quick)]',
+                  active
+                    ? 'text-ink-100'
+                    : onScreen
+                      ? 'text-ink-300 hover:text-ink-200'
+                      : 'text-ink-400 hover:text-ink-200',
                   isDragging && 'opacity-50',
                 )}
               >
+                {/* A tab paints no background of its own: this fill sits
+                    beneath it, where the pill can pass over it. A tab on
+                    screen in a split but not focused is lifted a little, so
+                    the strip still says which tabs are showing. */}
+                <span
+                  aria-hidden
+                  className={clsx(
+                    'pointer-events-none absolute inset-0 -z-10 rounded-control',
+                    'transition-colors duration-[var(--duration-quick)]',
+                    !active &&
+                      (onScreen ? 'bg-ink-800 group-hover:bg-ink-750' : 'group-hover:bg-ink-800/60'),
+                  )}
+                />
                 {/* Which pane has the keyboard, marked only when that is in
                     question — a single pane always has it. */}
                 {active && panes.length > 1 && (
-                  <span className="pointer-events-none absolute inset-x-2 top-0 h-0.5 animate-fade-in rounded-b-capsule bg-accent" />
-                )}
-                {/* Insertion marker, shown on the edge the tab would land at. */}
-                {dropIndex === index && dragId && !tearing && (
-                  <span className="pointer-events-none absolute inset-y-1 -left-px w-0.5 rounded-control bg-accent" />
+                  <span className="pointer-events-none absolute inset-x-2.5 top-0 h-0.5 animate-fade-in rounded-b-capsule bg-accent" />
                 )}
                 <Icon size={12} className="shrink-0 opacity-70" />
                 <span className="max-w-[180px] truncate">{tab.title}</span>
@@ -633,7 +683,7 @@ export function TerminalArea() {
                     e.stopPropagation()
                     void closeTab(tab.id)
                   }}
-                  className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-750 hover:text-ink-100 focus-visible:opacity-100"
+                  className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-100/10 hover:text-ink-100 focus-visible:opacity-100"
                   title={t('area.closeTab')}
                 >
                   <X size={11} />
@@ -641,10 +691,6 @@ export function TerminalArea() {
               </div>
             )
           })}
-          {/* Marker for dropping after the last tab. */}
-          {dragId && !tearing && dropIndex === tabs.length && (
-            <span className="pointer-events-none relative -ml-px w-0.5 self-stretch rounded-control bg-accent" />
-          )}
           {!tabs.length && (
             <div className="flex items-center px-3 text-[11px] text-ink-500">
               {t('area.noTerminals')}

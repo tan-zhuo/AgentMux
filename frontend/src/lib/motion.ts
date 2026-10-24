@@ -157,10 +157,16 @@ export const ExitingContext = createContext(false)
  * positions an absolutely placed pill inside the strip, which must be
  * `position: relative`. `ready` is false until the first measurement, so the
  * pill can appear in place rather than sliding in from the corner.
+ *
+ * A strip whose options come and go, or change order, passes something that
+ * changes with them as `layoutKey`: closing the tab before the selected one
+ * moves it without resizing anything, and no observer sees a move that
+ * resizes nothing.
  */
 export function useSlidingPill(
   stripRef: React.RefObject<HTMLElement | null>,
   selectedKey: string,
+  layoutKey?: unknown,
 ): { style: React.CSSProperties; ready: boolean } {
   const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number } | null>(
     null,
@@ -194,10 +200,12 @@ export function useSlidingPill(
     )
   }, [stripRef, selectedKey])
 
-  useLayoutEffect(measure, [measure])
+  useLayoutEffect(measure, [measure, layoutKey])
 
   // Labels change with the language, badges come and go, and the panel is
-  // resizable: anything that moves the options moves the pill.
+  // resizable: anything that moves the options moves the pill. The children
+  // are collected again with the layout key, so an option added later is
+  // watched too.
   useEffect(() => {
     const strip = stripRef.current
     if (!strip) return
@@ -205,7 +213,7 @@ export function useSlidingPill(
     ro.observe(strip)
     for (const child of Array.from(strip.children)) ro.observe(child)
     return () => ro.disconnect()
-  }, [stripRef, measure])
+  }, [stripRef, measure, layoutKey])
 
   return {
     ready: rect !== null,
@@ -217,4 +225,99 @@ export function useSlidingPill(
         }
       : { opacity: 0 },
   }
+}
+
+/**
+ * Lets the items of a strip slide into their new places rather than jump.
+ *
+ * Every render, each `data-flip-key` element inside the strip has its place
+ * noted; one that is somewhere else than it was last time is started from
+ * where it was and let settle where it now is — the FLIP technique. The slide
+ * is a Web Animation rather than an inline transition so it touches neither
+ * the element's own transitions nor its style, and one that is interrupted by
+ * another move carries on from wherever it had got to, which is what a tab
+ * dragged back and forth needs. It shares the pill's curve and duration, so a
+ * tab and the pill under it move as one thing.
+ *
+ * Only the horizontal axis is handled: this is for strips. Under reduced
+ * motion the places are still noted and nothing slides.
+ */
+export function useSlideIntoPlace(stripRef: React.RefObject<HTMLElement | null>): void {
+  const lefts = useRef(new Map<string, number>())
+  const slides = useRef(new Map<string, Animation>())
+
+  useLayoutEffect(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    const was = lefts.current
+    const now = new Map<string, number>()
+    const still = prefersReducedMotion()
+    for (const el of Array.from(strip.querySelectorAll<HTMLElement>('[data-flip-key]'))) {
+      const key = el.dataset.flipKey ?? ''
+      const left = el.offsetLeft
+      now.set(key, left)
+      const before = was.get(key)
+      // A render that moved nothing — a pointer event, a status change —
+      // leaves a slide already under way to finish, or it would start over
+      // from wherever it had got to on every one of them, and crawl.
+      if (before === undefined || before === left || still) continue
+      // Where it is drawn this instant — mid-slide, that is not where it was
+      // laid out — read before the old slide is cancelled.
+      const from = before + translateXOf(el) - left
+      slides.current.get(key)?.cancel()
+      slides.current.delete(key)
+      if (Math.abs(from) < 0.5) continue
+      const slide = el.animate(
+        [{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }],
+        { duration: motionMs('--duration-base', 260), easing: motionEasing('--ease-spring') },
+      )
+      slides.current.set(key, slide)
+      slide.onfinish = () => {
+        if (slides.current.get(key) === slide) slides.current.delete(key)
+      }
+    }
+    // A slide for an item that has gone would otherwise be kept for ever.
+    for (const key of Array.from(slides.current.keys())) {
+      if (!now.has(key)) slides.current.delete(key)
+    }
+    lefts.current = now
+  })
+
+  useEffect(() => {
+    const live = slides.current
+    return () => {
+      for (const slide of live.values()) slide.cancel()
+    }
+  }, [])
+}
+
+/** The horizontal translation an element is drawn with right now, animations
+ *  included — which is what `offsetLeft` leaves out. */
+function translateXOf(el: HTMLElement): number {
+  const transform = getComputedStyle(el).transform
+  if (!transform || transform === 'none') return 0
+  return new DOMMatrixReadOnly(transform).m41
+}
+
+/* The Web Animations API takes its timing as plain numbers and its curve as
+   plain CSS, not as a custom property. These read the tokens from `index.css`
+   once, so a slide cannot drift from the transitions beside it. */
+const tokens = new Map<string, string>()
+function motionToken(name: string): string {
+  let value = tokens.get(name)
+  if (value === undefined) {
+    value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    tokens.set(name, value)
+  }
+  return value
+}
+function motionMs(name: string, fallback: number): number {
+  // The build minifies `260ms` to `.26s`, so the unit has to be honoured.
+  const raw = motionToken(name)
+  const n = parseFloat(raw)
+  if (!Number.isFinite(n)) return fallback
+  return /ms$/i.test(raw) ? n : n * 1000
+}
+function motionEasing(name: string): string {
+  return motionToken(name) || 'ease-out'
 }
