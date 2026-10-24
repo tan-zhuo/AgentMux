@@ -87,7 +87,6 @@ export function RightPanel() {
   const setPanel = useAppStore((s) => s.setRightPanel)
   const toggleRight = useAppStore((s) => s.toggleRight)
   const targets = useAppStore((s) => s.broadcastTargets)
-  const width = useAppStore((s) => s.rightWidth)
   // Agents waiting on a human. A number, so the store only re-renders this
   // component when the count itself moves, not on every status poll.
   const attention = useAppStore((s) =>
@@ -170,10 +169,18 @@ export function RightPanel() {
     }
   }, [syncOverflow])
 
-  // Re-check when the panel is resized or the badge changes the strip's width.
+  // Re-check whenever the strip or anything in it changes size: the panel
+  // resized, a badge landing on a tab, a language with longer labels, a phone
+  // turned on its side. As a drawer on a phone the strip's width is not the
+  // panel-width setting, so the width itself is watched rather than the setting.
   useEffect(() => {
-    syncOverflow()
-  }, [width, targets.length, syncOverflow])
+    const el = stripRef.current
+    if (!el) return
+    const ro = new ResizeObserver(syncOverflow)
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => ro.disconnect()
+  }, [syncOverflow])
 
   // Selecting a tab that is scrolled out of view should bring it into view.
   useEffect(() => {
@@ -197,11 +204,12 @@ export function RightPanel() {
       <div className="flex h-9 shrink-0 items-stretch border-b hairline px-1">
         {/* The strip scrolls rather than squeezing: five tabs do not fit a
             narrow panel, and shrinking them to fit makes every label unreadable
-            instead of just the ones off-screen. */}
+            instead of just the ones off-screen. touch-pan-x: a finger dragged
+            along it scrolls it, and nothing behind it. */}
         <div className="relative min-w-0 flex-1">
           <div
             ref={stripRef}
-            className="no-scrollbar relative flex h-full items-stretch gap-0.5 overflow-x-auto"
+            className="no-scrollbar relative flex h-full touch-pan-x items-stretch gap-0.5 overflow-x-auto"
           >
             {/* A raised pill rather than an underline. Underlined tabs are a
                 web convention; on Apple's platforms selection in a strip like

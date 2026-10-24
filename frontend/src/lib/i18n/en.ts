@@ -15,6 +15,7 @@ export const en = {
   'common.refresh': 'Refresh',
   'common.loading': 'Loading…',
   'common.none': '—',
+  'common.more': 'More',
 
   'nav.tree': 'Tree',
   'nav.palette': 'Commands',

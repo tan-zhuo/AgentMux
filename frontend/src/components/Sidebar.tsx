@@ -6,6 +6,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   ClipboardCopy,
+  Ellipsis,
   FolderTree,
   Laptop,
   Layers,
@@ -36,9 +37,10 @@ import type { MsgKey } from '../lib/i18n'
 import { useSlidingPill } from '../lib/motion'
 import { isDesktopKind, isLocalKind } from '../lib/types'
 import type { Agent, Project, Server, Workspace } from '../lib/types'
+import { useTouchDevice } from '../lib/useCompact'
 import { refreshServerAgents, useAppStore } from '../store/useAppStore'
 import { confirmAction } from '../store/useConfirm'
-import { openContextMenu, separator } from '../store/useContextMenu'
+import { anchorBelow, openContextMenu, separator, type MenuAnchor } from '../store/useContextMenu'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
 import { AttentionDot, Badge, Button, ConnDot, IconButton, StatusDot } from './ui'
@@ -1259,7 +1261,7 @@ function TreeRow({
   selected?: boolean
   onClick?: () => void
   onDoubleClick?: () => void
-  onContextMenu?: (e: React.MouseEvent) => void
+  onContextMenu?: (e: MenuAnchor) => void
   chevron?: 'right' | 'down'
   onChevron?: () => void
   icon?: React.ReactNode
@@ -1273,8 +1275,13 @@ function TreeRow({
   /** Always-visible marker on the row's right edge; unlike actions it does not
    *  wait for a hover, because it exists for the eye that is only scanning. */
   badge?: React.ReactNode
+  /** Shortcuts shown while the pointer rests on the row. A touch screen has no
+   *  hover to wait for, so there they give way to one button that is always
+   *  there and opens the row's menu, which carries every one of them. */
   actions?: React.ReactNode
 }) {
+  const t = useT()
+  const touch = useTouchDevice()
   return (
     <div
       style={style}
@@ -1336,7 +1343,18 @@ function TreeRow({
       )}
       {!meta && <span className="flex-1" />}
       {badge && <span className="flex shrink-0 items-center">{badge}</span>}
-      <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">{actions}</span>
+      {touch ? (
+        onContextMenu && (
+          <RowBtn
+            icon={<Ellipsis size={12} />}
+            title={t('common.more')}
+            onClick={(e) => onContextMenu(anchorBelow(e.currentTarget))}
+            className="min-w-7"
+          />
+        )
+      ) : (
+        <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">{actions}</span>
+      )}
     </div>
   )
 }
@@ -1346,22 +1364,25 @@ function RowBtn({
   title,
   onClick,
   danger,
+  className,
 }: {
   icon: React.ReactNode
   title: string
-  onClick: () => void
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   danger?: boolean
+  className?: string
 }) {
   return (
     <IconButton
       tip={title}
       onClick={(e) => {
         e.stopPropagation()
-        onClick()
+        onClick(e)
       }}
       className={clsx(
         'text-ink-400 hover:bg-ink-750 active:bg-ink-700',
         danger ? 'hover:text-danger' : 'hover:text-ink-100',
+        className,
       )}
     >
       {icon}

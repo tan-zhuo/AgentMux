@@ -10,6 +10,7 @@ export const ja: Messages = {
   'common.refresh': '更新',
   'common.loading': '読み込み中…',
   'common.none': '—',
+  'common.more': 'その他',
 
   'nav.tree': 'ツリー',
   'nav.palette': 'コマンド',

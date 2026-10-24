@@ -10,6 +10,7 @@ export const zhHant: Messages = {
   'common.refresh': '重新整理',
   'common.loading': '載入中…',
   'common.none': '—',
+  'common.more': '更多',
 
   'nav.tree': '目錄',
   'nav.palette': '命令',
