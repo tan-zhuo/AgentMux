@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePresence } from '../lib/motion'
+import { useTouchDevice } from '../lib/useCompact'
 import { useContextMenu, type MenuItem } from '../store/useContextMenu'
 
 /**
@@ -48,6 +49,9 @@ export function ContextMenu() {
   const raw = useContextMenu((s) => s.items)
   const hide = useContextMenu((s) => s.hide)
   const items = useMemo(() => tidy(raw), [raw])
+  // A finger needs more to aim at than a pointer does. Apple asks for 44pt;
+  // 40px keeps a long menu on a phone screen and is still an easy target.
+  const touch = useTouchDevice()
 
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ left: x, top: y })
@@ -128,7 +132,8 @@ export function ContextMenu() {
         transformOrigin: `${x > pos.left + 4 ? 'right' : 'left'} ${y > pos.top + 4 ? 'bottom' : 'top'}`,
       }}
       className={clsx(
-        'material fixed z-90 min-w-52 overflow-hidden rounded-card p-1 shadow-pop',
+        'material fixed z-90 overflow-hidden rounded-card p-1 shadow-pop',
+        touch ? 'min-w-60' : 'min-w-52',
         exiting ? 'animate-pop-out pointer-events-none' : 'animate-pop-in',
       )}
     >
@@ -147,7 +152,8 @@ export function ContextMenu() {
               void item.onSelect?.()
             }}
             className={clsx(
-              'flex h-[26px] w-full items-center gap-2.5 rounded-[6px] px-2.5 text-left text-xs',
+              'flex w-full items-center gap-2.5 rounded-[6px] text-left',
+              touch ? 'h-10 px-3 text-[13px]' : 'h-[26px] px-2.5 text-xs',
               'transition-colors duration-[var(--duration-quick)]',
               item.disabled && 'cursor-not-allowed text-ink-600',
               // The hovered item fills with the accent and takes white text,

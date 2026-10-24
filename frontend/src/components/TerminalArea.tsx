@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isDesktop } from '../lib/api'
 import { useSlideIntoPlace, useSlidingPill } from '../lib/motion'
+import { useTouchDevice } from '../lib/useCompact'
 import { MAX_PANES, useAppStore, type SplitAxis, type Tab } from '../store/useAppStore'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useT } from '../store/useI18n'
@@ -303,6 +304,8 @@ export function TerminalArea() {
   const toggleZoom = useAppStore((s) => s.toggleZoom)
   // A zoom only exists inside a split; one pane already fills the area.
   const zoomed = useAppStore((s) => s.paneZoom) && panes.length > 1
+  // Nothing on a touch screen can be hover-only, or it may as well not exist.
+  const touch = useTouchDevice()
 
   // The grid shape depends on the space available, so the space is measured.
   const areaRef = useRef<HTMLDivElement | null>(null)
@@ -690,7 +693,15 @@ export function TerminalArea() {
                       e.stopPropagation()
                       void closeTab(tab.id)
                     }}
-                    className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-100/10 hover:text-ink-100 focus-visible:opacity-100 active:bg-ink-100/15"
+                    className={clsx(
+                      'pressable ml-0.5 rounded-[5px] text-ink-500 hover:bg-ink-100/10 hover:text-ink-100 active:bg-ink-100/15',
+                      // The cross waits for a hover on the desktop, so a strip of
+                      // tabs is not a strip of crosses; a finger cannot hover, so
+                      // there it is simply there, and a little bigger to hit.
+                      touch
+                        ? 'p-1 opacity-100'
+                        : 'p-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                    )}
                   >
                     <X size={11} />
                   </button>

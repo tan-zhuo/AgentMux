@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { PanelLeft, PanelRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { isDesktop } from '../lib/api'
+import { useCompact } from '../lib/useCompact'
 import { useAppStore } from '../store/useAppStore'
 import { useT } from '../store/useI18n'
 import { Tooltip } from './Tooltip'
@@ -114,6 +115,7 @@ export function TitleBar() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const toggleRight = useAppStore((s) => s.toggleRight)
   const loading = useAppStore((s) => s.loading)
+  const compact = useCompact()
 
   const [focused, setFocused] = useState(true)
   const [hovered, setHovered] = useState(false)
@@ -204,18 +206,23 @@ export function TitleBar() {
         {loading ? t('title.loading') : (active?.title ?? t('title.tagline'))}
       </span>
 
-      <div className="ml-auto flex items-center gap-0.5">
-        <TitleBarButton
-          active={sidebarOpen}
-          tip={t('title.toggleSidebar')}
-          onClick={toggleSidebar}
-        >
-          <PanelLeft size={14} />
-        </TitleBarButton>
-        <TitleBarButton active={rightOpen} tip={t('title.togglePanel')} onClick={toggleRight}>
-          <PanelRight size={14} />
-        </TitleBarButton>
-      </div>
+      {/* On a phone the bar along the bottom has these two at a size a thumb
+          can hit; a second pair up here, 26px wide, would be the ones nobody
+          could use. */}
+      {!compact && (
+        <div className="ml-auto flex items-center gap-0.5">
+          <TitleBarButton
+            active={sidebarOpen}
+            tip={t('title.toggleSidebar')}
+            onClick={toggleSidebar}
+          >
+            <PanelLeft size={14} />
+          </TitleBarButton>
+          <TitleBarButton active={rightOpen} tip={t('title.togglePanel')} onClick={toggleRight}>
+            <PanelRight size={14} />
+          </TitleBarButton>
+        </div>
+      )}
     </header>
   )
 }

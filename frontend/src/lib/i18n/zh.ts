@@ -10,6 +10,7 @@ export const zh: Messages = {
   'common.refresh': '刷新',
   'common.loading': '加载中…',
   'common.none': '—',
+  'common.more': '更多',
 
   'nav.tree': '目录',
   'nav.palette': '命令',
