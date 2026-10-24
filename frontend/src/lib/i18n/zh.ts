@@ -855,6 +855,13 @@ export const zh: Messages = {
   'term.select.hint': '拖动选中文本，再点复制',
   'term.select.empty': '还没有选中内容 —— 先在文字上拖动',
   'term.select.done': '退出选择模式',
+  'term.textView': '文本视图',
+  'term.textView.menu': '以文本查看…',
+  'term.text.screen': '可见屏幕',
+  'term.text.history': '全部历史',
+  'term.text.copyAll': '复制全部',
+  'term.text.share': '分享',
+  'term.text.empty': '这里还没有内容',
 
   // 屏幕功能键栏：软键盘上没有的那些键。
   'keys.show': '显示终端功能键',

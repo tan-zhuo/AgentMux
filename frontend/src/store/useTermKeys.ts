@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { tree } from '../lib/api'
 import { NO_MODS, type Mods } from '../lib/termKeys'
+import type { TextScope } from '../lib/termText'
 
 const HIDDEN_KEY = 'keyBarHidden'
 const EXPANDED_KEY = 'keyBarExpanded'
@@ -29,6 +30,21 @@ export interface KeySink {
   /** Select mode's two actions, which belong to the pane's xterm instance. */
   selectAll: () => void
   copySelection: () => void
+  /**
+   * The terminal's contents as plain text, for the text view: the rows on
+   * screen, or as much history as the pane can lay hands on. Async because
+   * for a tmux pane the history lives on the server.
+   */
+  textOf: (scope: TextScope) => Promise<string>
+}
+
+/**
+ * What the text view reads from. It is the one piece of a pane the view
+ * holds on to, so the sheet keeps showing the terminal it was opened for even
+ * if focus moves to another pane underneath it.
+ */
+export interface TextSource {
+  read: (scope: TextScope) => Promise<string>
 }
 
 let sink: KeySink | null = null
@@ -75,6 +91,12 @@ export function copyTerminalSelection(): void {
   sink?.copySelection()
 }
 
+/** Open the text view on the focused terminal. */
+export function viewTerminalText(): void {
+  if (!sink) return
+  useTermKeys.getState().openTextView({ read: sink.textOf })
+}
+
 /** What is armed right now, for the bar and for characters typed on the keyboard. */
 export function currentMods(): Mods {
   const s = useTermKeys.getState()
@@ -99,6 +121,12 @@ interface TermKeysState {
    * and it ends with the copy it was opened for.
    */
   selecting: boolean
+  /**
+   * The terminal whose text the text view is showing, or null while it is
+   * closed. A moment too, like select mode: it is opened to copy something
+   * and closes once that is done.
+   */
+  textView: TextSource | null
 
   init: () => Promise<void>
   /** Tap: off → armed for one key → off. */
@@ -111,6 +139,8 @@ interface TermKeysState {
   setHidden: (hidden: boolean) => void
   toggleExpanded: () => void
   setSelecting: (selecting: boolean) => void
+  openTextView: (source: TextSource) => void
+  closeTextView: () => void
 }
 
 export const useTermKeys = create<TermKeysState>((set, get) => ({
@@ -119,6 +149,7 @@ export const useTermKeys = create<TermKeysState>((set, get) => ({
   hidden: false,
   expanded: false,
   selecting: false,
+  textView: null,
 
   async init() {
     try {
@@ -169,6 +200,17 @@ export const useTermKeys = create<TermKeysState>((set, get) => ({
     // The keyboard has nothing to type into a selection, and it covers half of
     // what the user is trying to select.
     if (selecting) blurTerminal()
+  },
+
+  openTextView(source) {
+    set({ textView: source })
+    // The sheet takes most of the screen; a keyboard still up would take the
+    // rest, and there is nothing in the sheet for it to type into.
+    blurTerminal()
+  },
+
+  closeTextView() {
+    if (get().textView) set({ textView: null })
   },
 }))
 

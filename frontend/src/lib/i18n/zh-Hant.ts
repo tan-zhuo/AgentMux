@@ -855,6 +855,13 @@ export const zhHant: Messages = {
   'term.select.hint': '拖曳選取文字，再點複製',
   'term.select.empty': '還沒有選取內容 —— 先在文字上拖曳',
   'term.select.done': '離開選取模式',
+  'term.textView': '文字檢視',
+  'term.textView.menu': '以文字檢視…',
+  'term.text.screen': '可見畫面',
+  'term.text.history': '全部歷史',
+  'term.text.copyAll': '複製全部',
+  'term.text.share': '分享',
+  'term.text.empty': '這裡還沒有內容',
 
   // 螢幕功能鍵列：軟體鍵盤上沒有的那些鍵。
   'keys.show': '顯示終端機功能鍵',
