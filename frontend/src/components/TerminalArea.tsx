@@ -223,7 +223,7 @@ function PaneSeams({
             height: `${rowShares[row] * 100}%`,
           }}
           className={clsx(
-            'pointer-events-auto absolute -ml-[3px] w-[7px] cursor-col-resize touch-none',
+            'pointer-events-auto absolute -ml-[3px] w-[7px] cursor-col-resize touch-none transition-colors duration-[var(--duration-quick)]',
             dragging === key ? 'bg-accent/50' : 'hover:bg-accent/30',
           )}
         />,
@@ -241,7 +241,7 @@ function PaneSeams({
         title={t('area.splitter')}
         style={{ top: `${sum(rowShares.slice(0, b)) * 100}%` }}
         className={clsx(
-          'pointer-events-auto absolute inset-x-0 -mt-[3px] h-[7px] cursor-row-resize touch-none',
+          'pointer-events-auto absolute inset-x-0 -mt-[3px] h-[7px] cursor-row-resize touch-none transition-colors duration-[var(--duration-quick)]',
           dragging === key ? 'bg-accent/50' : 'hover:bg-accent/30',
         )}
       />,
@@ -593,6 +593,7 @@ export function TerminalArea() {
                   // natively (the browser cancels our pointer drag, which
                   // onPointerCancel tidies up); a mouse still reorders tabs.
                   'group relative flex min-w-0 shrink-0 cursor-default touch-pan-x items-center gap-1.5 border-r hairline px-3 text-xs select-none',
+                  'transition-[background-color,color,opacity] duration-[var(--duration-quick)]',
                   onScreen
                     ? active
                       ? 'bg-ink-950 text-ink-100'
@@ -604,7 +605,7 @@ export function TerminalArea() {
                 {/* Which pane has the keyboard, marked only when that is in
                     question — a single pane always has it. */}
                 {active && panes.length > 1 && (
-                  <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-accent" />
+                  <span className="pointer-events-none absolute inset-x-2 top-0 h-0.5 animate-fade-in rounded-b-capsule bg-accent" />
                 )}
                 {/* Insertion marker, shown on the edge the tab would land at. */}
                 {dropIndex === index && dragId && !tearing && (
@@ -632,7 +633,7 @@ export function TerminalArea() {
                     e.stopPropagation()
                     void closeTab(tab.id)
                   }}
-                  className="ml-0.5 rounded-control p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-750 hover:text-ink-100"
+                  className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-750 hover:text-ink-100 focus-visible:opacity-100"
                   title={t('area.closeTab')}
                 >
                   <X size={11} />
@@ -707,7 +708,7 @@ export function TerminalArea() {
 
       {tearing && (
         <div className="pointer-events-none absolute inset-x-0 top-9 z-20 flex justify-center">
-          <span className="rounded-b-control border border-t-0 border-accent-dim bg-ink-850 px-3 py-1 text-[11px] text-accent shadow-lg">
+          <span className="material animate-rise-in rounded-b-card border border-t-0 border-accent-dim px-3 py-1 text-[11px] text-accent shadow-pop">
             {t('area.releaseToDetach')}
           </span>
         </div>
@@ -739,7 +740,7 @@ export function TerminalArea() {
                 onPointerDownCapture={() => shown && !focused && setActiveTab(tab.id)}
                 className={clsx(
                   'group/pane absolute overflow-hidden',
-                  framed && 'outline outline-1 -outline-offset-1',
+                  framed && 'outline outline-1 -outline-offset-1 transition-[outline-color] duration-[var(--duration-quick)]',
                   framed && (focused ? 'outline-accent/60' : 'outline-ink-800'),
                 )}
                 style={
@@ -774,7 +775,8 @@ export function TerminalArea() {
                     }
                     className={clsx(
                       iconButtonClass,
-                      'absolute top-1 right-1 bg-ink-900/80 text-ink-400 opacity-0 backdrop-blur-sm',
+                      'material absolute top-1.5 right-1.5 text-ink-300 opacity-0 shadow-pop',
+                      'transition-opacity duration-[var(--duration-quick)]',
                       'group-hover/pane:opacity-100 hover:text-ink-100 focus-visible:opacity-100',
                     )}
                   >

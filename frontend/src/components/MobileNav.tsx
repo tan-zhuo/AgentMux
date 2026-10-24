@@ -21,7 +21,7 @@ export function MobileNav() {
 
   return (
     <nav
-      className="flex shrink-0 items-stretch border-t hairline bg-ink-900"
+      className="material-bar flex shrink-0 items-stretch border-t hairline"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <NavButton
@@ -67,10 +67,21 @@ function NavButton({
       onClick={onClick}
       className={clsx(
         'flex h-12 flex-1 flex-col items-center justify-center gap-0.5 text-[10px]',
+        'transition-colors duration-[var(--duration-quick)] active:text-ink-100',
         active ? 'text-accent' : 'text-ink-400',
       )}
     >
-      {icon}
+      {/* The glyph sits in a tile that tints when selected — iOS 26's tab bar
+          marks the active tab with a lifted pill, not just a recolour. */}
+      <span
+        className={clsx(
+          'flex h-6 w-10 items-center justify-center rounded-capsule',
+          'transition-[background-color,transform] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
+          active ? 'bg-accent/15' : 'bg-transparent',
+        )}
+      >
+        {icon}
+      </span>
       {label}
     </button>
   )

@@ -227,7 +227,7 @@ function UpdateBannerInner() {
 
   return (
     <div
-      className="flex items-center gap-3 border-b hairline px-3 py-1.5 text-[11px]"
+      className="flex animate-rise-in items-center gap-3 border-b hairline px-3 py-1.5 text-[11px]"
       style={{ background: 'color-mix(in oklab, var(--color-accent) 12%, transparent)' }}
     >
       <ArrowUpCircle size={13} className="shrink-0 text-accent" />

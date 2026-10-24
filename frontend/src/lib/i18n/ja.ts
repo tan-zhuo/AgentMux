@@ -384,6 +384,13 @@ export const ja: Messages = {
   'palette.attach': '{name} に接続',
   'palette.start': '{name} を起動',
   'palette.goto': '{name} へ移動',
+  'palette.section.actions': '操作',
+  'palette.section.themes': 'テーマ',
+  'palette.section.hosts': 'ホスト',
+  'palette.section.agents': 'エージェント',
+  'palette.hint.navigate': '移動',
+  'palette.hint.open': '開く',
+  'palette.hint.close': '閉じる',
   'toast.paneLimit': 'ペインは {n} 枚までです — ひとつ閉じてから追加してください',
 
   'split.placeholder': 'ホスト、ワークスペース、エージェント、または開いているタブ',

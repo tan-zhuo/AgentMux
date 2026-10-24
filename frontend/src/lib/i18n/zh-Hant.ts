@@ -382,6 +382,13 @@ export const zhHant: Messages = {
   'palette.attach': '接入 {name}',
   'palette.start': '啟動 {name}',
   'palette.goto': '跳到 {name}',
+  'palette.section.actions': '操作',
+  'palette.section.themes': '主題',
+  'palette.section.hosts': '主機',
+  'palette.section.agents': '智慧代理',
+  'palette.hint.navigate': '移動',
+  'palette.hint.open': '開啟',
+  'palette.hint.close': '關閉',
   'toast.paneLimit': '最多 {n} 個面板 —— 先關掉一個再加',
 
   'split.placeholder': '一台主機、一個工作區、一個 agent，或已經開啟的分頁',

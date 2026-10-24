@@ -206,7 +206,7 @@ export function DesktopDialog({ server }: { server: Server }) {
             type="checkbox"
             checked={typing}
             onChange={(e) => setTyping(e.target.checked)}
-            className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+            className="h-3 w-3 shrink-0 accent-accent"
           />
           <span className="text-[11px] text-ink-200">{t('desktop.other')}</span>
         </label>

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import clsx from 'clsx'
+import { useEffect, useRef, useState } from 'react'
 import { CommandPalette } from './components/CommandPalette'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { ContextMenu } from './components/ContextMenu'
@@ -17,6 +18,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { on } from './lib/api'
 import { STREAM_RESUMED } from './lib/webTransport'
 import { useCompact, useKeyboardInset, useTouchDevice } from './lib/useCompact'
+import { usePresence } from './lib/motion'
 import type { Agent, ConnState } from './lib/types'
 import {
   RIGHT_DEFAULT,
@@ -52,6 +54,18 @@ export default function App() {
   const compact = useCompact()
   const touch = useTouchDevice()
   const keyboardInset = useKeyboardInset()
+
+  // Each side panel is held through its exit so it can slide shut rather than
+  // vanish, and the width transition is switched off while its splitter is
+  // being dragged — a transition on a value the pointer is driving makes the
+  // seam trail the hand.
+  const side = usePresence(sidebarOpen ? true : null, 300)
+  const right = usePresence(rightOpen ? true : null, 300)
+  const [resizing, setResizing] = useState(false)
+  // Nor while the persisted widths are still being read: a width that lands
+  // from the store should be where the panel starts, not somewhere it slides to.
+  const loading = useAppStore((s) => s.loading)
+  const animateWidth = !resizing && !loading
 
   // The key bar belongs to a terminal. A file browser or an editor has its own
   // controls, and Esc into either of them means nothing.
@@ -194,7 +208,7 @@ export default function App() {
       <UpdateBanner />
 
       <div className="relative flex min-h-0 flex-1">
-        {sidebarOpen &&
+        {side.value &&
           (compact ? (
             // On a phone there is no room to dock three columns, so the tree
             // rides over the terminal as a drawer; picking something closes it.
@@ -202,57 +216,100 @@ export default function App() {
               <button
                 type="button"
                 aria-label="Close sidebar"
-                className="absolute inset-0 z-30 bg-black/45"
+                className={clsx(
+                  'absolute inset-0 z-30 bg-black/45',
+                  side.exiting ? 'animate-fade-out' : 'animate-fade-in',
+                )}
                 onClick={toggleSidebar}
               />
-              <div className="absolute inset-y-0 left-0 z-40 w-[min(320px,85vw)] border-r hairline bg-ink-900 shadow-2xl">
+              <div
+                className={clsx(
+                  'material-bar absolute inset-y-0 left-0 z-40 w-[min(320px,85vw)] border-r hairline shadow-2xl',
+                  side.exiting ? 'animate-drawer-out' : 'animate-drawer-in',
+                )}
+              >
                 <Sidebar />
               </div>
             </>
           ) : (
             <>
-              <div style={{ width: sidebarWidth }} className="shrink-0">
-                <Sidebar />
+              <div
+                style={{ width: side.exiting ? 0 : sidebarWidth }}
+                className={clsx(
+                  'relative shrink-0 overflow-hidden',
+                  animateWidth && 'transition-[width] duration-[var(--duration-base)] ease-[var(--ease-out)]',
+                  !side.exiting && 'animate-reveal-left',
+                )}
+              >
+                {/* Pinned to its full width inside the clipping wrapper, so the
+                    tree slides behind the seam rather than squashing as the
+                    panel closes. */}
+                <div style={{ width: sidebarWidth }} className="absolute inset-y-0 right-0">
+                  <Sidebar />
+                </div>
               </div>
-              <Splitter
-                label="Sidebar width"
-                value={sidebarWidth}
-                min={SIDEBAR_MIN}
-                max={SIDEBAR_MAX}
-                resetTo={SIDEBAR_DEFAULT}
-                onChange={(w) => setSidebarWidth(w)}
-                onCommit={(w) => setSidebarWidth(w, true)}
-              />
+              {!side.exiting && (
+                <Splitter
+                  label="Sidebar width"
+                  value={sidebarWidth}
+                  min={SIDEBAR_MIN}
+                  max={SIDEBAR_MAX}
+                  resetTo={SIDEBAR_DEFAULT}
+                  onChange={(w) => setSidebarWidth(w)}
+                  onCommit={(w) => setSidebarWidth(w, true)}
+                  onDragging={setResizing}
+                />
+              )}
             </>
           ))}
         <TerminalArea />
-        {rightOpen &&
+        {right.value &&
           (compact ? (
             <>
               <button
                 type="button"
                 aria-label="Close panel"
-                className="absolute inset-0 z-30 bg-black/45"
+                className={clsx(
+                  'absolute inset-0 z-30 bg-black/45',
+                  right.exiting ? 'animate-fade-out' : 'animate-fade-in',
+                )}
                 onClick={toggleRight}
               />
-              <div className="absolute inset-y-0 right-0 z-40 w-[min(360px,92vw)] border-l hairline bg-ink-900 shadow-2xl">
+              <div
+                className={clsx(
+                  'material-bar absolute inset-y-0 right-0 z-40 w-[min(360px,92vw)] border-l hairline shadow-2xl',
+                  right.exiting ? 'animate-drawer-out-right' : 'animate-drawer-in-right',
+                )}
+              >
                 <RightPanel />
               </div>
             </>
           ) : (
             <>
-              <Splitter
-                label="Panel width"
-                value={rightWidth}
-                min={RIGHT_MIN}
-                max={RIGHT_MAX}
-                resetTo={RIGHT_DEFAULT}
-                invert
-                onChange={(w) => setRightWidth(w)}
-                onCommit={(w) => setRightWidth(w, true)}
-              />
-              <div style={{ width: rightWidth }} className="shrink-0">
-                <RightPanel />
+              {!right.exiting && (
+                <Splitter
+                  label="Panel width"
+                  value={rightWidth}
+                  min={RIGHT_MIN}
+                  max={RIGHT_MAX}
+                  resetTo={RIGHT_DEFAULT}
+                  invert
+                  onChange={(w) => setRightWidth(w)}
+                  onCommit={(w) => setRightWidth(w, true)}
+                  onDragging={setResizing}
+                />
+              )}
+              <div
+                style={{ width: right.exiting ? 0 : rightWidth }}
+                className={clsx(
+                  'relative shrink-0 overflow-hidden',
+                  animateWidth && 'transition-[width] duration-[var(--duration-base)] ease-[var(--ease-out)]',
+                  !right.exiting && 'animate-reveal-right',
+                )}
+              >
+                <div style={{ width: rightWidth }} className="absolute inset-y-0 left-0">
+                  <RightPanel />
+                </div>
               </div>
             </>
           ))}

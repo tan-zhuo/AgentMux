@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { usePresence } from '../lib/motion'
 import { useContextMenu, type MenuItem } from '../store/useContextMenu'
 
 /**
@@ -37,7 +38,11 @@ export function ContextMenu() {
   // time, so the positioning effect below would re-run, set state, and render
   // again — an infinite loop that React ends by tearing the tree down, which
   // shows up as a blank window.
-  const open = useContextMenu((s) => s.open)
+  const live = useContextMenu((s) => s.open)
+  // Held for the exit: a menu that vanishes on the frame it is clicked reads
+  // as a glitch, one that shrinks away reads as having done something.
+  const { value: held, exiting } = usePresence(live ? true : null, 120)
+  const open = held === true
   const x = useContextMenu((s) => s.x)
   const y = useContextMenu((s) => s.y)
   const raw = useContextMenu((s) => s.items)
@@ -65,7 +70,7 @@ export function ContextMenu() {
   }, [open, x, y, items])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || exiting) return
     const close = () => hide()
     const onKey = (e: KeyboardEvent) => {
       const selectable = items
@@ -104,7 +109,7 @@ export function ContextMenu() {
       window.removeEventListener('blur', close)
       window.removeEventListener('keydown', onKey)
     }
-  }, [open, items, cursor, hide])
+  }, [open, exiting, items, cursor, hide])
 
   if (!open) return null
 
@@ -114,12 +119,22 @@ export function ContextMenu() {
       role="menu"
       onPointerDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
-      style={{ left: pos.left, top: pos.top }}
-      className="material fixed z-90 min-w-52 overflow-hidden rounded-card p-1 shadow-sheet"
+      style={{
+        left: pos.left,
+        top: pos.top,
+        // Grows out of the corner nearest the pointer, which is where the
+        // click was — a menu nudged up from the bottom edge should still
+        // appear to come from the hand.
+        transformOrigin: `${x > pos.left + 4 ? 'right' : 'left'} ${y > pos.top + 4 ? 'bottom' : 'top'}`,
+      }}
+      className={clsx(
+        'material fixed z-90 min-w-52 overflow-hidden rounded-card p-1 shadow-pop',
+        exiting ? 'animate-pop-out pointer-events-none' : 'animate-pop-in',
+      )}
     >
       {items.map((item, i) =>
         !item.label ? (
-          <div key={`sep-${i}`} className="my-1 h-px bg-ink-750" />
+          <div key={`sep-${i}`} className="mx-2 my-1 h-px bg-ink-700/60" />
         ) : (
           <button
             key={`${item.label}-${i}`}
@@ -132,7 +147,8 @@ export function ContextMenu() {
               void item.onSelect?.()
             }}
             className={clsx(
-              'flex w-full items-center gap-2.5 rounded-control px-2.5 py-1 text-left text-xs',
+              'flex h-[26px] w-full items-center gap-2.5 rounded-[6px] px-2.5 text-left text-xs',
+              'transition-colors duration-75',
               item.disabled && 'cursor-not-allowed text-ink-600',
               // The hovered item fills with the accent and takes white text,
               // the way a highlighted menu item does on macOS. A tinted

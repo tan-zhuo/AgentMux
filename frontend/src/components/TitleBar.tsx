@@ -46,7 +46,7 @@ function TrafficLight({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="no-drag-region relative block h-3 w-3 rounded-capsule transition-colors duration-150"
+      className="no-drag-region relative block h-3 w-3 rounded-capsule transition-[background-color,box-shadow] duration-[var(--duration-base)] ease-[var(--ease-out)]"
       style={{
         // The lit colours are macOS's and stay fixed across themes — that is
         // what makes them recognisable. Only the unfocused grey follows the theme.
@@ -146,7 +146,7 @@ export function TitleBar() {
   const active = tabs.find((t) => t.id === activeTabId)
 
   return (
-    <header className="drag-region relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline bg-ink-900 pr-2 pl-3 select-none">
+    <header className="drag-region material-bar relative flex h-[38px] shrink-0 items-center gap-3 border-b hairline pr-2 pl-3 select-none">
       {/* In a browser there is no native window to close or move, so the
           traffic lights stay off and the bar is just a bar. */}
       {isDesktop && (
@@ -186,7 +186,7 @@ export function TitleBar() {
 
       <span
         className={clsx(
-          'ml-2 text-xs font-semibold tracking-tight transition-colors',
+          'ml-2 text-xs font-semibold tracking-tight transition-colors duration-[var(--duration-base)]',
           focused ? 'text-ink-100' : 'text-ink-500',
         )}
       >
@@ -196,7 +196,7 @@ export function TitleBar() {
       {/* Centred document title, the way a native window titles itself. */}
       <span
         className={clsx(
-          'pointer-events-none absolute inset-x-0 mx-auto hidden max-w-[46%] truncate text-center text-[11px] transition-colors sm:block',
+          'pointer-events-none absolute inset-x-0 mx-auto hidden max-w-[46%] truncate text-center text-[11px] transition-colors duration-[var(--duration-base)] sm:block',
           focused ? 'text-ink-400' : 'text-ink-600',
         )}
       >
@@ -236,7 +236,7 @@ function TitleBarButton({
       title={title}
       onClick={onClick}
       className={clsx(
-        'no-drag-region rounded-control p-1.5 transition-colors',
+        'no-drag-region pressable rounded-control p-1.5',
         active
           ? 'text-ink-200 hover:bg-ink-800'
           : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',

@@ -382,6 +382,13 @@ export const zh: Messages = {
   'palette.attach': '接入 {name}',
   'palette.start': '启动 {name}',
   'palette.goto': '跳到 {name}',
+  'palette.section.actions': '操作',
+  'palette.section.themes': '主题',
+  'palette.section.hosts': '主机',
+  'palette.section.agents': '智能体',
+  'palette.hint.navigate': '移动',
+  'palette.hint.open': '打开',
+  'palette.hint.close': '关闭',
   'toast.paneLimit': '最多 {n} 个面板 —— 先关掉一个再加',
 
   'split.placeholder': '一台主机、一个工作区、一个 agent，或已经打开的标签',

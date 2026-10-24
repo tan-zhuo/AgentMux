@@ -12,6 +12,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSlidingPill } from '../lib/motion'
 import { on, orch as orchApi, skills as skillApi } from '../lib/api'
 import { agentActivityLabel } from '../lib/agentStatus'
 import type { MsgKey } from '../lib/i18n'
@@ -95,6 +96,7 @@ export function RightPanel() {
 
   const stripRef = useRef<HTMLDivElement | null>(null)
   const activeRef = useRef<HTMLButtonElement | null>(null)
+  const pill = useSlidingPill(stripRef, panel)
   const [overflow, setOverflow] = useState({ left: false, right: false })
   const [drafts, setDrafts] = useState(0)
   const [pending, setPending] = useState(0)
@@ -197,7 +199,24 @@ export function RightPanel() {
             narrow panel, and shrinking them to fit makes every label unreadable
             instead of just the ones off-screen. */}
         <div className="relative min-w-0 flex-1">
-          <div ref={stripRef} className="no-scrollbar flex h-full items-stretch gap-0.5 overflow-x-auto">
+          <div
+            ref={stripRef}
+            className="no-scrollbar relative flex h-full items-stretch gap-0.5 overflow-x-auto"
+          >
+            {/* A raised pill rather than an underline. Underlined tabs are a
+                web convention; on Apple's platforms selection in a strip like
+                this is shown by lifting the chosen one — and the lift slides
+                to the new tab rather than reappearing there. */}
+            <span
+              aria-hidden
+              style={pill.style}
+              className={clsx(
+                'pointer-events-none absolute top-0 left-0 rounded-control bg-raised shadow-sm',
+                'inset-shadow-[0_1px_0_rgb(255_255_255/0.08)]',
+                pill.ready &&
+                  'transition-[transform,width] duration-[var(--duration-base)] ease-[var(--ease-spring)]',
+              )}
+            />
             {tabs.map((tab) => {
               const Icon = tab.icon
               const active = panel === tab.id
@@ -205,16 +224,13 @@ export function RightPanel() {
                 <button
                   key={tab.id}
                   ref={active ? activeRef : undefined}
+                  data-pill-key={tab.id}
                   onClick={() => setPanel(tab.id)}
                   className={clsx(
-                    // A raised pill rather than an underline. Underlined tabs
-                    // are a web convention; on Apple's platforms selection in a
-                    // strip like this is shown by lifting the chosen one.
-                    'my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
-                    'text-[11px] font-medium whitespace-nowrap transition-colors duration-100',
-                    active
-                      ? 'bg-raised text-ink-100 shadow-sm'
-                      : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
+                    'relative z-10 my-[5px] flex shrink-0 items-center gap-1.5 rounded-control px-2.5',
+                    'text-[11px] font-medium whitespace-nowrap transition-colors duration-[var(--duration-quick)]',
+                    'active:scale-[0.97]',
+                    active ? 'text-ink-100' : 'text-ink-400 hover:bg-ink-800/70 hover:text-ink-200',
                   )}
                 >
                   <Icon size={12} />
@@ -236,13 +252,15 @@ export function RightPanel() {
         <button
           onClick={toggleRight}
           title={t('panel.collapse')}
-          className="shrink-0 border-l hairline px-2 text-ink-500 hover:text-ink-100"
+          className="shrink-0 border-l hairline px-2 text-ink-500 transition-colors duration-[var(--duration-quick)] hover:text-ink-100"
         >
           <PanelRightClose size={14} />
         </button>
       </div>
 
-      <div className="min-h-0 flex-1">
+      {/* Keyed on the panel so a switch remounts the body with a short rise,
+          which is the cue that the content changed and not just the tab. */}
+      <div key={panel} className="min-h-0 flex-1 animate-rise-in">
         {panel === 'broadcast' && <BroadcastPanel />}
         {panel === 'metrics' && <ForServer render={(id) => <MetricsPanel serverId={id} />} />}
         {panel === 'tmux' && <ForServer render={(id) => <TmuxPanel serverId={id} />} />}

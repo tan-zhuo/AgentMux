@@ -2,7 +2,6 @@ import clsx from 'clsx'
 import {
   Activity,
   Bot,
-  ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -76,7 +75,7 @@ function TabBtn({
       type="button"
       onClick={onClick}
       className={clsx(
-        'flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
+        'pressable flex items-center gap-1.5 rounded-control px-2 py-1 text-[11px] font-medium',
         active ? 'bg-ink-750 text-ink-100' : 'text-ink-400 hover:bg-ink-800 hover:text-ink-200',
       )}
     >
@@ -377,22 +376,35 @@ export function Sidebar() {
 
   return (
     <div className="flex h-full w-full flex-col border-r hairline bg-ink-900">
-      <div className="flex items-center gap-2 border-b hairline px-2.5 py-2">
-        <Search size={13} className="shrink-0 text-ink-500" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('tree.filter')}
-          className="w-full bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            className="text-[10px] text-ink-500 hover:text-ink-200"
-          >
-            {t('tree.clear')}
-          </button>
-        )}
+      {/* The sidebar's own search field: a capsule, the way Finder and Mail
+          draw theirs. It is the one control in this column that is drawn as
+          a box, so it has to be a soft one. */}
+      <div className="border-b hairline px-2 py-2">
+        <label
+          className={clsx(
+            'flex h-[26px] items-center gap-1.5 rounded-capsule border hairline bg-ink-850 px-2.5',
+            'transition-[box-shadow,border-color] duration-[var(--duration-quick)] focus-within:focus-ring',
+          )}
+        >
+          <Search size={12} className="shrink-0 text-ink-500" strokeWidth={2.2} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('tree.filter')}
+            spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent text-xs text-ink-100 outline-none placeholder:text-ink-500"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label={t('tree.clear')}
+              className="pressable flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-capsule bg-ink-600 text-ink-900 hover:bg-ink-500"
+            >
+              <X size={9} strokeWidth={3} />
+            </button>
+          )}
+        </label>
       </div>
 
       <div className="flex items-center gap-0.5 border-b hairline px-1.5 py-1">
@@ -843,7 +855,7 @@ export function Sidebar() {
                       onChange={() => toggleBroadcastTarget({ agentId: a.id, serverId: '', session: '' })}
                       onClick={(e) => e.stopPropagation()}
                       title={t('tree.includeInBroadcast')}
-                      className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                      className="h-3 w-3 shrink-0 accent-accent"
                     />
                   }
                   actions={
@@ -1077,7 +1089,7 @@ export function Sidebar() {
                     onChange={() => toggleServerSelected(s.id)}
                     onClick={(e) => e.stopPropagation()}
                     title={t('tree.selectServer')}
-                    className="h-3 w-3 shrink-0 accent-[#4c8dff]"
+                    className="h-3 w-3 shrink-0 accent-accent"
                   />
                 }
                 icon={
@@ -1241,6 +1253,7 @@ function TreeRow({
         // An inset rounded pill, the way a macOS sidebar shows selection —
         // not a full-bleed band, which reads as a highlighted table row.
         'group mx-1.5 flex cursor-default items-center gap-1.5 rounded-control pr-1.5 text-xs',
+        'transition-colors duration-[var(--duration-quick)]',
         selected
           ? // Inside the pill everything adopts the selection foreground.
             // Children carry their own greys, and grey on system blue is
@@ -1263,7 +1276,15 @@ function TreeRow({
             selected ? 'text-white/80 hover:text-white' : 'text-ink-500 hover:text-ink-100',
           )}
         >
-          {chevron === 'down' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {/* One glyph that turns, rather than two that swap: a fold is a
+              motion, and the eye follows a turn where it would miss a swap. */}
+          <ChevronRight
+            size={12}
+            className={clsx(
+              'transition-transform duration-[var(--duration-quick)] ease-[var(--ease-out)]',
+              chevron === 'down' && 'rotate-90',
+            )}
+          />
         </button>
       ) : (
         <div className="w-[18px] shrink-0" />

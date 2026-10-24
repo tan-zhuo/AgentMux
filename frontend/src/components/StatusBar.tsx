@@ -14,6 +14,7 @@ export function StatusBar() {
   const applyAgents = useAppStore((s) => s.applyAgents)
   const refreshConnections = useAppStore((s) => s.refreshConnections)
   const toast = useAppStore((s) => s.toast)
+  const setPaletteOpen = useAppStore((s) => s.setPaletteOpen)
   const openDialog = useDialogs((s) => s.open)
 
   const [lastRefresh, setLastRefresh] = useState(Date.now())
@@ -46,7 +47,7 @@ export function StatusBar() {
   }
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-3 border-t hairline bg-ink-900 px-2.5 text-[11px] text-ink-400">
+    <footer className="material-bar flex h-7 shrink-0 items-center gap-3 border-t hairline px-2.5 text-[11px] text-ink-400">
       <span className="flex items-center gap-1.5">
         <Server size={12} className="opacity-60" />
         {t('status.connected', { n: connected, total: reachable })}
@@ -73,19 +74,26 @@ export function StatusBar() {
         onClick={refresh}
         disabled={busy}
         title={t('status.refreshNow')}
-        className="hover:text-ink-100"
+        className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100"
       >
         <RefreshCw size={12} className={busy ? 'animate-spin' : undefined} />
       </button>
       <button
         onClick={() => openDialog({ kind: 'settings' })}
         title={t('settings.title')}
-        className="hover:text-ink-100"
+        className="pressable rounded-control p-1 hover:bg-ink-800 hover:text-ink-100"
       >
         <Settings size={12} />
       </button>
       {/* A keyboard hint means nothing where there is no keyboard. */}
-      <span className="hidden text-ink-600 sm:inline">⌘K</span>
+      <button
+        type="button"
+        onClick={() => setPaletteOpen(true)}
+        title={t('nav.palette')}
+        className="pressable hidden rounded-control px-1 py-0.5 text-ink-600 hover:bg-ink-800 hover:text-ink-300 sm:inline-flex"
+      >
+        ⌘K
+      </button>
     </footer>
   )
 }

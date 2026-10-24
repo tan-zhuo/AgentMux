@@ -27,19 +27,214 @@
     'SF Mono', 'JetBrains Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
-  /* Corner radii follow Apple's three scales: controls, cards, and the sheets
-     that sit above everything. Naming them stops each component from inventing
-     its own, which is what makes a set of surfaces look like one system. */
-  --radius-control: 6px;
-  --radius-card: 10px;
-  --radius-sheet: 14px;
+  /* Corner radii follow Apple's scales: controls, cards, and the sheets that
+     sit above everything. macOS 26 rounded all three a step further — the
+     corners of a sheet are now continuous with the corners of the window it
+     floats over — and the capsule became the default shape of a small control.
+     Naming them stops each component from inventing its own, which is what
+     makes a set of surfaces look like one system. */
+  --radius-control: 7px;
+  --radius-card: 12px;
+  --radius-sheet: 18px;
   --radius-capsule: 999px;
 
   /* Elevation. Apple's shadows are large, soft and nearly black; a tight dark
-     shadow reads as a border, which is a different thing entirely. */
-  --shadow-sheet: 0 24px 64px rgb(0 0 0 / 0.44), 0 2px 8px rgb(0 0 0 / 0.28);
-  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.28);
+     shadow reads as a border, which is a different thing entirely. The sheet
+     shadow is in two layers — a wide ambient one and a tight contact one —
+     because a single blur at either size looks either foggy or stuck on. */
+  --shadow-sheet: 0 32px 80px rgb(0 0 0 / 0.42), 0 2px 10px rgb(0 0 0 / 0.26);
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.3), 0 1px 4px rgb(0 0 0 / 0.2);
   --shadow-knob: 0 3px 8px rgb(0 0 0 / 0.18), 0 1px 1px rgb(0 0 0 / 0.14);
+
+  /* Motion. Apple's interface moves on springs, not on linear ramps: things
+     arrive quickly and settle slowly, and nothing takes longer than a glance.
+     Two curves cover almost everything — a gentle overshoot for things that
+     appear, a plain deceleration for things that merely move — and one short
+     and one medium duration. A component reaching for anything else should
+     have a reason. */
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --duration-quick: 160ms;
+  --duration-base: 260ms;
+  --duration-slow: 380ms;
+
+  /* Named animations become `animate-*` utilities. The exit ones are shorter
+     than the entries: a thing leaving should be gone before you look for it. */
+  --animate-sheet-in: sheet-in var(--duration-slow) var(--ease-spring) both;
+  --animate-sheet-out: sheet-out var(--duration-quick) var(--ease-in) both;
+  --animate-pop-in: pop-in 220ms var(--ease-spring) both;
+  --animate-pop-out: pop-out 120ms var(--ease-in) both;
+  --animate-toast-in: toast-in var(--duration-slow) var(--ease-spring) both;
+  --animate-toast-out: toast-out 200ms var(--ease-in) both;
+  --animate-fade-in: fade-in var(--duration-quick) var(--ease-out) both;
+  --animate-fade-out: fade-out 120ms var(--ease-in) both;
+  --animate-rise-in: rise-in 220ms var(--ease-out) both;
+  --animate-drawer-in: drawer-in var(--duration-base) var(--ease-out);
+  --animate-drawer-out: drawer-out 200ms var(--ease-in) both;
+  --animate-drawer-in-right: drawer-in-right var(--duration-base) var(--ease-out);
+  --animate-drawer-out-right: drawer-out-right 200ms var(--ease-in) both;
+  --animate-reveal-left: reveal-left var(--duration-base) var(--ease-out);
+  --animate-reveal-right: reveal-right var(--duration-base) var(--ease-out);
+  --animate-breathe: breathe 2.2s var(--ease-out) infinite;
+
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes sheet-out {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes pop-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(24px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(16px) scale(0.97);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes drawer-in {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes drawer-out {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes drawer-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes drawer-out-right {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+  /* A docked panel opening: its content slides in from behind the seam while
+     the wrapper's width transition makes room for it. */
+  @keyframes reveal-left {
+    from {
+      transform: translateX(-24px);
+      opacity: 0.4;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  @keyframes reveal-right {
+    from {
+      transform: translateX(24px);
+      opacity: 0.4;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  /* The ring round a live status dot: a slow exhale rather than a ping.
+     `animate-ping` doubles the dot every second, which on a sidebar of twenty
+     running agents turns into a field of strobing. */
+  @keyframes breathe {
+    0% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+    70% {
+      opacity: 0;
+      transform: scale(2.4);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2.4);
+    }
+  }
 }
 
 /* These are element defaults, so they belong in the base layer. Left unlayered
@@ -133,6 +328,29 @@
   .xterm .xterm-viewport {
     background-color: transparent !important;
   }
+
+  /* Someone who has asked the system for less motion gets none of the
+     decorative kind: entrances cut straight to their end state, and the
+     status rings hold still. Transitions on colour are left alone — they are
+     too short to read as movement, and removing them makes hover feel broken. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Theme changes crossfade through the View Transitions API, which snapshots
+     the old paint and dissolves it into the new. Without this the default is
+     a slower fade with a slide, which is wrong for a recolour. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 280ms;
+    animation-timing-function: var(--ease-out);
+  }
 }
 
 /* Wails resolves window dragging from this custom property on the event target.
@@ -157,10 +375,65 @@
 }
 
 /* The surface every floating thing sits on: sheets, menus, toasts, the palette.
-   Opaque on purpose. Translucency let terminal text crawl under a dialog, which
-   made the thing you were meant to read the hardest thing on screen. */
+
+   This is Liquid Glass, as closely as a webview can draw it: a heavily blurred
+   and saturated sample of whatever is behind, tinted most of the way to the
+   surface colour, with a specular highlight along the top edge and a hairline
+   rim so the slab has an edge of its own against any backdrop. The tint is
+   deliberately strong. An earlier, clearer version let terminal text crawl
+   under a dialog and made the thing you were meant to read the hardest thing
+   on screen; at this opacity the blur reads as depth and nothing behind it
+   reads as text.
+
+   Both fallbacks go opaque: a browser without backdrop-filter would otherwise
+   show the terminal straight through a tinted panel, and someone who has
+   turned transparency down in Accessibility has asked for exactly that. */
 @utility material {
-  background: var(--color-ink-850);
+  background: color-mix(in srgb, var(--color-ink-850) 86%, transparent);
+  -webkit-backdrop-filter: blur(36px) saturate(1.7);
+  backdrop-filter: blur(36px) saturate(1.7);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 9%, transparent),
+    inset 0 0 0 0.5px color-mix(in srgb, white 7%, transparent);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--color-ink-850);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-ink-850);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* In light mode the glass is a frosted white, and its edge is drawn with a
+   shadow rather than a highlight, because there is nothing lighter than white
+   to highlight with. */
+[data-mode='light'] .material {
+  background: color-mix(in srgb, var(--color-ink-850) 80%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 70%, transparent),
+    inset 0 0 0 0.5px color-mix(in srgb, black 10%, transparent);
+}
+
+/* Chrome that is translucent but not floating: the title bar, the status bar,
+   a drawer's own background. Lighter than `material` so the content under it
+   can still be sensed — which is the point of a toolbar that lets a scrolled
+   list pass beneath it — and with no rim, because it is part of the window
+   rather than a thing placed on it. */
+@utility material-bar {
+  background: color-mix(in srgb, var(--color-ink-900) 88%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(24px) saturate(1.5);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--color-ink-900);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-ink-900);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* The hairline separator. macOS draws these at well under full contrast; a
@@ -176,4 +449,18 @@
   outline: none;
   box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--color-accent) 32%, transparent);
   border-color: var(--color-accent);
+}
+
+/* A press: the control shrinks a hair under the pointer and springs back on
+   release. Apple applies this to nearly every button; the overshoot on the way
+   back is what makes it feel like a thing rather than a rectangle. */
+@utility pressable {
+  transition-property: transform, background-color, color, box-shadow, opacity;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-spring);
+
+  &:active {
+    transform: scale(0.96);
+    transition-duration: 60ms;
+  }
 }

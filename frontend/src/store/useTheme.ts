@@ -54,8 +54,31 @@ export const useTheme = create<ThemeState>((set) => ({
 
   setTheme(id) {
     const theme = getTheme(id)
-    applyTheme(theme)
-    set({ themeId: theme.id, theme })
+    const apply = () => {
+      applyTheme(theme)
+      set({ themeId: theme.id, theme })
+    }
+    // A recolour of every surface at once is a hard cut; the View Transitions
+    // API snapshots the old paint and dissolves it into the new, which is how
+    // the system itself switches appearance. Webviews without it just cut.
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown }
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (doc.startViewTransition && !reduced) {
+      // The update callback runs once the old frame is captured, which a
+      // webview that is not producing frames — hidden, or being torn down —
+      // may never get round to. Applying is idempotent, so a short deadline
+      // guarantees the theme lands whether or not the dissolve does.
+      let applied = false
+      doc.startViewTransition(() => {
+        applied = true
+        apply()
+      })
+      window.setTimeout(() => {
+        if (!applied) apply()
+      }, 250)
+    } else {
+      apply()
+    }
     void tree.setSetting(SETTING_KEY, theme.id).catch(() => {})
   },
 }))

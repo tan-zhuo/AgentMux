@@ -129,7 +129,7 @@ export function DetachedApp({ token }: { token: string }) {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-ink-900">
-      <header className="drag-region flex h-[38px] shrink-0 items-center gap-3 border-b hairline bg-ink-900 pr-2 pl-3 select-none">
+      <header className="drag-region material-bar flex h-[38px] shrink-0 items-center gap-3 border-b hairline pr-2 pl-3 select-none">
         <div className="no-drag-region flex items-center gap-2">
           <TrafficLight kind="close" focused={focused} onClick={() => void Window.Close()} />
           <TrafficLight kind="minimise" focused={focused} onClick={() => void Window.Minimise()} />

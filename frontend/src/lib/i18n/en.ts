@@ -388,6 +388,13 @@ export const en = {
   'palette.attach': 'Attach {name}',
   'palette.start': 'Start {name}',
   'palette.goto': 'Go to {name}',
+  'palette.section.actions': 'Actions',
+  'palette.section.themes': 'Themes',
+  'palette.section.hosts': 'Hosts',
+  'palette.section.agents': 'Agents',
+  'palette.hint.navigate': 'navigate',
+  'palette.hint.open': 'open',
+  'palette.hint.close': 'close',
   'toast.paneLimit': '{n} panes is the limit — close one before adding another',
 
   'split.placeholder': 'A host, a workspace, an agent, or a tab already open',
