@@ -41,7 +41,7 @@ import { confirmAction } from '../store/useConfirm'
 import { openContextMenu, separator } from '../store/useContextMenu'
 import { useDialogs } from '../store/useDialogs'
 import { useT } from '../store/useI18n'
-import { AttentionDot, Badge, Button, ConnDot, StatusDot, iconButtonClass } from './ui'
+import { AttentionDot, Badge, Button, ConnDot, IconButton, StatusDot } from './ui'
 
 const ROW_H = 26
 const OVERSCAN = 8
@@ -1353,19 +1353,18 @@ function RowBtn({
   danger?: boolean
 }) {
   return (
-    <button
-      title={title}
+    <IconButton
+      tip={title}
       onClick={(e) => {
         e.stopPropagation()
         onClick()
       }}
       className={clsx(
-        iconButtonClass,
-        'text-ink-400 hover:bg-ink-750',
+        'text-ink-400 hover:bg-ink-750 active:bg-ink-700',
         danger ? 'hover:text-danger' : 'hover:text-ink-100',
       )}
     >
       {icon}
-    </button>
+    </IconButton>
   )
 }

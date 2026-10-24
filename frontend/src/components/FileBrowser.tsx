@@ -416,7 +416,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.home')}
+          tip={t('files.home')}
           onClick={() => void load('')}
         >
           <Home size={12} />
@@ -424,7 +424,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.up')}
+          tip={t('files.up')}
           disabled={!listing?.parent}
           onClick={() => listing?.parent && void load(listing.parent)}
         >
@@ -446,25 +446,25 @@ export function FileBrowser({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.search')}
+          tip={t('files.search')}
           onClick={() => (query === null ? setQuery('') : closeSearch())}
         >
           <Search size={12} className={query !== null ? 'text-accent' : undefined} />
         </Button>
-        <Button size="sm" variant="subtle" title={t('files.newFolder')} onClick={() => setNewDir('')}>
+        <Button size="sm" variant="subtle" tip={t('files.newFolder')} onClick={() => setNewDir('')}>
           <FolderPlus size={12} />
         </Button>
         <Button
           size="sm"
           variant="subtle"
-          title={t('files.addAsProject.title', {
+          tip={t('files.addAsProject.title', {
             name: cwd.split('/').filter(Boolean).pop() || cwd,
           })}
           onClick={() => void addAsProject(cwd)}
         >
           <Boxes size={12} />
         </Button>
-        <Button size="sm" variant="subtle" title={t('common.refresh')} onClick={() => void load(cwd)} disabled={loading}>
+        <Button size="sm" variant="subtle" tip={t('common.refresh')} onClick={() => void load(cwd)} disabled={loading}>
           <RefreshCw size={12} className={loading ? 'animate-spin' : undefined} />
         </Button>
         {!isLocalHost && (
@@ -500,7 +500,7 @@ export function FileBrowser({ tab }: { tab: Tab }) {
           >
             {deep?.busy ? t('files.search.searching') : t('files.search.deep')}
           </Button>
-          <Button size="sm" title={t('common.close')} onClick={closeSearch}>
+          <Button size="sm" tip={t('common.close')} onClick={closeSearch}>
             <X size={11} />
           </Button>
         </div>

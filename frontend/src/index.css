@@ -453,14 +453,20 @@
 
 /* A press: the control shrinks a hair under the pointer and springs back on
    release. Apple applies this to nearly every button; the overshoot on the way
-   back is what makes it feel like a thing rather than a rectangle. */
+   back is what makes it feel like a thing rather than a rectangle.
+
+   The shrink is slight on purpose, and on a 22px icon button it is barely
+   there — which is why the buttons also deepen their fill while held. macOS
+   gives a small control most of its press feedback through colour, and the
+   scale is the finishing touch. A control that wants a firmer shrink sets
+   `--press-scale` rather than fighting this transform with another. */
 @utility pressable {
-  transition-property: transform, background-color, color, box-shadow, opacity;
+  transition-property: transform, background-color, color, box-shadow, opacity, filter;
   transition-duration: var(--duration-quick);
   transition-timing-function: var(--ease-spring);
 
   &:active {
-    transform: scale(0.96);
+    transform: scale(var(--press-scale, 0.96));
     transition-duration: 60ms;
   }
 }

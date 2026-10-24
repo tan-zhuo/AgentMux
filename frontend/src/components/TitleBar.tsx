@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { isDesktop } from '../lib/api'
 import { useAppStore } from '../store/useAppStore'
 import { useT } from '../store/useI18n'
+import { Tooltip } from './Tooltip'
 
 type Light = 'close' | 'minimise' | 'zoom'
 
@@ -40,8 +41,8 @@ function TrafficLight({
   const inactive = !focused
 
   return (
-    // Deliberately no title attribute: macOS shows no tooltip here, and the
-    // native one pops a white box over the title bar.
+    // Deliberately no tooltip, native or ours: macOS shows none on these, and
+    // the dots are their own explanation.
     <button
       type="button"
       aria-label={label}
@@ -206,12 +207,12 @@ export function TitleBar() {
       <div className="ml-auto flex items-center gap-0.5">
         <TitleBarButton
           active={sidebarOpen}
-          title={t('title.toggleSidebar')}
+          tip={t('title.toggleSidebar')}
           onClick={toggleSidebar}
         >
           <PanelLeft size={14} />
         </TitleBarButton>
-        <TitleBarButton active={rightOpen} title={t('title.togglePanel')} onClick={toggleRight}>
+        <TitleBarButton active={rightOpen} tip={t('title.togglePanel')} onClick={toggleRight}>
           <PanelRight size={14} />
         </TitleBarButton>
       </div>
@@ -221,28 +222,29 @@ export function TitleBar() {
 
 function TitleBarButton({
   children,
-  title,
+  tip,
   active,
   onClick,
 }: {
   children: React.ReactNode
-  title: string
+  tip: string
   active?: boolean
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={clsx(
-        'no-drag-region pressable rounded-control p-1.5',
-        active
-          ? 'text-ink-200 hover:bg-ink-800'
-          : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip label={tip}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={clsx(
+          'no-drag-region pressable rounded-control p-1.5 active:bg-ink-750',
+          active
+            ? 'text-ink-200 hover:bg-ink-800'
+            : 'text-ink-600 hover:bg-ink-800 hover:text-ink-300',
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
   )
 }

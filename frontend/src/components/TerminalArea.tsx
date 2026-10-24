@@ -29,7 +29,8 @@ import { DesktopPane } from './DesktopPane'
 import { EditorPane } from './EditorPane'
 import { FileBrowser } from './FileBrowser'
 import { TerminalPane } from './TerminalPane'
-import { AttentionDot, Empty, iconButtonClass } from './ui'
+import { Tooltip } from './Tooltip'
+import { AttentionDot, Empty, IconButton, iconButtonClass } from './ui'
 
 /** The narrowest and shortest a pane is worth being, in CSS pixels: roughly
  *  forty columns and a dozen rows at the terminal's own type size. Below that a
@@ -682,17 +683,18 @@ export function TerminalArea() {
                 {(tab.status === 'closed' || tab.status === 'error') && (
                   <span className="h-1.5 w-1.5 rounded-capsule bg-ink-600" />
                 )}
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void closeTab(tab.id)
-                  }}
-                  className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-100/10 hover:text-ink-100 focus-visible:opacity-100"
-                  title={t('area.closeTab')}
-                >
-                  <X size={11} />
-                </button>
+                <Tooltip label={t('area.closeTab')}>
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void closeTab(tab.id)
+                    }}
+                    className="pressable ml-0.5 rounded-[5px] p-0.5 text-ink-500 opacity-0 group-hover:opacity-100 hover:bg-ink-100/10 hover:text-ink-100 focus-visible:opacity-100 active:bg-ink-100/15"
+                  >
+                    <X size={11} />
+                  </button>
+                </Tooltip>
               </div>
             )
           })}
@@ -706,53 +708,51 @@ export function TerminalArea() {
         {tabs.length > 0 && (
           <div className="flex shrink-0 items-center gap-0.5 border-l hairline px-1.5">
             {panes.length > 1 && canFlip && (
-              <button
+              <IconButton
                 onClick={() => setSplitAxis(splitAxis === 'cols' ? 'rows' : 'cols')}
-                title={
+                tip={
                   splitAxis === 'cols'
                     ? t('area.stackPanes', { cols: flipped.cols, rows: flipped.rows })
                     : t('area.sideBySide', { cols: flipped.cols, rows: flipped.rows })
                 }
-                className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
+                className="text-ink-400 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750"
               >
                 {splitAxis === 'cols' ? <Rows2 size={13} /> : <Columns2 size={13} />}
-              </button>
+              </IconButton>
             )}
             {panes.length > 1 && (
-              <button
+              <IconButton
                 onClick={toggleZoom}
-                title={
-                  zoomed ? t('area.unzoom') : t('area.zoom')
-                }
-                className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
+                tip={zoomed ? t('area.unzoom') : t('area.zoom')}
+                className="text-ink-400 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750"
               >
                 {zoomed ? <Shrink size={13} /> : <Expand size={13} />}
-              </button>
+              </IconButton>
             )}
             {panes.length > 1 && (
-              <button
+              <IconButton
                 onClick={() => activeTabId && closePane(activeTabId)}
-                title={t('area.closePane.title')}
-                className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
+                tip={t('area.closePane.title')}
+                className="text-ink-400 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750"
               >
                 <Minimize2 size={13} />
-              </button>
+              </IconButton>
             )}
             {/* A click is deliberate, so it asks what the pane should show —
                 including a shell or an agent that is not open yet. ⌘\ is the
                 impatient path and takes the next tab without asking. */}
-            <button
+            <IconButton
               onClick={() => openDialog({ kind: 'split' })}
               disabled={panes.length >= MAX_PANES}
-              title={
+              tip={
                 panes.length >= MAX_PANES
                   ? t('area.paneLimit.title', { n: MAX_PANES })
                   : t('area.addPane.title')
               }
-              className={clsx(iconButtonClass, 'text-ink-400 hover:bg-ink-800 hover:text-ink-100')}
+              className="text-ink-400 hover:bg-ink-800 hover:text-ink-100 active:bg-ink-750"
             >
               <SplitSquareHorizontal size={13} />
-            </button>
+            </IconButton>
           </div>
         )}
       </div>
