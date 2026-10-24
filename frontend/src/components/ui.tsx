@@ -1,9 +1,10 @@
 import clsx from 'clsx'
 import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { useContext, useEffect, useRef } from 'react'
 import { ExitingContext, useSlidingPill } from '../lib/motion'
 import type { AgentStatus } from '../lib/types'
+import { Tooltip } from './Tooltip'
 
 /**
  * The shared controls, styled after Apple's.
@@ -28,6 +29,7 @@ export function Button({
   size = 'md',
   disabled,
   title,
+  tip,
   className,
   type = 'button',
 }: {
@@ -36,14 +38,17 @@ export function Button({
   variant?: 'primary' | 'ghost' | 'danger' | 'subtle'
   size?: 'sm' | 'md'
   disabled?: boolean
+  /** The native tooltip. It is on its way out; new code should say `tip`. */
   title?: string
+  /** The label shown while the pointer rests on the button — see Tooltip. */
+  tip?: string
   className?: string
   type?: 'button' | 'submit'
 }) {
-  return (
+  const button = (
     <button
       type={type}
-      title={title}
+      title={tip ? undefined : title}
       disabled={disabled}
       onClick={onClick}
       className={clsx(
@@ -88,6 +93,7 @@ export function Button({
       {children}
     </button>
   )
+  return tip ? <Tooltip label={tip}>{button}</Tooltip> : button
 }
 
 export function Field({
@@ -142,6 +148,27 @@ export const textareaClass = `${controlBase} py-1.5 leading-relaxed`
 export const iconButtonClass =
   'pressable [--press-scale:0.92] inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-control ' +
   'focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-40'
+
+/**
+ * An icon-only button with its name in a tooltip: `iconButtonClass`, the
+ * label, and nothing else to remember. The label also becomes the button's
+ * accessible name, which a glyph on its own does not have. Colour still
+ * belongs to the caller, for the reason given above.
+ */
+export function IconButton({
+  tip,
+  className,
+  children,
+  ...rest
+}: Omit<ComponentProps<'button'>, 'title'> & { tip: string }) {
+  return (
+    <Tooltip label={tip}>
+      <button type="button" {...rest} className={clsx(iconButtonClass, className)}>
+        {children}
+      </button>
+    </Tooltip>
+  )
+}
 
 /**
  * A key cap, for the shortcut hints a palette or a menu shows beside a
